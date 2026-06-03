@@ -12,8 +12,6 @@ import de.knutwurst.knutcut.data.Material
 import de.knutwurst.knutcut.data.Materials
 import de.knutwurst.knutcut.data.PlotterModel
 import de.knutwurst.knutcut.svgcore.Bounds
-import de.knutwurst.knutcut.svgcore.CutResult
-import de.knutwurst.knutcut.svgcore.CutSettings
 import de.knutwurst.knutcut.svgcore.HpglEncoder
 import de.knutwurst.knutcut.svgcore.Matrix
 import de.knutwurst.knutcut.svgcore.PlotterSession
@@ -23,7 +21,15 @@ import de.knutwurst.knutcut.svgcore.Pt
 import de.knutwurst.knutcut.svgcore.SvgParser
 import de.knutwurst.knutcut.transport.BluetoothPlotter
 import de.knutwurst.knutcut.transport.SppPlotterLink
+import de.knutwurst.knutcut.svgcore.Query
+import de.knutwurst.knutcut.svgcore.Handshake
+import de.knutwurst.knutcut.svgcore.Bye
+import de.knutwurst.knutcut.svgcore.PltCommand
+import de.knutwurst.knutcut.svgcore.responseStateReady
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -63,10 +69,12 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             val polys = SvgParser.parse(text)
             if (polys.isEmpty()) { status = "Keine schneidbaren Pfade in der SVG gefunden."; return }
             polylines = polys
-            bounds = Bounds.of(polys.flatMap { it.points })
+            val b = Bounds.of(polys.flatMap { it.points })
+            bounds = b
             scale = 1.0
             rotationDeg = 0.0
-            centerMm = Pt(model.matWidthMm / 2, model.matHeightMm / 2)
+            // place the design's top-left at the plotter origin (0,0)
+            centerMm = Pt(b.widthMm / 2, b.heightMm / 2)
             status = "Design geladen."
         } catch (e: Exception) {
             status = "SVG konnte nicht gelesen werden: ${e.message}"
@@ -84,7 +92,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun resetPlacement() {
         scale = 1.0
         rotationDeg = 0.0
-        centerMm = Pt(model.matWidthMm / 2, model.matHeightMm / 2)
+        val b = bounds
+        centerMm = if (b != null) Pt(b.widthMm / 2, b.heightMm / 2)
+        else Pt(model.matWidthMm / 2, model.matHeightMm / 2)
     }
 
     /** Size of the placed design in millimetres (bounding box after scale). */
@@ -135,6 +145,12 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
     }
 
+    private var cutJob: Job? = null
+
+    /**
+     * The cut follows the machine's own workflow so it never cuts into the air: set up, then wait for
+     * the media to be loaded (Laden-Taste), then wait for the start key, and only then send the path.
+     */
     fun cut() {
         val l = link
         if (!connected || l == null) { status = "Bitte zuerst den Plotter verbinden."; return }
@@ -142,20 +158,68 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         if (cutting) return
         cutting = true
         progress = 0f
-        status = "Sende an den Plotter…"
-        viewModelScope.launch {
-            val commands = HpglEncoder.encode(placedPolylines())
-            val msgs = Protocol.buildCut(commands, CutSettings(material.id, speed, force))
-            val session = PlotterSession(l).apply {
-                onProgress = { sent, total -> progress = sent.toFloat() / total }
-            }
-            val result = withContext(Dispatchers.IO) { session.run(msgs) }
-            cutting = false
-            status = when (result) {
-                is CutResult.Done -> "Schnitt gesendet."
-                is CutResult.Failed -> "Abbruch bei Schritt ${result.atMessage}: ${result.reason}"
+        cutJob = viewModelScope.launch {
+            val session = PlotterSession(l)
+            try {
+                status = "Verbinde mit dem Plotter…"
+                if (withContext(Dispatchers.IO) { session.send(Handshake) } == null) {
+                    finishCut("Keine Antwort vom Plotter."); return@launch
+                }
+                withContext(Dispatchers.IO) {
+                    session.send(PltCommand("TB66;"))
+                    session.send(PltCommand("setmat:${material.id};"))
+                    session.send(PltCommand("SP$speed;FS$force;"))
+                }
+
+                status = "Lege Matte/Material ein und drücke die Laden-Taste am Plotter."
+                if (!pollState(session, Query("queryPulled"))) { finishCut("Kein Material geladen (Zeitüberschreitung)."); return@launch }
+
+                status = "Drücke die Start-Taste am Plotter."
+                if (!pollState(session, Query("queryStartKey"))) { finishCut("Start-Taste nicht gedrückt (Zeitüberschreitung)."); return@launch }
+
+                status = "Schneide…"
+                val commands = HpglEncoder.encode(placedPolylines())
+                val fileMsgs = buildList {
+                    add(PltCommand("TB66;"))
+                    addAll(Protocol.pathFile(commands))
+                    add(PltCommand("TB66;"))
+                }
+                fileMsgs.forEachIndexed { i, m ->
+                    if (withContext(Dispatchers.IO) { session.send(m) } == null) {
+                        finishCut("Übertragung abgebrochen bei Schritt ${i + 1}."); return@launch
+                    }
+                    progress = (i + 1).toFloat() / fileMsgs.size
+                }
+                withContext(Dispatchers.IO) { session.send(Bye) }
+                finishCut("Schnitt fertig gesendet.")
+            } catch (e: CancellationException) {
+                cutting = false
+                status = "Abgebrochen."
+                throw e
+            } catch (e: Exception) {
+                finishCut("Fehler: ${e.message}")
             }
         }
+    }
+
+    private fun finishCut(msg: String) {
+        cutting = false
+        progress = 0f
+        status = msg
+    }
+
+    /** Poll a query until the device reports a ready state, or give up after [attempts] tries. */
+    private suspend fun pollState(session: PlotterSession, query: Query, attempts: Int = 150, intervalMs: Long = 800): Boolean {
+        repeat(attempts) {
+            val resp = withContext(Dispatchers.IO) { session.send(query) }
+            if (responseStateReady(resp)) return true
+            delay(intervalMs)
+        }
+        return false
+    }
+
+    fun cancelCut() {
+        cutJob?.cancel()
     }
 
     override fun onCleared() {

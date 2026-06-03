@@ -27,7 +27,7 @@ class PlotterSession(private val link: PlotterLink, private var cseq: Int = 0) {
 
     fun run(messages: List<PlotterMessage>, ackTimeoutMs: Long = 5000, maxAttempts: Int = 5): CutResult {
         messages.forEachIndexed { i, msg ->
-            if (!sendOne(msg, ackTimeoutMs, maxAttempts)) {
+            if (send(msg, ackTimeoutMs, maxAttempts) == null) {
                 return CutResult.Failed(i, "no valid response after $maxAttempts attempts")
             }
             onProgress?.invoke(i + 1, messages.size)
@@ -35,17 +35,27 @@ class PlotterSession(private val link: PlotterLink, private var cseq: Int = 0) {
         return CutResult.Done
     }
 
-    private fun sendOne(msg: PlotterMessage, timeoutMs: Long, maxAttempts: Int): Boolean {
+    /** Frame and send one message, retrying on crc/timeout. Returns the device's response line, or null. */
+    fun send(msg: PlotterMessage, timeoutMs: Long = 5000, maxAttempts: Int = 5): String? {
         repeat(maxAttempts) {
             link.write(Frame.encode(msg, cseq))
             cseq++
             val resp = link.readLine(timeoutMs)
-            if (resp != null && !isCrcError(resp)) return true
+            if (resp != null && !isCrcError(resp)) return resp
             // null (timeout) or crc rejection: try again with the next cseq
         }
-        return false
+        return null
     }
 
     private fun isCrcError(line: String): Boolean =
-        line.contains("\"type\":\"crc\"") || line.contains("\"crc\"") && line.contains("error")
+        line.contains("\"type\":\"crc\"") || (line.contains("\"crc\"") && line.contains("error"))
+}
+
+/**
+ * True if a query response carries a truthy `state` — the device's way of saying the media is pulled
+ * in (queryPulled) or the start key has been pressed (queryStartKey).
+ */
+fun responseStateReady(line: String?): Boolean {
+    if (line == null) return false
+    return Regex("\"state\"\\s*:\\s*\"?(?:true|[1-9][0-9]*)").containsMatchIn(line)
 }

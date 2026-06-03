@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -89,15 +90,30 @@ fun MainScreen(vm: KnutcutViewModel) {
             Spacer(Modifier.height(8.dp))
 
             if (vm.cutting) {
-                LinearProgressIndicator(progress = { vm.progress }, modifier = Modifier.fillMaxWidth())
+                Text(
+                    vm.status ?: "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 Spacer(Modifier.height(6.dp))
-            }
-            Button(
-                onClick = { vm.cut() },
-                enabled = vm.connected && vm.hasDesign && !vm.cutting,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-            ) {
-                Text(if (vm.cutting) "Schneide… ${(vm.progress * 100).toInt()}%" else "Schneiden")
+                if (vm.progress > 0f) {
+                    LinearProgressIndicator(progress = { vm.progress }, modifier = Modifier.fillMaxWidth())
+                } else {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+                Spacer(Modifier.height(6.dp))
+                OutlinedButton(onClick = { vm.cancelCut() }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                    Text("Abbrechen")
+                }
+            } else {
+                Button(
+                    onClick = { vm.cut() },
+                    enabled = vm.connected && vm.hasDesign,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                ) {
+                    Text("Schneiden")
+                }
             }
         }
     }
@@ -126,18 +142,26 @@ private fun PlacementBar(vm: KnutcutViewModel) {
 
 @Composable
 private fun MaterialBar(vm: KnutcutViewModel) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        var expanded by remember { mutableStateOf(false) }
-        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.weight(1f)) {
-            Text(vm.material.name, maxLines = 1)
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            Materials.presets.forEach { m ->
-                DropdownMenuItem(text = { Text(m.name) }, onClick = { vm.selectMaterial(m); expanded = false })
+    var expanded by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(vm.material.name, maxLines = 1)
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                Materials.presets.forEach { m ->
+                    DropdownMenuItem(text = { Text(m.name) }, onClick = { vm.selectMaterial(m); expanded = false })
+                }
             }
         }
-        Stepper("Tempo", vm.speed, Materials.SPEED_MIN, Materials.SPEED_MAX) { vm.speed = it }
-        Stepper("Druck", vm.force, Materials.FORCE_MIN, Materials.FORCE_MAX) { vm.force = it }
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                Stepper("Tempo", vm.speed, Materials.SPEED_MIN, Materials.SPEED_MAX) { vm.speed = it }
+            }
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                Stepper("Druck", vm.force, Materials.FORCE_MIN, Materials.FORCE_MAX) { vm.force = it }
+            }
+        }
     }
 }
 
