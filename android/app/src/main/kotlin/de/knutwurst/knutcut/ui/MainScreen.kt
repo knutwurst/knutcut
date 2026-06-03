@@ -45,6 +45,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
@@ -160,6 +161,13 @@ fun MainScreen(vm: KnutcutViewModel) {
                     Text("Abbrechen")
                 }
             } else {
+                if (vm.layers.size > 1) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = vm.cutSelectedOnly, onCheckedChange = { vm.changeCutSelectedOnly(it) })
+                        Text("Nur ausgewählte Ebene schneiden", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Spacer(Modifier.height(4.dp))
+                }
                 Button(
                     onClick = { if (vm.connected) vm.cut() else openDevices() },
                     enabled = vm.hasDesign && !vm.cutting,

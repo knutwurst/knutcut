@@ -97,6 +97,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     private var link: SppPlotterLink? = null
 
     // Cut.
+    var cutSelectedOnly by mutableStateOf(false); private set
     var cutting by mutableStateOf(false); private set
     var progress by mutableStateOf(0f); private set
 
@@ -263,6 +264,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun changePenForce(v: Int) { penForce = v; settings.penForce = v }
 
+    fun changeCutSelectedOnly(v: Boolean) { cutSelectedOnly = v }
+
     /** Pressure for a tool: the material's knife pressure for the knife, the lighter pen pressure for the pen. */
     fun forceFor(t: Tool): Int = if (t == Tool.PEN) penForce else force
 
@@ -330,12 +333,19 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         link?.close(); link = null; connected = false; device = null; status = "Getrennt."
     }
 
-    /** Visible layers placed on the mat (mm, y-down), each paired with its tool — for drawing. */
-    fun placedLayers(): List<Pair<Tool, List<Polyline>>> =
-        layers.filter { it.visible }.map { layer ->
+    private fun placedPolylines(ls: List<Layer>): List<Pair<Tool, List<Polyline>>> =
+        ls.map { layer ->
             val m = layerMatrix(layer)
             layer.tool to layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
         }
+
+    /** Visible layers placed on the mat (mm, y-down), each paired with its tool — for drawing. */
+    fun placedLayers(): List<Pair<Tool, List<Polyline>>> = placedPolylines(layers.filter { it.visible })
+
+    /** The layers a cut will send: just the selected one when [cutSelectedOnly], else all visible. */
+    private fun cutLayers(): List<Layer> =
+        if (cutSelectedOnly) listOfNotNull(layers.getOrNull(selectedLayer)?.takeIf { it.visible })
+        else layers.filter { it.visible }
 
     /** Placement matrix for one layer: rotate/scale/mirror about its own centre, then move to [Layer.centerMm]. */
     private fun layerMatrix(layer: Layer): Matrix =
@@ -360,9 +370,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun isOutsideMat(p: Pt, tolMm: Double = 1.0): Boolean =
         p.xMm < -tolMm || p.yMm < -tolMm || p.xMm > mat.widthMm + tolMm || p.yMm > mat.heightMm + tolMm
 
-    /** True if every visible layer fits within the mat. */
+    /** True if everything that will be cut fits within the mat. */
     fun designWithinMat(): Boolean =
-        placedLayers().all { (_, pls) -> pls.all { pl -> pl.points.none { isOutsideMat(it) } } }
+        placedPolylines(cutLayers()).all { (_, pls) -> pls.all { pl -> pl.points.none { isOutsideMat(it) } } }
 
     /** The topmost visible layer whose placed box contains [ptMm], or -1 if none. */
     fun layerAt(ptMm: Pt): Int {
@@ -385,10 +395,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return true
     }
 
-    /** Plotter-space polylines for one tool's visible layers (placed + Y-flipped, since the plotter is Y-up). */
+    /** Plotter-space polylines for one tool's layers being cut (placed + Y-flipped, since the plotter is Y-up). */
     private fun plotterPolylinesFor(t: Tool): List<Polyline> {
         val h = mat.heightMm
-        return layers.filter { it.visible && it.tool == t }.flatMap { layer ->
+        return cutLayers().filter { it.tool == t }.flatMap { layer ->
             val m = layerMatrix(layer)
             layer.polylines.map { pl -> Polyline(pl.points.map { val w = m.apply(it); Pt(w.xMm, h - w.yMm) }, pl.closed) }
         }
@@ -421,7 +431,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             Log.d(TAG, "handshake -> $hs")
             if (hs == null) { finishCut("Keine Antwort vom Plotter."); return }
 
-            val toolsUsed = layers.filter { it.visible }.map { it.tool }.distinct()
+            val toolsUsed = cutLayers().map { it.tool }.distinct()
             if (toolsUsed.isEmpty()) { finishCut("Keine sichtbaren Ebenen."); return }
             val primaryTool = if (Tool.KNIFE in toolsUsed) Tool.KNIFE else toolsUsed.first()
 
