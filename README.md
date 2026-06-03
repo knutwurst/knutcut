@@ -1,32 +1,30 @@
 # Knutcut
 
-A small, focused Android app that **receives an SVG via Android Share**, lets you **place & scale**
-it on a virtual mat, and **cuts it on a VEVO Smart 1 plotter over Bluetooth LE** — German-native,
-no login, no account.
+Android app for cutting my own SVGs on a VEVO Smart 1 plotter.
 
-It's the missing last link for the [`cricut-export`](https://github.com/knutwurst) workflow: export
-your own design to a true-to-scale SVG, share it to Knutcut, cut it.
+Share an SVG to Knutcut (for example from Cricut Export), place and scale it on the mat, send it to
+the plotter over Bluetooth. German UI, no account, no login.
 
-## Why
+The app that ships with the plotter ("Superb Cut") has a broken German translation, forces a login,
+and can't take a shared SVG. Knutcut does just the part I need, in code I control.
 
-The VEVO Smart 1 ships with a Chinese cross-platform app ("Superb Cut") whose German translation is
-broken, that requires a login, and that can't receive shared SVG files. Knutcut does only what's
-needed — import an SVG, position it, send it to the plotter — in clean, testable, owned code.
+## Build
 
-## Status
+Uses the same local toolchain as cricut-export (Android SDK and Gradle under `tools/`, JDK 17).
 
-🚧 **Design phase.** See the spec in [`docs/superpowers/specs/`](docs/superpowers/specs/).
-Implementation starts with a protocol spike (confirm the BLE/HPGL command stream against a real cut).
+    cd android
+    ./gradlew :app:assembleRelease     # installable APK
+    ./gradlew test                     # unit tests
 
-## Architecture (planned)
+## Layout
 
-- **`svgcore`** — pure-Kotlin, Android-free, reusable: SVG → mm geometry → HPGL/plotter command stream.
-  Built so `cricut-export` can depend on it later. Fully host-unit-tested.
-- **`ble`** — Android BLE transport to the plotter (scan, connect, chunked writes, ack handshake).
-- **`app`** — Jetpack Compose UI: share-intent receiver, mat canvas (place/scale), material picker, cut.
+- `svgcore` — pure Kotlin, no Android. Turns an SVG into mm geometry and then into the plotter
+  command stream. No Android dependency, so cricut-export can reuse it. Unit-tested on the JVM.
+- `transport` — classic Bluetooth Serial (SPP) link to the plotter.
+- `app` — Compose UI: share target, mat editor (place, scale, rotate), material picker, cut.
 
-## Legal / scope
+## Notes
 
-For **personal use** with hardware you own. Knutcut contains **only original code**. No third-party
-app binaries, decompiled sources, or proprietary assets are included or redistributed — the plotter
-protocol is reimplemented for interoperability with a device you own, observed via your own traffic.
+Personal use with my own hardware. Contains only my own code. The plotter protocol is
+reimplemented from watching my own device; no third-party app code or assets are included.
+See `docs/` for the design and the protocol notes.
