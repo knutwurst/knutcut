@@ -45,8 +45,6 @@ private const val ROTATE_ARM_PX = 44f
 @Composable
 fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     var sizePx by remember { mutableStateOf(IntSize.Zero) }
-    var camScale by remember { mutableStateOf(1f) }
-    var camOffset by remember { mutableStateOf(Offset.Zero) }
 
     val gridMinor = Color(0x1AFFFFFF)
     val gridMajor = Color(0x40FFFFFF)
@@ -59,9 +57,9 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
         modifier = modifier.pointerInput(Unit) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
-                var ppm = ppmFor(sizePx, vm.mat, camScale)
+                var ppm = ppmFor(sizePx, vm.mat, vm.camScale)
                 if (ppm <= 0f) return@awaitEachGesture
-                var origin = originFor(sizePx, vm.mat, camScale, camOffset)
+                var origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
 
                 val corners = vm.placedCorners().map { worldToScreen(it, origin, ppm) }
                 val centerScreen = worldToScreen(vm.centerMm, origin, ppm)
@@ -84,17 +82,17 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                         val prevD = (p0.previousPosition - p1.previousPosition).getDistance()
                         val curD = (p0.position - p1.position).getDistance()
                         val z = if (prevD > 0f) curD / prevD else 1f
-                        camOffset = curC - (prevC - camOffset) * z
-                        camScale *= z
+                        vm.camOffset = curC - (prevC - vm.camOffset) * z
+                        vm.camScale *= z
                         drag = Drag.Camera
                         event.changes.forEach { it.consume() }
                     } else {
                         val p = pressed[0]
-                        ppm = ppmFor(sizePx, vm.mat, camScale)
-                        origin = originFor(sizePx, vm.mat, camScale, camOffset)
+                        ppm = ppmFor(sizePx, vm.mat, vm.camScale)
+                        origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
                         val cs = worldToScreen(vm.centerMm, origin, ppm)
                         when (val d = drag) {
-                            Drag.Camera, Drag.PanCamera -> camOffset += p.positionChange()
+                            Drag.Camera, Drag.PanCamera -> vm.camOffset += p.positionChange()
                             Drag.Move -> {
                                 val dp = p.positionChange()
                                 vm.centerMm = Pt(vm.centerMm.xMm + dp.x / ppm, vm.centerMm.yMm + dp.y / ppm)
@@ -115,9 +113,9 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
         },
     ) {
         sizePx = IntSize(size.width.toInt(), size.height.toInt())
-        val ppm = ppmFor(sizePx, vm.mat, camScale)
+        val ppm = ppmFor(sizePx, vm.mat, vm.camScale)
         if (ppm <= 0f) return@Canvas
-        val origin = originFor(sizePx, vm.mat, camScale, camOffset)
+        val origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
         fun s(p: Pt) = worldToScreen(p, origin, ppm)
 
         drawGrid(vm.mat, origin, ppm, gridMinor, gridMajor)

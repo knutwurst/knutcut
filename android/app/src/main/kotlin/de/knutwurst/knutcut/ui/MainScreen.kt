@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import de.knutwurst.knutcut.BuildConfig
 import de.knutwurst.knutcut.data.Devices
 import de.knutwurst.knutcut.data.Materials
 import de.knutwurst.knutcut.data.Mats
@@ -83,7 +84,14 @@ fun MainScreen(vm: KnutcutViewModel) {
     Surface(color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Knutcut", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Knutcut", style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        "v${BuildConfig.VERSION_NAME} · Knutwurst",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 TextButton(onClick = { openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "application/octet-stream")) }) {
                     Text("Öffnen")
                 }
@@ -174,7 +182,7 @@ private fun MaterialBar(vm: KnutcutViewModel) {
                 Text(vm.material.name, maxLines = 1)
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                Materials.presets.forEach { m ->
+                Materials.presets.sortedBy { it.name.lowercase() }.forEach { m ->
                     DropdownMenuItem(text = { Text(m.name) }, onClick = { vm.selectMaterial(m); expanded = false })
                 }
             }

@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.knutwurst.knutcut.data.Devices
@@ -52,6 +53,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var scale by mutableStateOf(1.0)
     var rotationDeg by mutableStateOf(0.0)
     var centerMm by mutableStateOf(Pt(0.0, 0.0))
+
+    // Mat view camera (zoom + pan of the work area).
+    var camScale by mutableStateOf(1f)
+    var camOffset by mutableStateOf(Offset.Zero)
 
     // Material / cut settings.
     var material by mutableStateOf<Material>(Materials.default); private set
@@ -121,6 +126,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         rotationDeg = 0.0
         val b = bounds
         centerMm = if (b != null) Pt(b.widthMm / 2, b.heightMm / 2) else Pt(0.0, 0.0)
+        camScale = 1f
+        camOffset = Offset.Zero
     }
 
     /** Size of the placed design in millimetres (bounding box after scale). */
