@@ -16,7 +16,7 @@ Cricut Export app, but from any source), lets the user **place and scale** it on
 - Place, scale and **rotate** on a mat that represents the plotter work area; show real-world mm size.
 - **Select among multiple plotters** (the Smart1–4 device family); remember the chosen device.
 - Material presets (cut force / speed per material), ported from the stock app's values.
-- Bluetooth-LE connect to the plotter and send the cut; surface progress and the "media loaded?" check.
+- Bluetooth **classic Serial (SPP)** connect to the plotter and send the cut; surface progress and the "media loaded?" check.
 
 **Non-goals (YAGNI)**
 - Design/asset library, camera trace / auto-trace, account/login, cloud sync, multi-vendor support.
@@ -36,15 +36,18 @@ The VEVO Smart 1's stock app is **"Superb Cut"** (`com.cn.huiwo.vevor`, v2.5.55)
 - The app logic is **readable, un-encrypted minified JS** (`app-service.js`). German, login, SVG handling
   and the plotter command logic all live there — not in Android resources or smali. (That's why the APK
   has no `de` resource: German is a vue-i18n locale inside the JS.)
-- **Plotter protocol is recoverable from that JS.** It uses a framed JSON message protocol over BLE:
-  - `handshake` / `bye` — connect / disconnect
-  - `pltCommand { data }` — control: `TB66;` (setup), `JS…`, `SP…`, `setmat:…` (set material)
-  - `pltFile { index, total, data }` — the cut, **sent chunked**; payload is **HPGL-like** (`PU`/`PD` pen up/down)
-  - `query { action }` — `queryMaterial`, `queryPulled` (media loaded?), `queryStartKey`
-  - device registry: `name_lang:"Smart1"`, `knife_count:2`, models Smart1–4; scan matches an advertised `localName` prefix
-- **Not in the JS:** the lowest BLE-GATT layer (service/characteristic UUIDs, byte serialization of the
-  messages, MTU/chunk size, write-with-response vs. notify). That lives in a native UTS module / `.so` and
-  is the one piece the Phase 0 spike must capture.
+- **Plotter protocol fully recovered (Phase 0 spike done — see [`protocol-findings.md`](protocol-findings.md)).**
+  - **Transport = classic Bluetooth Serial (SPP/RFCOMM), _not_ BLE.** The native plugin
+    `com.cn.wudao.uniplugin` (`WuDaoBTModule`/`BluetoothUtil`) connects via
+    `createRfcommSocketToServiceRecord(00001101-…)` and writes command strings **raw** to the socket;
+    responses are **`\r\n`-terminated lines** (send-and-wait). No GATT, no binary framing.
+  - **Command sequence (each a raw string):** `handshake` → `queryMaterial`/`queryStartKey`/`queryPulled` →
+    `TB66;` (init) → `setmat:<id>;` → `SP<speed>;FS<force>;` (speed + force) → `JS<a>,<b>;` →
+    chunked HPGL path (`PU`/`PD`, wrapped in `TB66;`) → `bye`.
+  - device registry: `name_lang:"Smart1"`, `knife_count:2`, models Smart1–4; matched by Bluetooth name/prefix.
+- **No third-party capture needed.** Samsung's bug-report omitted the HCI snoop log, but it's moot: the wire
+  bytes *are* the command strings (recovered from the JS), and the validation oracle is a real cut produced
+  by **our own** app (see §6).
 
 **Build-vs-modify decision.** We **build our own app** rather than patch the stock APK because (a) the hard
 requirement "everything plotter-related must keep working, covered by tests" is only satisfiable on code we
@@ -64,10 +67,11 @@ Mirrors `cricut-export`'s proven layering: a **pure-Kotlin, host-unit-tested cor
     Pure function → golden-testable.
   - `Protocol` — the JSON message model + chunking sequence (`handshake → setmat → pltFile chunks → bye`),
     **transport-agnostic** (emits messages/byte frames; knows nothing about BLE).
-- **`:ble`** (or a package inside `:app`) — Android transport:
-  - `PlotterTransport` interface — `connect(device)`, `sendWaitRet(message): Response`, notifications, `disconnect`.
-  - `BlePlotterTransport` — scan by `localName` prefix, GATT connect, MTU-aware chunked writes, notify/ack.
-  - `FakePlotterTransport` — records frames and scripts responses, for tests and offline development.
+- **`:transport`** (Android) — classic Bluetooth Serial (SPP/RFCOMM):
+  - `PlotterTransport` interface — `connect(device)`, `sendAndWait(command): ResponseLine`, `disconnect`.
+  - `SppPlotterTransport` — discovery by device name/prefix, `createRfcommSocketToServiceRecord(00001101-…)`,
+    write command strings to the `OutputStream`, read `\r\n`-terminated response lines (send-and-wait loop).
+  - `FakePlotterTransport` — records writes and scripts response lines, for tests and offline development.
 - **`:app`** — Jetpack Compose UI:
   - Share / `VIEW` intent receiver → load SVG.
   - **Mat canvas**: render the SVG on the VEVO Smart 1 work area; drag to place, pinch/handles to scale
@@ -84,26 +88,28 @@ shared SVG
   → user place/scale     (mat transform)
   → PathFlattener        (→ absolute mm polylines)
   → HpglEncoder          (→ PU/PD command stream)
-  → Protocol             (handshake → setmat → chunked pltFile → bye)
-  → BlePlotterTransport  (BLE GATT writes, ack-gated)
+  → Protocol             (handshake → queries → TB66; → setmat → SP/FS → chunked HPGL → bye)
+  → SppPlotterTransport  (raw RFCOMM socket writes, line-ack-gated)
   → VEVO Smart 1
 ```
 
-Each step is gated on the device acknowledgement (`sendWaitRet`), matching the stock app's flow control.
+Each command is gated on the device's `\r\n` response line (send-and-wait), matching the stock app's flow control.
 
-## 5. Plotter protocol — known vs. spike
+## 5. Plotter protocol — spike complete
 
-**Known (from JS):** the JSON message layer and the HPGL path payload described in §2.
+**Done.** Full protocol recovered from the stock app's readable JS + decompiled native plugin and written up
+in [`protocol-findings.md`](protocol-findings.md): classic Bluetooth Serial (SPP/RFCOMM) transport, raw
+string commands, `\r\n` response lines, and the `handshake → queries → TB66; → setmat → SP/FS → chunked
+HPGL → bye` command sequence.
 
-**Unknown → Phase 0 spike output:** GATT service/characteristic UUIDs; how a message serializes to bytes;
-MTU / chunk size; write-with-response vs. notify; exact handshake bytes; the material preset values.
+**Remaining details to pin during Phase 1** (cheap, confirmed via a real cut from our own app):
+- exact coordinate unit (likely 40 units/mm) and origin orientation (Y-down vs Y-up),
+- exact meaning of `JS<a>,<b>;`,
+- the material-id table + per-material `SP`/`FS` values (extract from the JS material table),
+- exact handshake/query request+response strings.
 
-**Phase 0 (de-risk before building the app):**
-1. `jadx`-decompile the native UTS/BLE module (secondary dex + `lib39285EFA.so`) for UUIDs + serialization.
-2. Capture a real cut: enable the Bluetooth HCI snoop log, perform one small cut in Superb Cut, `adb pull`
-   `btsnoop_hci.log`, analyze in Wireshark.
-3. Deliverable: a **written protocol spec** + a **golden byte capture** for a known shape — used as the
-   test oracle in §6.
+**Validation reference:** a 40 × 40 mm square at origin — re-cut from Knutcut, the generated command stream
+becomes the golden fixture (§6).
 
 ## 6. Testing strategy (hard requirement)
 
@@ -127,7 +133,7 @@ Commands: `:app:assembleRelease`, `:app:testDebugUnitTest`, `:svgcore:test`.
 
 | Risk | Mitigation |
 |------|------------|
-| BLE-GATT framing unknown | Phase 0 spike (decompile + HCI capture) + golden capture before building the app |
+| ~~BLE-GATT framing unknown~~ | ✅ Resolved by the spike: classic SPP, recovered from code — no capture needed |
 | Coordinate / scale correctness | byte-for-byte golden test, then a real cut |
 | SVG feature coverage | first target the flattened-mm SVG subset Cricut Export emits; widen later |
 | Device variants (Smart1–4) | device picker + per-model parameters/presets; Smart 1 verified first, others enabled as confirmed |
@@ -135,9 +141,9 @@ Commands: `:app:assembleRelease`, `:app:testDebugUnitTest`, `:svgcore:test`.
 
 ## 9. Implementation phases (overview)
 
-0. **Protocol spike** — capture & document the BLE/HPGL command stream; produce the golden fixture.
+0. **Protocol spike** — ✅ **done**: SPP transport + command sequence documented in `protocol-findings.md`.
 1. **`:svgcore`** — SVG → mm → HPGL → Protocol, TDD against the golden fixture.
-2. **`:ble`** — BLE transport + `FakePlotterTransport`; connect to the real plotter.
+2. **`:transport`** — SPP/RFCOMM transport + `FakePlotterTransport`; connect to the real plotter.
 3. **`:app`** — share-intent receiver, mat canvas (place/scale), material picker, cut flow (German UI).
 4. **Hardening** — real-cut verification checklist, presets, calibration, packaging.
 
