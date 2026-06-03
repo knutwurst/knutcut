@@ -3,7 +3,7 @@ package de.knutwurst.knutcut.data
 /** A material preset. [force] is the FS pressure value the machine cuts at. */
 data class Material(val id: String, val name: String, val force: Int)
 
-/** Material presets from my list in the cutter cloud (pressure = FS force). */
+/** Material presets from my list in the cutter cloud (pressure = FS force), de-duplicated by name. */
 object Materials {
     const val FORCE_MIN = 10
     const val FORCE_MAX = 350
@@ -32,7 +32,6 @@ object Materials {
         Material(id = "6ccf171c-7d66-4372-aecd-9cea5b3a4e8a", name = "Kraft paper (100g)", force = 180),
         Material(id = "669ee240-3f0c-452d-a5fe-045314f6aced", name = "Both side coated art paper (200g)", force = 220),
         Material(id = "6118c496-4970-49e8-9823-4643c99670a8", name = "Matte film", force = 180),
-        Material(id = "4210799c-c869-4c98-a3d2-ff20cffd697a", name = "Matte film", force = 185),
         Material(id = "3bc7039f-e460-4600-81e7-cfcb1bb3bcb2", name = "Papercard (300g)", force = 300),
         Material(id = "301de468-3528-47d8-a78d-ebb8574e6c8d", name = "Coloured heat transfer vinyl", force = 190),
         Material(id = "2a9d8aa8-38d4-463b-9764-dd6e9c9f7e75", name = "Matte gold heat transfer vinyl", force = 210),

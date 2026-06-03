@@ -159,8 +159,9 @@ private fun MaterialBar(vm: KnutcutViewModel) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Column(Modifier.weight(1f)) {
                 Text("Werkzeug", style = MaterialTheme.typography.labelSmall)
+                // Order matches the plotter: pen holder left, knife holder right.
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Tool.entries.forEach { t ->
+                    listOf(Tool.PEN, Tool.KNIFE).forEach { t ->
                         FilterChip(
                             selected = vm.tool == t,
                             onClick = { vm.tool = t },
