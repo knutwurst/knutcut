@@ -220,6 +220,18 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Set the selected layer's rotation to an absolute angle in degrees. */
     fun setSelectedRotation(deg: Double) = updateSelected { it.copy(rotationDeg = ((deg % 360) + 360) % 360) }
 
+    /** Align the selected layer on the mat. [hx]/[vy]: -1 = left/top, 0 = centre, 1 = right/bottom. */
+    fun alignSelected(hx: Int, vy: Int) {
+        val corners = placedCorners()
+        if (corners.size != 4) return
+        val minX = corners.minOf { it.xMm }; val maxX = corners.maxOf { it.xMm }
+        val minY = corners.minOf { it.yMm }; val maxY = corners.maxOf { it.yMm }
+        val w = maxX - minX; val h = maxY - minY
+        val tx = when { hx < 0 -> 0.0; hx > 0 -> mat.widthMm - w; else -> (mat.widthMm - w) / 2 }
+        val ty = when { vy < 0 -> 0.0; vy > 0 -> mat.heightMm - h; else -> (mat.heightMm - h) / 2 }
+        centerMm = Pt(centerMm.xMm + (tx - minX), centerMm.yMm + (ty - minY))
+    }
+
     private fun updateSelected(f: (Layer) -> Layer) {
         val i = selectedLayer
         if (i !in layers.indices) return

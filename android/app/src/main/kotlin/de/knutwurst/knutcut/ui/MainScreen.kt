@@ -383,6 +383,18 @@ fun MainScreen(vm: KnutcutViewModel) {
                                 enabled = vm.layers.size > 1,
                             ) { Text("Löschen") }
                         }
+                        Row(
+                            Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("Ausrichten:", style = MaterialTheme.typography.bodySmall)
+                            TextButton(onClick = { vm.alignSelected(0, 0) }) { Text("Mitte") }
+                            TextButton(onClick = { vm.alignSelected(-1, 0) }) { Text("Links") }
+                            TextButton(onClick = { vm.alignSelected(1, 0) }) { Text("Rechts") }
+                            TextButton(onClick = { vm.alignSelected(0, -1) }) { Text("Oben") }
+                            TextButton(onClick = { vm.alignSelected(0, 1) }) { Text("Unten") }
+                        }
                     }
                     Spacer(Modifier.height(8.dp))
                     if (vm.layers.size > 1) {
