@@ -38,6 +38,10 @@ class Settings(context: Context) {
         get() = p.getString("matName", null)
         set(v) = p.edit().putString("matName", v).apply()
 
+    var displayUnit: DisplayUnit
+        get() = runCatching { DisplayUnit.valueOf(p.getString("displayUnit", DisplayUnit.MM.name)!!) }.getOrDefault(DisplayUnit.MM)
+        set(v) = p.edit().putString("displayUnit", v.name).apply()
+
     /** Drag-knife corner/closure compensation (the stock app's pltFixUtils). On by default. */
     var dragKnifeComp: Boolean
         get() = p.getBoolean("dragKnifeComp", true)

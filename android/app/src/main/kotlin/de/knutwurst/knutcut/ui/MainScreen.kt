@@ -72,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import de.knutwurst.knutcut.BuildConfig
 import de.knutwurst.knutcut.R
 import de.knutwurst.knutcut.data.Devices
+import de.knutwurst.knutcut.data.DisplayUnit
 import de.knutwurst.knutcut.data.Materials
 import de.knutwurst.knutcut.data.Mats
 import de.knutwurst.knutcut.data.ThemeMode
@@ -251,6 +252,19 @@ fun MainScreen(vm: KnutcutViewModel) {
                     }
 
                     Spacer(Modifier.height(18.dp))
+                    Text("Einheit", style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DisplayUnit.entries.forEach { u ->
+                            FilterChip(
+                                selected = vm.displayUnit == u,
+                                onClick = { vm.changeDisplayUnit(u) },
+                                label = { Text(u.label) },
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(18.dp))
                     Text("Erscheinungsbild", style = MaterialTheme.typography.labelLarge)
                     Spacer(Modifier.height(6.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -295,8 +309,10 @@ fun MainScreen(vm: KnutcutViewModel) {
 
     if (showTransform && vm.hasDesign) {
         val b = vm.bounds
-        var w by remember { mutableStateOf(((b?.widthMm ?: 0.0) * vm.scaleX).roundToInt().toString()) }
-        var h by remember { mutableStateOf(((b?.heightMm ?: 0.0) * vm.scaleY).roundToInt().toString()) }
+        val unit = vm.displayUnit
+        fun fmt(mm: Double) = String.format(Locale.GERMAN, "%.2f", unit.fromMm(mm))
+        var w by remember { mutableStateOf(fmt((b?.widthMm ?: 0.0) * vm.scaleX)) }
+        var h by remember { mutableStateOf(fmt((b?.heightMm ?: 0.0) * vm.scaleY)) }
         var ang by remember { mutableStateOf(vm.rotationDeg.roundToInt().toString()) }
         AlertDialog(
             onDismissRequest = { showTransform = false },
@@ -305,13 +321,13 @@ fun MainScreen(vm: KnutcutViewModel) {
                 Column {
                     OutlinedTextField(
                         value = w, onValueChange = { w = it }, singleLine = true,
-                        label = { Text("Breite (mm)") },
+                        label = { Text("Breite (${unit.label})") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     )
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
                         value = h, onValueChange = { h = it }, singleLine = true,
-                        label = { Text("Höhe (mm)") },
+                        label = { Text("Höhe (${unit.label})") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     )
                     Spacer(Modifier.height(8.dp))
@@ -327,7 +343,9 @@ fun MainScreen(vm: KnutcutViewModel) {
                     val ww = w.replace(',', '.').toDoubleOrNull()
                     val hh = h.replace(',', '.').toDoubleOrNull()
                     val aa = ang.replace(',', '.').toDoubleOrNull()
-                    if (ww != null && hh != null && ww > 0 && hh > 0) vm.setSelectedSizeMm(ww, hh)
+                    if (ww != null && hh != null && ww > 0 && hh > 0) {
+                        vm.setSelectedSizeMm(unit.toMm(ww), unit.toMm(hh))
+                    }
                     if (aa != null) vm.setSelectedRotation(aa)
                     showTransform = false
                 }) { Text("Übernehmen") }
@@ -408,7 +426,7 @@ private fun PlacementBar(vm: KnutcutViewModel, onLayers: () -> Unit, onEditSize:
     Row(verticalAlignment = Alignment.CenterVertically) {
         val size = vm.designSizeMm()
         val label = if (size == null) "Kein Design – teile eine SVG zu Knutcut"
-        else String.format(Locale.GERMAN, "%.0f × %.0f mm", size.first, size.second)
+        else "${vm.formatLen(size.first)} × ${vm.formatLen(size.second)}"
         Text(
             label,
             style = MaterialTheme.typography.bodyMedium,

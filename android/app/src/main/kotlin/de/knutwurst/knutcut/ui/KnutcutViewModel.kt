@@ -14,6 +14,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.knutwurst.knutcut.data.Devices
+import de.knutwurst.knutcut.data.DisplayUnit
 import de.knutwurst.knutcut.data.Layer
 import de.knutwurst.knutcut.data.Mat
 import de.knutwurst.knutcut.data.Mats
@@ -106,12 +107,20 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     var themeMode by mutableStateOf(settings.themeMode); private set
 
+    var displayUnit by mutableStateOf(settings.displayUnit); private set
+
     var dragKnifeComp by mutableStateOf(settings.dragKnifeComp); private set
     var bladeOffset by mutableStateOf(settings.bladeOffset); private set
 
     val hasDesign: Boolean get() = layers.isNotEmpty()
 
     fun selectTheme(m: ThemeMode) { settings.themeMode = m; themeMode = m }
+
+    fun changeDisplayUnit(u: DisplayUnit) { settings.displayUnit = u; displayUnit = u }
+
+    /** Format a millimetre length in the chosen display unit, e.g. "4.0 cm". */
+    fun formatLen(mm: Double): String =
+        String.format(java.util.Locale.GERMAN, "%.1f %s", displayUnit.fromMm(mm), displayUnit.label)
 
     fun changeDragKnifeComp(v: Boolean) { settings.dragKnifeComp = v; dragKnifeComp = v }
 
