@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.unit.IntSize
@@ -46,10 +47,13 @@ private const val ROTATE_ARM_PX = 44f
 fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     var sizePx by remember { mutableStateOf(IntSize.Zero) }
 
-    val gridMinor = Color(0x1AFFFFFF)
-    val gridMajor = Color(0x40FFFFFF)
-    val matColor = Color(0xFFBDBDBD)
-    val matFill = Color(0x14FFFFFF)
+    // Derive the grid/ruler tones from the theme so they stay visible on both light and dark.
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val gridMinor = onSurface.copy(alpha = 0.16f)
+    val gridMajor = onSurface.copy(alpha = 0.38f)
+    val matColor = onSurface.copy(alpha = 0.55f)
+    val matFill = onSurface.copy(alpha = 0.05f)
+    val rulerColor = onSurface.copy(alpha = 0.7f).toArgb()
     val knifeColor = MaterialTheme.colorScheme.primary
     val penColor = MaterialTheme.colorScheme.secondary
     val handleColor = MaterialTheme.colorScheme.tertiary
@@ -65,6 +69,13 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 val corners = vm.placedCorners().map { worldToScreen(it, origin, ppm) }
                 val centerScreen = worldToScreen(vm.centerMm, origin, ppm)
                 var drag: Drag = hitTest(down.position, corners, centerScreen)
+
+                // Missed the selected layer's box/handles? If the touch is inside another layer,
+                // select it and move that one instead of panning the view.
+                if (drag is Drag.PanCamera && vm.layers.size > 1) {
+                    val hit = vm.layerAt(screenToWorld(down.position, origin, ppm))
+                    if (hit >= 0) { vm.selectLayer(hit); drag = Drag.Move }
+                }
 
                 val startRotation = vm.rotationDeg
                 val startAngle = atan2((down.position.y - centerScreen.y).toDouble(), (down.position.x - centerScreen.x).toDouble())
@@ -152,7 +163,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
         drawRect(matFill, topLeft = tl, size = Size(br.x - tl.x, br.y - tl.y))
         drawRect(matColor, topLeft = tl, size = Size(br.x - tl.x, br.y - tl.y), style = Stroke(width = 2f))
 
-        drawRulers(vm.mat, origin, ppm)
+        drawRulers(vm.mat, origin, ppm, rulerColor)
 
         // design — knife layers in the primary colour, pen layers in the secondary
         for ((tool, pls) in vm.placedLayers()) {
@@ -205,9 +216,9 @@ private fun DrawScope.drawGrid(mat: Mat, origin: Offset, ppm: Float, minor: Colo
 }
 
 /** Small cm tick labels along the top and left of the mat. */
-private fun DrawScope.drawRulers(mat: Mat, origin: Offset, ppm: Float) {
+private fun DrawScope.drawRulers(mat: Mat, origin: Offset, ppm: Float, textColor: Int) {
     val paint = android.graphics.Paint().apply {
-        color = 0xFFBDBDBD.toInt()
+        color = textColor
         textSize = 22f
         isAntiAlias = true
     }

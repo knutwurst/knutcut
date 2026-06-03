@@ -11,6 +11,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -224,6 +226,20 @@ fun MainScreen(vm: KnutcutViewModel) {
                             FilterChip(selected = vm.themeMode == m, onClick = { vm.selectTheme(m) }, label = { Text(lbl) })
                         }
                     }
+
+                    Spacer(Modifier.height(18.dp))
+                    Text("Schneiden", style = MaterialTheme.typography.labelLarge)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Schleppmesser-Ausgleich", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                "Rundet scharfe Ecken minimal ab, damit das Schleppmesser sauber einschwenkt.",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Switch(checked = vm.dragKnifeComp, onCheckedChange = { vm.changeDragKnifeComp(it) })
+                    }
+
                     Spacer(Modifier.height(12.dp))
                     Text("Knutcut v$version · Knutwurst", style = MaterialTheme.typography.bodySmall)
                 }
@@ -238,12 +254,23 @@ fun MainScreen(vm: KnutcutViewModel) {
             title = { Text("${vm.layers.size} Ebenen") },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { vm.splitLayers() }, modifier = Modifier.weight(1f)) { Text("Zerlegen") }
-                        OutlinedButton(onClick = { vm.mergeLayers() }, modifier = Modifier.weight(1f)) { Text("Zusammenführen") }
+                    OutlinedButton(onClick = { vm.splitLayers() }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Zerlegen", maxLines = 1)
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedButton(onClick = { vm.mergeLayers() }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Zusammenführen", maxLines = 1)
                     }
                     Spacer(Modifier.height(8.dp))
+                    if (vm.layers.size > 1) {
+                        Text(
+                            "Ebene antippen zum Auswählen, dann auf der Matte verschieben.",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 4.dp),
+                        )
+                    }
                     vm.layers.forEachIndexed { i, layer ->
+                        val selected = vm.selectedLayer == i
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { vm.toggleLayerVisible(i) }) {
                                 Icon(
@@ -251,7 +278,15 @@ fun MainScreen(vm: KnutcutViewModel) {
                                     contentDescription = "Sichtbar",
                                 )
                             }
-                            Text(layer.name, maxLines = 1, modifier = Modifier.weight(1f))
+                            Text(
+                                layer.name,
+                                maxLines = 1,
+                                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { vm.selectLayer(i); showLayers = false },
+                            )
                             FilterChip(selected = layer.tool == Tool.PEN, onClick = { vm.setLayerTool(i, Tool.PEN) }, label = { Text("Stift") })
                             Spacer(Modifier.width(6.dp))
                             FilterChip(selected = layer.tool == Tool.KNIFE, onClick = { vm.setLayerTool(i, Tool.KNIFE) }, label = { Text("Messer") })

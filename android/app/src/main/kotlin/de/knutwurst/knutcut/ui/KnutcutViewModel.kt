@@ -24,10 +24,11 @@ import de.knutwurst.knutcut.data.Settings
 import de.knutwurst.knutcut.data.ThemeMode
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Bounds
-import de.knutwurst.knutcut.svgcore.Bye
+import de.knutwurst.knutcut.svgcore.DragKnife
 import de.knutwurst.knutcut.svgcore.Handshake
 import de.knutwurst.knutcut.svgcore.HpglEncoder
 import de.knutwurst.knutcut.svgcore.Matrix
+import de.knutwurst.knutcut.svgcore.mmToUnits
 import de.knutwurst.knutcut.svgcore.PltCommand
 import de.knutwurst.knutcut.svgcore.PlotterMessage
 import de.knutwurst.knutcut.svgcore.PlotterSession
@@ -36,6 +37,7 @@ import de.knutwurst.knutcut.svgcore.Protocol
 import de.knutwurst.knutcut.svgcore.Pt
 import de.knutwurst.knutcut.svgcore.Query
 import de.knutwurst.knutcut.svgcore.SvgParser
+import de.knutwurst.knutcut.svgcore.UNITS_PER_MM
 import de.knutwurst.knutcut.svgcore.responseState
 import de.knutwurst.knutcut.svgcore.responseStateReady
 import de.knutwurst.knutcut.transport.BluetoothPlotter
@@ -51,17 +53,31 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     private val settings = Settings(app)
 
-    // Loaded design as layers (one per SVG shape), in mm at the SVG's own origin.
+    // Loaded design as layers (one per SVG shape), each with its own placement.
     var layers by mutableStateOf<List<Layer>>(emptyList()); private set
-    var bounds by mutableStateOf<Bounds?>(null); private set
+    var selectedLayer by mutableStateOf(0); private set
 
-    // Work area + placement.
+    // Work area.
     var model by mutableStateOf<PlotterModel>(Devices.default); private set
     var mat by mutableStateOf<Mat>(Mats.default); private set
-    var scaleX by mutableStateOf(1.0)
-    var scaleY by mutableStateOf(1.0)
-    var rotationDeg by mutableStateOf(0.0)
-    var centerMm by mutableStateOf(Pt(0.0, 0.0))
+
+    // Placement of the currently selected layer. These delegate to the layers list so the mat editor
+    // (which reads and writes them) manipulates one layer at a time.
+    var scaleX: Double
+        get() = layers.getOrNull(selectedLayer)?.scaleX ?: 1.0
+        set(v) = updateSelected { it.copy(scaleX = v) }
+    var scaleY: Double
+        get() = layers.getOrNull(selectedLayer)?.scaleY ?: 1.0
+        set(v) = updateSelected { it.copy(scaleY = v) }
+    var rotationDeg: Double
+        get() = layers.getOrNull(selectedLayer)?.rotationDeg ?: 0.0
+        set(v) = updateSelected { it.copy(rotationDeg = v) }
+    var centerMm: Pt
+        get() = layers.getOrNull(selectedLayer)?.centerMm ?: Pt(0.0, 0.0)
+        set(v) = updateSelected { it.copy(centerMm = v) }
+
+    /** Bounds of the selected layer in its own coordinates — the handles operate on this. */
+    val bounds: Bounds? get() = layers.getOrNull(selectedLayer)?.let { layerBounds(it) }
 
     // Mat view camera (zoom + pan of the work area).
     var camScale by mutableStateOf(1f)
@@ -86,11 +102,15 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     var themeMode by mutableStateOf(settings.themeMode); private set
 
+    var dragKnifeComp by mutableStateOf(settings.dragKnifeComp); private set
+
     val hasDesign: Boolean get() = layers.isNotEmpty()
 
     private fun allPolylines(): List<Polyline> = layers.flatMap { it.polylines }
 
     fun selectTheme(m: ThemeMode) { settings.themeMode = m; themeMode = m }
+
+    fun changeDragKnifeComp(v: Boolean) { settings.dragKnifeComp = v; dragKnifeComp = v }
 
     init {
         settings.materialId?.let { id ->
@@ -106,16 +126,36 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             val shapes = SvgParser.parseShapes(text)
             val pts = shapes.flatMap { it.polylines }.flatMap { it.points }
             if (pts.isEmpty()) { status = "Keine schneidbaren Pfade in der SVG gefunden."; return }
-            layers = shapes.map { Layer(it.name, it.polylines, tool, visible = true) }
-            val b = Bounds.of(pts)
-            bounds = b
-            scaleX = 1.0
-            scaleY = 1.0
-            rotationDeg = 0.0
-            centerMm = Pt(b.widthMm / 2, b.heightMm / 2) // design top-left at the origin (0,0)
+            layers = placeAtHome(shapes.map { Layer(it.name, it.polylines, tool, visible = true) })
+            selectedLayer = 0
+            camScale = 1f
+            camOffset = Offset.Zero
             status = "Design geladen (${layers.size} Ebenen)."
         } catch (e: Exception) {
             status = "SVG konnte nicht gelesen werden: ${e.message}"
+        }
+    }
+
+    fun selectLayer(i: Int) { if (i in layers.indices) selectedLayer = i }
+
+    private fun updateSelected(f: (Layer) -> Layer) {
+        val i = selectedLayer
+        if (i !in layers.indices) return
+        layers = layers.mapIndexed { idx, l -> if (idx == i) f(l) else l }
+    }
+
+    private fun layerBounds(layer: Layer): Bounds = Bounds.of(layer.polylines.flatMap { it.points })
+
+    /** Place layers at their original relative positions with the whole design's top-left at (0,0). */
+    private fun placeAtHome(ls: List<Layer>): List<Layer> {
+        val allPts = ls.flatMap { it.polylines }.flatMap { it.points }
+        if (allPts.isEmpty()) return ls
+        val gb = Bounds.of(allPts)
+        return ls.map { l ->
+            val b = layerBounds(l)
+            val lcx = (b.minX + b.maxX) / 2
+            val lcy = (b.minY + b.maxY) / 2
+            l.copy(centerMm = Pt(lcx - gb.minX, lcy - gb.minY), scaleX = 1.0, scaleY = 1.0, rotationDeg = 0.0)
         }
     }
 
@@ -144,15 +184,17 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Break every layer into one layer per contour, so a single-path SVG can be separated. */
     fun splitLayers() {
         var n = 0
-        layers = layers.flatMap { layer ->
+        layers = placeAtHome(layers.flatMap { layer ->
             layer.polylines.map { pl -> Layer("Form ${++n}", listOf(pl), layer.tool, layer.visible) }
-        }
+        })
+        selectedLayer = 0
     }
 
     /** Merge all layers back into one. */
     fun mergeLayers() {
         if (layers.isEmpty()) return
-        layers = listOf(Layer("Alle Formen", allPolylines(), layers.first().tool, visible = true))
+        layers = placeAtHome(listOf(Layer("Alle Formen", allPolylines(), layers.first().tool, visible = true)))
+        selectedLayer = 0
     }
 
     fun changeForce(v: Int) { force = v; settings.force = v }
@@ -163,19 +205,17 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         if (hasDesign) resetPlacement()
     }
 
+    /** Rotate the selected layer by 90°. */
     fun rotate90() { rotationDeg = (rotationDeg + 90.0) % 360.0 }
 
     fun resetPlacement() {
-        scaleX = 1.0
-        scaleY = 1.0
-        rotationDeg = 0.0
-        val b = bounds
-        centerMm = if (b != null) Pt(b.widthMm / 2, b.heightMm / 2) else Pt(0.0, 0.0)
+        layers = placeAtHome(layers)
+        selectedLayer = selectedLayer.coerceIn(0, (layers.size - 1).coerceAtLeast(0))
         camScale = 1f
         camOffset = Offset.Zero
     }
 
-    /** Size of the placed design in millimetres (bounding box after scale). */
+    /** Size of the selected layer in millimetres (bounding box after its scale). */
     fun designSizeMm(): Pair<Double, Double>? {
         val b = bounds ?: return null
         return b.widthMm * scaleX to b.heightMm * scaleY
@@ -224,46 +264,72 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Visible layers placed on the mat (mm, y-down), each paired with its tool — for drawing. */
-    fun placedLayers(): List<Pair<Tool, List<Polyline>>> {
-        if (bounds == null) return emptyList()
-        val m = placementMatrix()
-        return layers.filter { it.visible }.map { layer ->
+    fun placedLayers(): List<Pair<Tool, List<Polyline>>> =
+        layers.filter { it.visible }.map { layer ->
+            val m = layerMatrix(layer)
             layer.tool to layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
         }
-    }
 
-    private fun placementMatrix(): Matrix {
-        val b = bounds ?: return Matrix.IDENTITY
+    /** Placement matrix for one layer: rotate/scale about its own centre, then move to [Layer.centerMm]. */
+    private fun layerMatrix(layer: Layer): Matrix {
+        val b = layerBounds(layer)
         val cx = (b.minX + b.maxX) / 2
         val cy = (b.minY + b.maxY) / 2
-        return Matrix.translate(centerMm.xMm, centerMm.yMm) *
-            Matrix.rotate(rotationDeg) *
-            Matrix.scale(scaleX, scaleY) *
+        return Matrix.translate(layer.centerMm.xMm, layer.centerMm.yMm) *
+            Matrix.rotate(layer.rotationDeg) *
+            Matrix.scale(layer.scaleX, layer.scaleY) *
             Matrix.translate(-cx, -cy)
     }
 
-    /** The four corners of the placed design's box, in mm (TL, TR, BR, BL; rotated with the design). */
-    fun placedCorners(): List<Pt> {
-        val b = bounds ?: return emptyList()
-        val m = placementMatrix()
+    /** The four corners of a layer's placed box, in mm (TL, TR, BR, BL; rotated with the layer). */
+    fun layerCorners(index: Int): List<Pt> {
+        val layer = layers.getOrNull(index) ?: return emptyList()
+        val b = layerBounds(layer)
+        val m = layerMatrix(layer)
         return listOf(Pt(b.minX, b.minY), Pt(b.maxX, b.minY), Pt(b.maxX, b.maxY), Pt(b.minX, b.maxY))
             .map { m.apply(it) }
     }
 
+    /** Corners of the selected layer's box — the editor draws and manipulates these. */
+    fun placedCorners(): List<Pt> = layerCorners(selectedLayer)
+
+    /** The topmost visible layer whose placed box contains [ptMm], or -1 if none. */
+    fun layerAt(ptMm: Pt): Int {
+        for (i in layers.indices.reversed()) {
+            if (!layers[i].visible) continue
+            val c = layerCorners(i)
+            if (c.size == 4 && pointInQuad(ptMm, c)) return i
+        }
+        return -1
+    }
+
+    private fun pointInQuad(p: Pt, q: List<Pt>): Boolean {
+        var sign = 0
+        for (i in 0 until 4) {
+            val a = q[i]; val b = q[(i + 1) % 4]
+            val cross = (b.xMm - a.xMm) * (p.yMm - a.yMm) - (b.yMm - a.yMm) * (p.xMm - a.xMm)
+            val s = if (cross > 0) 1 else if (cross < 0) -1 else 0
+            if (s != 0) { if (sign == 0) sign = s else if (sign != s) return false }
+        }
+        return true
+    }
+
     /** Plotter-space polylines for one tool's visible layers (placed + Y-flipped, since the plotter is Y-up). */
     private fun plotterPolylinesFor(t: Tool): List<Polyline> {
-        val m = placementMatrix()
         val h = mat.heightMm
-        return layers.filter { it.visible && it.tool == t }
-            .flatMap { it.polylines }
-            .map { pl -> Polyline(pl.points.map { val w = m.apply(it); Pt(w.xMm, h - w.yMm) }, pl.closed) }
+        return layers.filter { it.visible && it.tool == t }.flatMap { layer ->
+            val m = layerMatrix(layer)
+            layer.polylines.map { pl -> Polyline(pl.points.map { val w = m.apply(it); Pt(w.xMm, h - w.yMm) }, pl.closed) }
+        }
     }
 
     private var cutJob: Job? = null
 
     /**
-     * Follows the machine's workflow so it never cuts into the air: set up, wait for the media to be
-     * loaded (Laden-Taste) and the start key on machines that have them, and only then send the path.
+     * Mirrors the stock app's workflow so the plotter never cuts into the air. After the handshake it
+     * sets the material, then the work-area scale (JS, the step the machine needs before it will load
+     * or accept a path), waits for the media to be fed in (Laden-Taste) and the start key on machines
+     * that have them, and only then streams the path.
      */
     fun cut() {
         val l = link
@@ -272,55 +338,81 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         if (cutting) return
         cutting = true
         progress = 0f
-        cutJob = viewModelScope.launch {
-            val session = PlotterSession(l)
-            try {
-                status = "Verbinde mit dem Plotter…"
-                val hs = withContext(Dispatchers.IO) { session.send(Handshake) }
-                Log.d(TAG, "handshake -> $hs")
-                if (hs == null) { finishCut("Keine Antwort vom Plotter."); return@launch }
-                withContext(Dispatchers.IO) {
-                    Log.d(TAG, "TB66 -> ${session.send(PltCommand("TB66;"))}")
-                    Log.d(TAG, "setmat -> ${session.send(PltCommand("setmat:${material.id};"))}")
-                }
+        cutJob = viewModelScope.launch { runCut(l) }
+    }
 
-                // Wait until the material is actually fed in (queryMaterial state 3), not just sitting
-                // at the sensor (state 1, which only means "detected").
-                if (!pollMaterialLoaded(session)) { finishCut("Material nicht geladen (Zeitüberschreitung)."); return@launch }
+    private suspend fun runCut(l: SppPlotterLink) {
+        val session = PlotterSession(l)
+        try {
+            status = "Verbinde mit dem Plotter…"
+            val hs = withContext(Dispatchers.IO) { session.send(Handshake) }
+            Log.d(TAG, "handshake -> $hs")
+            if (hs == null) { finishCut("Keine Antwort vom Plotter."); return }
 
-                if (model.hasStartKey) {
-                    status = "Bereit – drücke jetzt die Start-Taste am Plotter."
-                    if (!pollState(session, Query("queryStartKey"))) { finishCut("Start-Taste nicht gedrückt (Zeitüberschreitung)."); return@launch }
-                }
+            val toolsUsed = layers.filter { it.visible }.map { it.tool }.distinct()
+            if (toolsUsed.isEmpty()) { finishCut("Keine sichtbaren Ebenen."); return }
+            val primaryTool = if (Tool.KNIFE in toolsUsed) Tool.KNIFE else toolsUsed.first()
 
-                val toolsUsed = layers.filter { it.visible }.map { it.tool }.distinct()
-                status = if (Tool.KNIFE in toolsUsed) Tool.KNIFE.progress else Tool.PEN.progress
-                // One SP/FS + path group per tool, so pen layers draw and knife layers cut.
-                val fileMsgs = ArrayList<PlotterMessage>()
-                for (t in toolsUsed) {
-                    val cmds = HpglEncoder.encode(plotterPolylinesFor(t))
-                    if (cmds.isEmpty()) continue
-                    fileMsgs += PltCommand("SP${t.sp};FS$force;")
-                    fileMsgs += PltCommand("TB66;")
-                    fileMsgs.addAll(Protocol.pathFile(cmds))
-                    fileMsgs += PltCommand("TB66;")
-                }
-                if (fileMsgs.isEmpty()) { finishCut("Keine sichtbaren Ebenen."); return@launch }
-                fileMsgs.forEachIndexed { i, m ->
-                    if (withContext(Dispatchers.IO) { session.send(m) } == null) {
-                        finishCut("Übertragung abgebrochen bei Schritt ${i + 1}."); return@launch
-                    }
-                    progress = (i + 1).toFloat() / fileMsgs.size
-                }
-                withContext(Dispatchers.IO) { session.send(Bye) }
-                finishCut("Fertig an den Plotter gesendet.")
-            } catch (e: CancellationException) {
-                cutting = false
-                status = "Abgebrochen."
-                throw e
-            } catch (e: Exception) {
-                finishCut("Fehler: ${e.message}")
+            // Setup, in the stock app's order: material, pressure (SP/FS), then the work-area scale.
+            // Width is always 12" (12192 units); the second value is the mat length. The machine needs
+            // this JS scale before it will feed material or accept a path (stock setPosition page).
+            val widthUnits = (mat.widthMm * UNITS_PER_MM).toInt()
+            val lengthUnits = (mat.heightMm * UNITS_PER_MM).toInt()
+            withContext(Dispatchers.IO) {
+                Log.d(TAG, "setmat -> ${session.send(PltCommand("setmat:${material.id};"))}")
+                Log.d(TAG, "setPressure -> ${session.send(PltCommand("SP${primaryTool.sp};FS$force;"))}")
+                Log.d(TAG, "setScale -> ${session.send(PltCommand("JS$widthUnits,$lengthUnits;"))}")
             }
+
+            // Load gate (machines with a paper key): wait until the media is fed in (queryMaterial
+            // state 3), not just sitting at the sensor (state 1).
+            if (model.hasPaperKey) {
+                status = "Lege Material ein und drücke die Einzugstaste am Plotter."
+                if (!pollMaterialLoaded(session)) { finishCut("Material nicht geladen (Zeitüberschreitung)."); return }
+            }
+            // Start gate (machines with a start key): wait for the physical Start button.
+            if (model.hasStartKey) {
+                status = "Bereit – drücke jetzt die Start-Taste am Plotter."
+                if (!pollState(session, Query("queryStartKey"))) { finishCut("Start-Taste nicht gedrückt (Zeitüberschreitung)."); return }
+            }
+
+            status = if (Tool.KNIFE in toolsUsed) Tool.KNIFE.progress else Tool.PEN.progress
+            // Build one continuous command stream (the stock app's "plt"): the path for each visible
+            // tool, with a tool switch (SP/FS) inlined before any later tool. Pressure for the first
+            // tool was set above.
+            val plt = ArrayList<String>()
+            toolsUsed.forEachIndexed { idx, t ->
+                val polys = plotterPolylinesFor(t)
+                var cmds = HpglEncoder.encode(polys)
+                if (cmds.isEmpty()) return@forEachIndexed
+                val raw = cmds.size
+                if (dragKnifeComp) cmds = DragKnife.process(cmds)
+                val xs = polys.flatMap { it.points }.map { mmToUnits(it.xMm) }
+                val ys = polys.flatMap { it.points }.map { mmToUnits(it.yMm) }
+                Log.d(TAG, "tool=${t.sp} force=$force polylines=${polys.size} cmds=$raw->${cmds.size} (comp=$dragKnifeComp) " +
+                    "x=[${xs.minOrNull()}..${xs.maxOrNull()}] y=[${ys.minOrNull()}..${ys.maxOrNull()}]")
+                if (idx > 0) { plt += "SP${t.sp}"; plt += "FS$force" }
+                plt.addAll(cmds)
+            }
+            if (plt.isEmpty()) { finishCut("Keine sichtbaren Ebenen."); return }
+
+            // Stream as one continuous pltFile sequence (index 0..total-1, 30 commands per chunk),
+            // exactly like the stock sendFile — no pltCommands interleaved, no trailing TB66.
+            val fileMsgs = Protocol.pathFile(plt, 30)
+            Log.d(TAG, "sendFile: ${plt.size} cmds in ${fileMsgs.size} chunks")
+            fileMsgs.forEachIndexed { i, m ->
+                val resp = withContext(Dispatchers.IO) { session.send(m) }
+                Log.d(TAG, "pltFile[$i/${fileMsgs.size}] -> $resp")
+                if (resp == null) { finishCut("Übertragung abgebrochen bei Chunk ${i + 1}."); return }
+                progress = (i + 1).toFloat() / fileMsgs.size
+            }
+            finishCut("Fertig an den Plotter gesendet.")
+        } catch (e: CancellationException) {
+            cutting = false
+            status = "Abgebrochen."
+            throw e
+        } catch (e: Exception) {
+            finishCut("Fehler: ${e.message}")
         }
     }
 
@@ -330,11 +422,13 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         status = msg
     }
 
-    /** Poll queryMaterial until the material is fed in (state 3). While at the sensor (state 1), ask to press feed. */
+    /**
+     * Smart-series load gate: wait until the material is fed in (queryMaterial state 3), not just
+     * sitting at the sensor (state 1, which only means "detected").
+     */
     private suspend fun pollMaterialLoaded(session: PlotterSession, attempts: Int = 240, intervalMs: Long = 700): Boolean {
         repeat(attempts) {
             val resp = withContext(Dispatchers.IO) { session.send(Query("queryMaterial")) }
-            Log.d(TAG, "queryMaterial -> $resp")
             when (responseState(resp)) {
                 3 -> return true
                 1 -> status = "Material erkannt – drücke die Einzugstaste am Plotter."
@@ -355,7 +449,13 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return false
     }
 
-    fun cancelCut() { cutJob?.cancel() }
+    fun cancelCut() {
+        cutJob?.cancel()
+        cutJob = null
+        cutting = false
+        progress = 0f
+        status = "Abgebrochen."
+    }
 
     override fun onCleared() { link?.close() }
 
