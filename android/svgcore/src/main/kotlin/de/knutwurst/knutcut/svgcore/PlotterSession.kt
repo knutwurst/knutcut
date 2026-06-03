@@ -52,10 +52,18 @@ class PlotterSession(private val link: PlotterLink, private var cseq: Int = 0) {
 }
 
 /**
- * True if a query response carries a truthy `state` — the device's way of saying the media is pulled
- * in (queryPulled) or the start key has been pressed (queryStartKey).
+ * The numeric `state` from a query response: a number as-is, `true`→1, `false`→0, or null if absent.
+ * queryMaterial uses 3 = loaded/fed-in, 1 = at the sensor; queryStartKey uses true/false.
  */
-fun responseStateReady(line: String?): Boolean {
-    if (line == null) return false
-    return Regex("\"state\"\\s*:\\s*\"?(?:true|[1-9][0-9]*)").containsMatchIn(line)
+fun responseState(line: String?): Int? {
+    if (line == null) return null
+    val m = Regex("\"state\"\\s*:\\s*(true|false|-?[0-9]+)").find(line) ?: return null
+    return when (m.groupValues[1]) {
+        "true" -> 1
+        "false" -> 0
+        else -> m.groupValues[1].toIntOrNull()
+    }
 }
+
+/** True if a query response carries a truthy `state` (e.g. the start key has been pressed). */
+fun responseStateReady(line: String?): Boolean = (responseState(line) ?: 0) > 0

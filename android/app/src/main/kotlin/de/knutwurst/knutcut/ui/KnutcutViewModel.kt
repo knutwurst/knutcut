@@ -30,6 +30,7 @@ import de.knutwurst.knutcut.svgcore.Protocol
 import de.knutwurst.knutcut.svgcore.Pt
 import de.knutwurst.knutcut.svgcore.Query
 import de.knutwurst.knutcut.svgcore.SvgParser
+import de.knutwurst.knutcut.svgcore.responseState
 import de.knutwurst.knutcut.svgcore.responseStateReady
 import de.knutwurst.knutcut.transport.BluetoothPlotter
 import de.knutwurst.knutcut.transport.SppPlotterLink
@@ -228,15 +229,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                     Log.d(TAG, "SP/FS -> ${session.send(PltCommand("SP${tool.sp};FS$force;"))}")
                 }
 
-                if (model.hasPaperKey) {
-                    // Only prompt to load if the media isn't already in; otherwise don't flash a prompt.
-                    val pulled = withContext(Dispatchers.IO) { session.send(Query("queryPulled")) }
-                    Log.d(TAG, "queryPulled(first) -> $pulled")
-                    if (!responseStateReady(pulled)) {
-                        status = "Lege Matte/Material ein und drücke die Laden-Taste am Plotter."
-                        if (!pollState(session, Query("queryPulled"))) { finishCut("Kein Material geladen (Zeitüberschreitung)."); return@launch }
-                    }
-                }
+                // Wait until the material is actually fed in (queryMaterial state 3), not just sitting
+                // at the sensor (state 1, which only means "detected").
+                if (!pollMaterialLoaded(session)) { finishCut("Material nicht geladen (Zeitüberschreitung)."); return@launch }
+
                 if (model.hasStartKey) {
                     status = "Bereit – drücke jetzt die Start-Taste am Plotter."
                     if (!pollState(session, Query("queryStartKey"))) { finishCut("Start-Taste nicht gedrückt (Zeitüberschreitung)."); return@launch }
@@ -271,6 +267,21 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         cutting = false
         progress = 0f
         status = msg
+    }
+
+    /** Poll queryMaterial until the material is fed in (state 3). While at the sensor (state 1), ask to press feed. */
+    private suspend fun pollMaterialLoaded(session: PlotterSession, attempts: Int = 240, intervalMs: Long = 700): Boolean {
+        repeat(attempts) {
+            val resp = withContext(Dispatchers.IO) { session.send(Query("queryMaterial")) }
+            Log.d(TAG, "queryMaterial -> $resp")
+            when (responseState(resp)) {
+                3 -> return true
+                1 -> status = "Material erkannt – drücke die Einzugstaste am Plotter."
+                else -> status = "Lege Material ein und drücke die Einzugstaste am Plotter."
+            }
+            delay(intervalMs)
+        }
+        return false
     }
 
     private suspend fun pollState(session: PlotterSession, query: Query, attempts: Int = 150, intervalMs: Long = 800): Boolean {

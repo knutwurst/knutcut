@@ -53,6 +53,15 @@ class PlotterSessionTest {
     }
 
     @Test
+    fun stateNumberParsing() {
+        assertEquals(3, responseState("{\"type\":\"query\",\"data\":{\"state\":3}}"))
+        assertEquals(1, responseState("{\"data\":{\"state\":1}}"))
+        assertEquals(1, responseState("{\"data\":{\"state\":true}}"))
+        assertEquals(0, responseState("{\"data\":{\"state\":false}}"))
+        assertEquals(null, responseState("{\"type\":\"ack\"}"))
+    }
+
+    @Test
     fun reportsProgress() {
         val link = FakeLink { "{\"type\":\"ack\"}" }
         val session = PlotterSession(link)

@@ -33,18 +33,27 @@ wire:
 
 ## Commands
 
-A cut is a sequence of these messages. The command text (HPGL etc.) lives in the `data` field; `type`
-and `action` select the message:
+The command text (HPGL etc.) lives in the `data` field; `type` and `action` select the message.
 
-1. `{type:"handshake"}`
-2. `{type:"query",action:"queryMaterial" | "queryStartKey" | "queryPulled"}` (queryPulled = is media loaded)
-3. `{type:"pltCommand",data:"TB66;"}` (init)
-4. `{type:"pltCommand",data:"setmat:<materialId>;"}`
-5. `{type:"pltCommand",data:"SP<speed>;FS<force>;"}` (speed and force, from the material preset)
-6. `{type:"pltCommand",data:"JS<a>,<b>;"}` (offset or scale, exact meaning still to confirm)
-7. `{type:"pltFile",index,total,data}` with HPGL `PU<x>,<y>` (pen up, travel) and `PD<x>,<y>` (pen down,
-   cut) joined by `;`, sent in chunks (later chunks prefixed with `;`), wrapped with `TB66;`
-8. `{type:"bye"}`
+Status queries (reply `{data:{state}}`):
+- `queryMaterial` — feed state: **3 = loaded/fed in**, **1 = only at the sensor** (prompt "press the feed
+  button"), 0 = none. Poll until 3 before cutting.
+- `queryStartKey` — `true` once the physical Start button is pressed.
+- `queryPulled` — the sensor sees material (true while it merely touches the sensor; NOT the same as fed in).
+
+Commands:
+- `{type:"pltCommand",data:"TB66;"}` — init
+- `{type:"pltCommand",data:"setmat:<materialId>;"}` — select material
+- `{type:"pltCommand",data:"SP<tool>;FS<force>;"}` — `SP` = Select Pen (tool: 1 = right/knife, 2 = left/pen),
+  `FS` = force. No speed is sent; the machine handles it.
+- `{type:"pltCommand",data:"JS<a>,<b>;"}` — setScale
+- `{type:"pltFile",index,total,data}` — HPGL `PU<x>,<y>` (pen up, travel) / `PD<x>,<y>` (pen down, cut),
+  joined by `;`, sent in chunks (later chunks prefixed with `;`), wrapped with `TB66;`
+- `{type:"handshake"}` / `{type:"bye"}` — open / close the session
+
+Cut workflow: handshake → `setmat` → `SP`/`FS` → poll `queryMaterial` until **3** (while 1, ask to press
+the feed button) → if the model has a start key, poll `queryStartKey` until pressed → stream the `pltFile`
+(the device cuts as it arrives) → `bye`.
 
 ## Coordinates
 
