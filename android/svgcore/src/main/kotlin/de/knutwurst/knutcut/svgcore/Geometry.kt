@@ -20,6 +20,9 @@ data class Bounds(val minX: Double, val minY: Double, val maxX: Double, val maxY
     val heightMm: Double get() = maxY - minY
 
     companion object {
+        /** Bounding box, or null when there are no points (so callers never crash on an empty layer). */
+        fun ofOrNull(points: List<Pt>): Bounds? = if (points.isEmpty()) null else of(points)
+
         fun of(points: List<Pt>): Bounds {
             require(points.isNotEmpty()) { "no points" }
             var minX = Double.MAX_VALUE; var minY = Double.MAX_VALUE

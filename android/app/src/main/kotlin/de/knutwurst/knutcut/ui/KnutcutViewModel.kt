@@ -146,7 +146,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         layers = layers.mapIndexed { idx, l -> if (idx == i) f(l) else l }
     }
 
-    private fun layerBounds(layer: Layer): Bounds = Bounds.of(layer.polylines.flatMap { it.points })
+    private val EMPTY_BOUNDS = Bounds(0.0, 0.0, 0.0, 0.0)
+    private fun layerBounds(layer: Layer): Bounds =
+        Bounds.ofOrNull(layer.polylines.flatMap { it.points }) ?: EMPTY_BOUNDS
 
     /** Place layers at their original relative positions with the whole design's top-left at (0,0). */
     private fun placeAtHome(ls: List<Layer>): List<Layer> {
@@ -409,8 +411,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             Log.d(TAG, "sendFile: ${plt.size} cmds in ${fileMsgs.size} chunks")
             fileMsgs.forEachIndexed { i, m ->
                 val resp = withContext(Dispatchers.IO) { session.send(m) }
-                Log.d(TAG, "pltFile[$i/${fileMsgs.size}] -> $resp")
-                if (resp == null) { finishCut("Übertragung abgebrochen bei Chunk ${i + 1}."); return }
+                if (resp == null) {
+                    Log.d(TAG, "pltFile chunk ${i + 1}/${fileMsgs.size} not acknowledged")
+                    finishCut("Übertragung abgebrochen bei Chunk ${i + 1}."); return
+                }
                 progress = (i + 1).toFloat() / fileMsgs.size
             }
             finishCut("Fertig an den Plotter gesendet.")

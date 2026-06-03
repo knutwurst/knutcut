@@ -1,6 +1,8 @@
 package de.knutwurst.knutcut.svgcore
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -13,32 +15,45 @@ class PlotterSessionTest {
     }
 
     @Test
-    fun sendsFramedMessagesWithIncrementingCseq() {
-        val link = FakeLink { "{\"type\":\"ack\"}" }
-        val result = PlotterSession(link).run(listOf(Handshake, Bye))
-        assertEquals(CutResult.Done, result)
-        assertEquals(2, link.writes.size)
+    fun sendFramesWithIncrementingCseq() {
+        val link = FakeLink { "{\"type\":\"ack\",\"success\":true}" }
+        val session = PlotterSession(link)
+        assertEquals("{\"type\":\"ack\",\"success\":true}", session.send(Handshake))
+        assertEquals("{\"type\":\"ack\",\"success\":true}", session.send(Bye))
         assertEquals(Frame.encode(Handshake, 0), link.writes[0])
         assertEquals(Frame.encode(Bye, 1), link.writes[1])
     }
 
     @Test
     fun resendsOnCrcRejection() {
-        // first response is a crc error, then ack
         var n = 0
         val link = FakeLink { n++; if (n == 1) "{\"type\":\"crc\"}" else "{\"type\":\"ack\"}" }
-        val result = PlotterSession(link).run(listOf(Handshake))
-        assertEquals(CutResult.Done, result)
-        assertEquals(2, link.writes.size) // sent twice
+        assertEquals("{\"type\":\"ack\"}", PlotterSession(link).send(Handshake))
+        assertEquals(2, link.writes.size)
     }
 
     @Test
-    fun failsAfterMaxAttempts() {
+    fun resendsOnExplicitFailure() {
+        var n = 0
+        val link = FakeLink { n++; if (n == 1) "{\"success\":false}" else "{\"success\":true}" }
+        assertEquals("{\"success\":true}", PlotterSession(link).send(Handshake))
+        assertEquals(2, link.writes.size)
+    }
+
+    @Test
+    fun returnsNullAfterMaxAttempts() {
         val link = FakeLink { "{\"type\":\"crc\"}" }
-        val result = PlotterSession(link).run(listOf(Handshake), maxAttempts = 3)
-        assertTrue(result is CutResult.Failed)
-        assertEquals(0, (result as CutResult.Failed).atMessage)
+        assertNull(PlotterSession(link).send(Handshake, maxAttempts = 3))
         assertEquals(3, link.writes.size)
+    }
+
+    @Test
+    fun responseOkRules() {
+        assertTrue(responseOk("{\"type\":\"ack\",\"success\":true}"))
+        assertTrue(responseOk("{\"type\":\"pltFile\",\"index\":3}"))
+        assertFalse(responseOk(null))
+        assertFalse(responseOk("{\"type\":\"crc\"}"))
+        assertFalse(responseOk("{\"success\":false}"))
     }
 
     @Test
@@ -59,15 +74,5 @@ class PlotterSessionTest {
         assertEquals(1, responseState("{\"data\":{\"state\":true}}"))
         assertEquals(0, responseState("{\"data\":{\"state\":false}}"))
         assertEquals(null, responseState("{\"type\":\"ack\"}"))
-    }
-
-    @Test
-    fun reportsProgress() {
-        val link = FakeLink { "{\"type\":\"ack\"}" }
-        val session = PlotterSession(link)
-        val seen = ArrayList<Pair<Int, Int>>()
-        session.onProgress = { sent, total -> seen.add(sent to total) }
-        session.run(listOf(Handshake, PltCommand("TB66;"), Bye))
-        assertEquals(listOf(1 to 3, 2 to 3, 3 to 3), seen)
     }
 }

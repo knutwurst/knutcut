@@ -1,9 +1,16 @@
 package de.knutwurst.knutcut.svgcore
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class GeometryTest {
+
+    @Test
+    fun ofOrNullReturnsNullForEmpty() {
+        assertNull(Bounds.ofOrNull(emptyList()))
+        assertEquals(Bounds(1.0, 2.0, 1.0, 2.0), Bounds.ofOrNull(listOf(Pt(1.0, 2.0))))
+    }
 
     @Test
     fun fortyMillimetresIs1600Units() {

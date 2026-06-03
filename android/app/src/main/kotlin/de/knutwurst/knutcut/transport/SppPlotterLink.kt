@@ -1,6 +1,7 @@
 package de.knutwurst.knutcut.transport
 
 import android.bluetooth.BluetoothSocket
+import de.knutwurst.knutcut.svgcore.LineFramer
 import de.knutwurst.knutcut.svgcore.PlotterLink
 import java.io.InputStream
 import java.io.OutputStream
@@ -20,18 +21,12 @@ class SppPlotterLink(private val socket: BluetoothSocket) : PlotterLink, AutoClo
 
     private val reader = Thread {
         val buf = ByteArray(2048)
-        val sb = StringBuilder()
+        val framer = LineFramer()
         try {
             while (running) {
                 val n = input.read(buf)
                 if (n < 0) break
-                sb.append(String(buf, 0, n, Charsets.UTF_8))
-                var idx = sb.indexOf("\r\n")
-                while (idx >= 0) {
-                    lines.add(sb.substring(0, idx))
-                    sb.delete(0, idx + 2)
-                    idx = sb.indexOf("\r\n")
-                }
+                for (line in framer.append(buf, n)) lines.add(line)
             }
         } catch (_: Exception) {
             // socket closed or read error; readLine will time out

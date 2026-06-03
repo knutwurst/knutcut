@@ -10,45 +10,32 @@ interface PlotterLink {
     fun readLine(timeoutMs: Long): String?
 }
 
-/** Result of running a job, for the UI. */
-sealed class CutResult {
-    object Done : CutResult()
-    data class Failed(val atMessage: Int, val reason: String) : CutResult()
-}
-
 /**
  * Drives a cut: frames each [PlotterMessage] with an incrementing [cseq], writes it, waits for the
- * device's response line, and resends on a `crc` rejection or timeout (matching the stock app's
- * send-and-wait loop with up to five attempts).
+ * device's response line, and resends on a `crc` rejection, an explicit failure, or a timeout
+ * (matching the stock app's send-and-wait loop with up to five attempts).
  */
 class PlotterSession(private val link: PlotterLink, private var cseq: Int = 0) {
 
-    var onProgress: ((sent: Int, total: Int) -> Unit)? = null
-
-    fun run(messages: List<PlotterMessage>, ackTimeoutMs: Long = 5000, maxAttempts: Int = 5): CutResult {
-        messages.forEachIndexed { i, msg ->
-            if (send(msg, ackTimeoutMs, maxAttempts) == null) {
-                return CutResult.Failed(i, "no valid response after $maxAttempts attempts")
-            }
-            onProgress?.invoke(i + 1, messages.size)
-        }
-        return CutResult.Done
-    }
-
-    /** Frame and send one message, retrying on crc/timeout. Returns the device's response line, or null. */
+    /** Frame and send one message, retrying on rejection/timeout. Returns the accepted response, or null. */
     fun send(msg: PlotterMessage, timeoutMs: Long = 5000, maxAttempts: Int = 5): String? {
         repeat(maxAttempts) {
             link.write(Frame.encode(msg, cseq))
             cseq++
             val resp = link.readLine(timeoutMs)
-            if (resp != null && !isCrcError(resp)) return resp
-            // null (timeout) or crc rejection: try again with the next cseq
+            if (responseOk(resp)) return resp
+            // null (timeout), crc rejection, or success:false → try again with the next cseq
         }
         return null
     }
+}
 
-    private fun isCrcError(line: String): Boolean =
-        line.contains("\"type\":\"crc\"") || (line.contains("\"crc\"") && line.contains("error"))
+/** A response counts as accepted when it is present, not a crc rejection, and not `success:false`. */
+fun responseOk(line: String?): Boolean {
+    if (line == null) return false
+    if (line.contains("\"type\":\"crc\"") || (line.contains("\"crc\"") && line.contains("error"))) return false
+    if (Regex("\"success\"\\s*:\\s*false").containsMatchIn(line)) return false
+    return true
 }
 
 /**
