@@ -57,6 +57,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     val knifeColor = MaterialTheme.colorScheme.primary
     val penColor = MaterialTheme.colorScheme.secondary
     val handleColor = MaterialTheme.colorScheme.tertiary
+    val offMatColor = MaterialTheme.colorScheme.error
 
     Canvas(
         modifier = modifier.pointerInput(Unit) {
@@ -165,11 +166,13 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
 
         drawRulers(vm.mat, origin, ppm, rulerColor)
 
-        // design — knife layers in the primary colour, pen layers in the secondary
+        // design — knife layers in the primary colour, pen layers in the secondary; anything that
+        // runs off the mat is drawn in the error colour as a warning.
         for ((tool, pls) in vm.placedLayers()) {
-            val col = if (tool == Tool.PEN) penColor else knifeColor
+            val toolColor = if (tool == Tool.PEN) penColor else knifeColor
             for (pl in pls) {
                 if (pl.points.isEmpty()) continue
+                val col = if (pl.points.any { vm.isOutsideMat(it) }) offMatColor else toolColor
                 val path = Path()
                 val f = s(pl.points.first()); path.moveTo(f.x, f.y)
                 for (k in 1 until pl.points.size) { val q = s(pl.points[k]); path.lineTo(q.x, q.y) }

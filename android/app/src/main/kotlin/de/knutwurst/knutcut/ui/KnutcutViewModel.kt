@@ -337,6 +337,14 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Corners of the selected layer's box — the editor draws and manipulates these. */
     fun placedCorners(): List<Pt> = layerCorners(selectedLayer)
 
+    /** True if a placed point lies outside the mat (with a small tolerance), so the editor can flag it. */
+    fun isOutsideMat(p: Pt, tolMm: Double = 1.0): Boolean =
+        p.xMm < -tolMm || p.yMm < -tolMm || p.xMm > mat.widthMm + tolMm || p.yMm > mat.heightMm + tolMm
+
+    /** True if every visible layer fits within the mat. */
+    fun designWithinMat(): Boolean =
+        placedLayers().all { (_, pls) -> pls.all { pl -> pl.points.none { isOutsideMat(it) } } }
+
     /** The topmost visible layer whose placed box contains [ptMm], or -1 if none. */
     fun layerAt(ptMm: Pt): Int {
         for (i in layers.indices.reversed()) {
@@ -379,6 +387,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val l = link
         if (!connected || l == null) { status = "Bitte zuerst den Plotter verbinden."; return }
         if (!hasDesign) { status = "Kein Design geladen."; return }
+        if (!designWithinMat()) { status = "Design ragt über die Matte hinaus – bitte verkleinern oder verschieben."; return }
         if (cutting) return
         cutting = true
         progress = 0f
