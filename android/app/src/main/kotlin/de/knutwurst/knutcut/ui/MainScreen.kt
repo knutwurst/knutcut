@@ -65,6 +65,13 @@ fun MainScreen(vm: KnutcutViewModel) {
         if (hasBtPerm) showDevices = true
     }
 
+    val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { u ->
+            runCatching { context.contentResolver.openInputStream(u)?.use { it.readBytes().toString(Charsets.UTF_8) } }
+                .getOrNull()?.let { vm.loadSvg(it) }
+        }
+    }
+
     LaunchedEffect(vm.status) {
         vm.status?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
     }
@@ -77,6 +84,10 @@ fun MainScreen(vm: KnutcutViewModel) {
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Knutcut", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+                TextButton(onClick = { openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "application/octet-stream")) }) {
+                    Text("Öffnen")
+                }
+                Spacer(Modifier.width(8.dp))
                 FilledTonalButton(onClick = { openDevices() }) {
                     Text(
                         when {

@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.unit.IntSize
@@ -126,6 +127,8 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
         drawRect(matFill, topLeft = tl, size = Size(br.x - tl.x, br.y - tl.y))
         drawRect(matColor, topLeft = tl, size = Size(br.x - tl.x, br.y - tl.y), style = Stroke(width = 2f))
 
+        drawRulers(vm.mat, origin, ppm)
+
         // design
         for (pl in vm.placedPolylines()) {
             if (pl.points.isEmpty()) continue
@@ -171,6 +174,27 @@ private fun DrawScope.drawGrid(mat: Mat, origin: Offset, ppm: Float, minor: Colo
         drawLine(c, Offset(origin.x, sy), Offset((origin.x + mat.widthMm * ppm).toFloat(), sy), strokeWidth = 1f)
         y += step; i++
     }
+}
+
+/** Small cm tick labels along the top and left of the mat. */
+private fun DrawScope.drawRulers(mat: Mat, origin: Offset, ppm: Float) {
+    val paint = android.graphics.Paint().apply {
+        color = 0xFFBDBDBD.toInt()
+        textSize = 22f
+        isAntiAlias = true
+    }
+    val canvas = drawContext.canvas.nativeCanvas
+    var x = 0.0
+    while (x <= mat.widthMm + 0.01) {
+        canvas.drawText((x / 10).toInt().toString(), (origin.x + x * ppm).toFloat() + 3f, origin.y - 6f, paint)
+        x += 50.0
+    }
+    var y = 0.0
+    while (y <= mat.heightMm + 0.01) {
+        canvas.drawText((y / 10).toInt().toString(), origin.x - 26f, (origin.y + y * ppm).toFloat() + 7f, paint)
+        y += 50.0
+    }
+    canvas.drawText("cm", origin.x - 28f, origin.y - 6f, paint)
 }
 
 private fun baseScale(sizePx: IntSize, mat: Mat): Float {
