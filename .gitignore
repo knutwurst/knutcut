@@ -1,0 +1,39 @@
+# ─── Reverse-engineering artifacts — NEVER commit (proprietary; this repo is public) ───
+# The Superb Cut APK and anything decompiled/extracted from it stay strictly local,
+# the same way cricut-export keeps app-src/, refs/, tools/ out of git.
+research/
+*.apk
+*.aab
+*.dex
+btsnoop_hci.log
+*.btsnoop
+*.pcap
+*.pcapng
+
+# ─── Local Android/Java toolchain (kept local, like cricut-export/tools) ───
+tools/
+
+# ─── Android / Gradle ───
+.gradle/
+build/
+*/build/
+local.properties
+captures/
+.cxx/
+*.iml
+.idea/
+.kotlin/
+keystore.properties
+*.jks
+*.keystore
+
+# ─── Python (helper scripts for protocol analysis, if any) ───
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# ─── OS / editor ───
+.DS_Store
+Thumbs.db
+*.log
