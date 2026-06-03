@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -260,6 +261,22 @@ fun MainScreen(vm: KnutcutViewModel) {
                     Spacer(Modifier.height(6.dp))
                     OutlinedButton(onClick = { vm.mergeLayers() }, modifier = Modifier.fillMaxWidth()) {
                         Text("Zusammenführen", maxLines = 1)
+                    }
+                    if (vm.hasDesign) {
+                        Spacer(Modifier.height(10.dp))
+                        Text("Ausgewählte Ebene", style = MaterialTheme.typography.labelLarge)
+                        Row(
+                            Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            TextButton(onClick = { vm.mirrorSelectedHorizontal() }) { Text("↔ Spiegeln") }
+                            TextButton(onClick = { vm.mirrorSelectedVertical() }) { Text("↕ Spiegeln") }
+                            TextButton(onClick = { vm.duplicateSelected() }) { Text("Duplizieren") }
+                            TextButton(
+                                onClick = { vm.deleteSelected() },
+                                enabled = vm.layers.size > 1,
+                            ) { Text("Löschen") }
+                        }
                     }
                     Spacer(Modifier.height(8.dp))
                     if (vm.layers.size > 1) {

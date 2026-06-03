@@ -30,6 +30,7 @@ import de.knutwurst.knutcut.svgcore.HpglEncoder
 import de.knutwurst.knutcut.svgcore.Matrix
 import de.knutwurst.knutcut.svgcore.mmToUnits
 import de.knutwurst.knutcut.svgcore.PltCommand
+import de.knutwurst.knutcut.svgcore.Placement
 import de.knutwurst.knutcut.svgcore.PlotterMessage
 import de.knutwurst.knutcut.svgcore.PlotterSession
 import de.knutwurst.knutcut.svgcore.Polyline
@@ -139,6 +140,44 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun selectLayer(i: Int) { if (i in layers.indices) selectedLayer = i }
+
+    /** Mirror the selected layer (around its own centre). */
+    fun mirrorSelectedHorizontal() = updateSelected { it.copy(flipX = !it.flipX) }
+    fun mirrorSelectedVertical() = updateSelected { it.copy(flipY = !it.flipY) }
+
+    /** Duplicate the selected layer, offset a little, and select the copy. */
+    fun duplicateSelected() {
+        val i = selectedLayer
+        val src = layers.getOrNull(i) ?: return
+        val copy = src.copy(
+            name = src.name + " (Kopie)",
+            centerMm = Pt(src.centerMm.xMm + 5.0, src.centerMm.yMm + 5.0),
+        )
+        layers = layers.toMutableList().apply { add(i + 1, copy) }
+        selectedLayer = i + 1
+    }
+
+    /** Remove the selected layer. */
+    fun deleteSelected() {
+        val i = selectedLayer
+        if (i !in layers.indices) return
+        layers = layers.filterIndexed { idx, _ -> idx != i }
+        selectedLayer = selectedLayer.coerceIn(0, (layers.size - 1).coerceAtLeast(0))
+    }
+
+    /** Set the selected layer's size in mm (its bounding box after scale). */
+    fun setSelectedSizeMm(widthMm: Double, heightMm: Double) {
+        val b = bounds ?: return
+        updateSelected {
+            it.copy(
+                scaleX = Placement.scaleFor(b.widthMm, widthMm),
+                scaleY = Placement.scaleFor(b.heightMm, heightMm),
+            )
+        }
+    }
+
+    /** Set the selected layer's rotation to an absolute angle in degrees. */
+    fun setSelectedRotation(deg: Double) = updateSelected { it.copy(rotationDeg = ((deg % 360) + 360) % 360) }
 
     private fun updateSelected(f: (Layer) -> Layer) {
         val i = selectedLayer
@@ -279,16 +318,12 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             layer.tool to layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
         }
 
-    /** Placement matrix for one layer: rotate/scale about its own centre, then move to [Layer.centerMm]. */
-    private fun layerMatrix(layer: Layer): Matrix {
-        val b = layerBounds(layer)
-        val cx = (b.minX + b.maxX) / 2
-        val cy = (b.minY + b.maxY) / 2
-        return Matrix.translate(layer.centerMm.xMm, layer.centerMm.yMm) *
-            Matrix.rotate(layer.rotationDeg) *
-            Matrix.scale(layer.scaleX, layer.scaleY) *
-            Matrix.translate(-cx, -cy)
-    }
+    /** Placement matrix for one layer: rotate/scale/mirror about its own centre, then move to [Layer.centerMm]. */
+    private fun layerMatrix(layer: Layer): Matrix =
+        Placement.matrix(
+            layerBounds(layer), layer.centerMm, layer.scaleX, layer.scaleY, layer.rotationDeg,
+            layer.flipX, layer.flipY,
+        )
 
     /** The four corners of a layer's placed box, in mm (TL, TR, BR, BL; rotated with the layer). */
     fun layerCorners(index: Int): List<Pt> {

@@ -17,4 +17,6 @@ data class Layer(
     val scaleX: Double = 1.0,
     val scaleY: Double = 1.0,
     val rotationDeg: Double = 0.0,
+    val flipX: Boolean = false,
+    val flipY: Boolean = false,
 )
