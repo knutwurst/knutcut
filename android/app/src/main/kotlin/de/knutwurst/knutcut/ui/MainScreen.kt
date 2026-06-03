@@ -50,6 +50,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import de.knutwurst.knutcut.data.Devices
 import de.knutwurst.knutcut.data.Materials
+import de.knutwurst.knutcut.data.Mats
 import de.knutwurst.knutcut.data.Tool
 import java.util.Locale
 
@@ -135,13 +136,21 @@ fun MainScreen(vm: KnutcutViewModel) {
 
 @Composable
 private fun PlacementBar(vm: KnutcutViewModel) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        val size = vm.designSizeMm()
-        val label = if (size == null) "Kein Design – teile eine SVG zu Knutcut"
-        else String.format(Locale.GERMAN, "%.0f × %.0f mm · %d%%", size.first, size.second, (vm.scale * 100).toInt())
-        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-        TextButton(onClick = { vm.rotate90() }, enabled = vm.hasDesign) { Text("Drehen 90°") }
-        TextButton(onClick = { vm.resetPlacement() }, enabled = vm.hasDesign) { Text("Zurücksetzen") }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val size = vm.designSizeMm()
+            val label = if (size == null) "Kein Design – teile eine SVG zu Knutcut"
+            else String.format(Locale.GERMAN, "%.0f × %.0f mm · %d%%", size.first, size.second, (vm.scale * 100).toInt())
+            Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            TextButton(onClick = { vm.rotate90() }, enabled = vm.hasDesign) { Text("Drehen 90°") }
+            TextButton(onClick = { vm.resetPlacement() }, enabled = vm.hasDesign) { Text("Zurücksetzen") }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Matte", style = MaterialTheme.typography.labelMedium)
+            Mats.all.forEach { m ->
+                FilterChip(selected = vm.mat == m, onClick = { vm.selectMat(m) }, label = { Text(m.name) })
+            }
+        }
     }
 }
 

@@ -158,14 +158,27 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     /** The design placed on the mat (mm, screen orientation: y grows downward from the top-left). */
     fun placedPolylines(): List<Polyline> {
-        val b = bounds ?: return emptyList()
+        if (bounds == null) return emptyList()
+        val m = placementMatrix()
+        return polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
+    }
+
+    private fun placementMatrix(): Matrix {
+        val b = bounds ?: return Matrix.IDENTITY
         val cx = (b.minX + b.maxX) / 2
         val cy = (b.minY + b.maxY) / 2
-        val m = Matrix.translate(centerMm.xMm, centerMm.yMm) *
+        return Matrix.translate(centerMm.xMm, centerMm.yMm) *
             Matrix.rotate(rotationDeg) *
             Matrix.scale(scale, scale) *
             Matrix.translate(-cx, -cy)
-        return polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
+    }
+
+    /** The four corners of the placed design's box, in mm (TL, TR, BR, BL; rotated with the design). */
+    fun placedCorners(): List<Pt> {
+        val b = bounds ?: return emptyList()
+        val m = placementMatrix()
+        return listOf(Pt(b.minX, b.minY), Pt(b.maxX, b.minY), Pt(b.maxX, b.maxY), Pt(b.minX, b.maxY))
+            .map { m.apply(it) }
     }
 
     /** Plotter-space polylines: the placed design with Y flipped, since the plotter is Y-up. */
