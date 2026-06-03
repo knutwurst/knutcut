@@ -29,6 +29,11 @@ class Settings(context: Context) {
         get() = p.getInt("force", -1)
         set(v) = p.edit().putInt("force", v).apply()
 
+    /** Pen pressure (separate from the material's knife pressure; a pen needs only light contact). */
+    var penForce: Int
+        get() = p.getInt("penForce", 40)
+        set(v) = p.edit().putInt("penForce", v).apply()
+
     var matName: String?
         get() = p.getString("matName", null)
         set(v) = p.edit().putString("matName", v).apply()

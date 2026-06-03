@@ -87,6 +87,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var material by mutableStateOf<Material>(Materials.default); private set
     var tool by mutableStateOf(Tool.KNIFE); private set
     var force by mutableStateOf(Materials.default.force); private set
+    var penForce by mutableStateOf(40); private set
 
     // Connection.
     var device by mutableStateOf<BluetoothDevice?>(null); private set
@@ -119,6 +120,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         Mats.byName(settings.matName)?.let { mat = it }
         tool = Tool.entries.firstOrNull { it.sp == settings.toolSp } ?: Tool.KNIFE
         if (settings.force > 0) force = settings.force
+        penForce = settings.penForce
     }
 
     fun loadSvg(text: String) {
@@ -198,6 +200,11 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun changeForce(v: Int) { force = v; settings.force = v }
+
+    fun changePenForce(v: Int) { penForce = v; settings.penForce = v }
+
+    /** Pressure for a tool: the material's knife pressure for the knife, the lighter pen pressure for the pen. */
+    fun forceFor(t: Tool): Int = if (t == Tool.PEN) penForce else force
 
     fun selectMat(m: Mat) {
         mat = m
@@ -360,7 +367,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             val lengthUnits = (mat.heightMm * UNITS_PER_MM).toInt()
             withContext(Dispatchers.IO) {
                 Log.d(TAG, "setmat -> ${session.send(PltCommand("setmat:${material.id};"))}")
-                Log.d(TAG, "setPressure -> ${session.send(PltCommand("SP${primaryTool.sp};FS$force;"))}")
+                Log.d(TAG, "setPressure -> ${session.send(PltCommand("SP${primaryTool.sp};FS${forceFor(primaryTool)};"))}")
                 Log.d(TAG, "setScale -> ${session.send(PltCommand("JS$widthUnits,$lengthUnits;"))}")
             }
 
@@ -389,9 +396,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 if (dragKnifeComp) cmds = DragKnife.process(cmds)
                 val xs = polys.flatMap { it.points }.map { mmToUnits(it.xMm) }
                 val ys = polys.flatMap { it.points }.map { mmToUnits(it.yMm) }
-                Log.d(TAG, "tool=${t.sp} force=$force polylines=${polys.size} cmds=$raw->${cmds.size} (comp=$dragKnifeComp) " +
+                Log.d(TAG, "tool=${t.sp} force=${forceFor(t)} polylines=${polys.size} cmds=$raw->${cmds.size} (comp=$dragKnifeComp) " +
                     "x=[${xs.minOrNull()}..${xs.maxOrNull()}] y=[${ys.minOrNull()}..${ys.maxOrNull()}]")
-                if (idx > 0) { plt += "SP${t.sp}"; plt += "FS$force" }
+                if (idx > 0) { plt += "SP${t.sp}"; plt += "FS${forceFor(t)}" }
                 plt.addAll(cmds)
             }
             if (plt.isEmpty()) { finishCut("Keine sichtbaren Ebenen."); return }

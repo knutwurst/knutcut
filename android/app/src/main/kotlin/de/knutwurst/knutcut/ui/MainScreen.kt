@@ -339,7 +339,13 @@ private fun MaterialBar(vm: KnutcutViewModel) {
                     }
                 }
             }
-            Stepper("Druck", vm.force, Materials.FORCE_MIN, Materials.FORCE_MAX) { vm.changeForce(it) }
+            val penSelected = vm.tool == Tool.PEN
+            Stepper(
+                if (penSelected) "Druck (Stift)" else "Druck (Messer)",
+                if (penSelected) vm.penForce else vm.force,
+                Materials.FORCE_MIN,
+                Materials.FORCE_MAX,
+            ) { if (penSelected) vm.changePenForce(it) else vm.changeForce(it) }
         }
     }
 }
