@@ -42,4 +42,9 @@ class Settings(context: Context) {
     var dragKnifeComp: Boolean
         get() = p.getBoolean("dragKnifeComp", true)
         set(v) = p.edit().putBoolean("dragKnifeComp", v).apply()
+
+    /** Blade offset for the drag-knife compensation, in plotter units (40/mm). */
+    var bladeOffset: Int
+        get() = p.getInt("bladeOffset", 13)
+        set(v) = p.edit().putInt("bladeOffset", v).apply()
 }

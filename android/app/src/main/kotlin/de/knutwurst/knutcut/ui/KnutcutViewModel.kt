@@ -105,12 +105,15 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var themeMode by mutableStateOf(settings.themeMode); private set
 
     var dragKnifeComp by mutableStateOf(settings.dragKnifeComp); private set
+    var bladeOffset by mutableStateOf(settings.bladeOffset); private set
 
     val hasDesign: Boolean get() = layers.isNotEmpty()
 
     fun selectTheme(m: ThemeMode) { settings.themeMode = m; themeMode = m }
 
     fun changeDragKnifeComp(v: Boolean) { settings.dragKnifeComp = v; dragKnifeComp = v }
+
+    fun changeBladeOffset(v: Int) { bladeOffset = v.coerceIn(0, 40); settings.bladeOffset = bladeOffset }
 
     init {
         settings.materialId?.let { id ->
@@ -455,7 +458,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 var cmds = HpglEncoder.encode(polys)
                 if (cmds.isEmpty()) return@forEachIndexed
                 val raw = cmds.size
-                if (dragKnifeComp) cmds = DragKnife.process(cmds)
+                if (dragKnifeComp) cmds = DragKnife.process(cmds, bladeOffset.toDouble())
                 val xs = polys.flatMap { it.points }.map { mmToUnits(it.xMm) }
                 val ys = polys.flatMap { it.points }.map { mmToUnits(it.yMm) }
                 Log.d(TAG, "tool=${t.sp} force=${forceFor(t)} polylines=${polys.size} cmds=$raw->${cmds.size} (comp=$dragKnifeComp) " +

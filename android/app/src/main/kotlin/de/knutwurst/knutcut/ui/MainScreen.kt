@@ -245,6 +245,16 @@ fun MainScreen(vm: KnutcutViewModel) {
                         }
                         Switch(checked = vm.dragKnifeComp, onCheckedChange = { vm.changeDragKnifeComp(it) })
                     }
+                    if (vm.dragKnifeComp) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Klingenversatz (Einheiten, 40 = 1 mm)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Stepper("", vm.bladeOffset, 0, 40) { vm.changeBladeOffset(it) }
+                        }
+                    }
 
                     Spacer(Modifier.height(12.dp))
                     Text("Knutcut v$version · Knutwurst", style = MaterialTheme.typography.bodySmall)

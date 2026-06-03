@@ -15,9 +15,8 @@ import kotlin.math.sin
  *
  * - At every interior vertex whose turn is sharp enough (interior angle < 150°) and whose adjoining
  *   segments are long enough (> [MIN_SEG] units), the corner point is replaced by four points that
- *   trace a [OFFSET]-unit arc, letting the blade swivel into the new direction.
- * - A closed contour gets a [CLOSE_LEAD]-unit lead-in appended at the end and its last point pushed
- *   [OFFSET] units further along, so the cut closes without a nick.
+ *   trace a blade-offset arc, letting the blade swivel into the new direction.
+ * - A closed contour gets a lead-in appended at the end and its last point pushed further along, so the cut closes without a nick.
  *
  * All distances are in plotter units (40/mm) and rounded, matching the original exactly.
  */
@@ -25,29 +24,33 @@ object DragKnife {
     /** Interior angles sharper than this get corner compensation (150°, as in the stock app). */
     private val SHARP = 150.0 * Math.PI / 180.0
     private const val MIN_SEG = 5.0
-    private const val OFFSET = 13.0   // blade-offset arc radius / overshoot
-    private const val CLOSE_LEAD = 26.0
+    /** Default blade offset in plotter units (≈0.33 mm); the stock app uses 13. */
+    const val DEFAULT_OFFSET = 13.0
 
     private data class P(val x: Int, val y: Int)
 
-    /** Compensate a flat PU/PD command stream by processing each contour (each PU starts one). */
-    fun process(commands: List<String>): List<String> {
+    /**
+     * Compensate a flat PU/PD command stream by processing each contour (each PU starts one).
+     * [offset] is the blade-offset radius/overshoot in plotter units; the closure lead-in is twice it.
+     */
+    fun process(commands: List<String>, offset: Double = DEFAULT_OFFSET): List<String> {
         if (commands.isEmpty()) return commands
         val out = ArrayList<String>(commands.size + commands.size / 2)
         var contour = ArrayList<String>()
         for (cmd in commands) {
             if (cmd.startsWith("PU") && contour.isNotEmpty()) {
-                out.addAll(processContour(contour))
+                out.addAll(processContour(contour, offset))
                 contour = ArrayList()
             }
             contour.add(cmd)
         }
-        if (contour.isNotEmpty()) out.addAll(processContour(contour))
+        if (contour.isNotEmpty()) out.addAll(processContour(contour, offset))
         return out
     }
 
     /** One contour: a leading PU followed by PD points. Mirrors `pltFixUtils.precessOne`. */
-    private fun processContour(cmds: List<String>): List<String> {
+    private fun processContour(cmds: List<String>, offset: Double): List<String> {
+        val lead = offset * 2
         val p = cmds.toMutableList()
 
         // Pull any trailing PU moves aside; they are re-appended unchanged.
@@ -68,11 +71,11 @@ object DragKnife {
 
         dedupeAdjacent(p)
 
-        // Lead-in: a point CLOSE_LEAD units along the first edge, appended at the end.
+        // Lead-in: a point lead units along the first edge, appended at the end.
         if (closed && p.size >= 2) {
             val k = parse(p[0]); val s = parse(p[1])
             if (k != null && s != null) {
-                val c = along(k, s, CLOSE_LEAD)
+                val c = along(k, s, lead)
                 p.add("PD${c.x},${c.y}")
             }
         }
@@ -92,12 +95,12 @@ object DragKnife {
             if (angle == 0.0) continue
             val cross = (n.x - u.x).toDouble() * (l.y - u.y) - (n.y - u.y).toDouble() * (l.x - u.x)
             val right = cross < 0
-            val b = along(l, u, OFFSET)            // overshoot past the corner on the incoming edge
-            val g = along(n, u, -OFFSET)           // step toward the outgoing edge
+            val b = along(l, u, offset)            // overshoot past the corner on the incoming edge
+            val g = along(n, u, -offset)           // step toward the outgoing edge
             var h = abs(Math.PI - angle)
             if (right) h = -h
-            val v = rotate(u, OFFSET, b, h / 3)
-            val w = rotate(u, OFFSET, b, 2 * h / 3)
+            val v = rotate(u, offset, b, h / 3)
+            val w = rotate(u, offset, b, 2 * h / 3)
             val at = i + inserted
             result[at] = "PD${b.x},${b.y}"
             result.add(at + 1, "PD${v.x},${v.y}")
@@ -106,11 +109,11 @@ object DragKnife {
             inserted += 3
         }
 
-        // Closing overshoot: push the final point OFFSET units further along its last edge.
+        // Closing overshoot: push the final point offset units further along its last edge.
         if (closed && p.size >= 2) {
             val y = parse(p.last()); val jj = parse(p[p.size - 2])
             if (y != null && jj != null) {
-                val x = along(jj, y, OFFSET)
+                val x = along(jj, y, offset)
                 result[result.lastIndex] = "PD${x.x},${x.y}"
             }
         }

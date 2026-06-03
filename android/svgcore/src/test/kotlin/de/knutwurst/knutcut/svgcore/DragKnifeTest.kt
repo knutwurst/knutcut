@@ -24,6 +24,12 @@ class DragKnifeTest {
     }
 
     @Test
+    fun offsetChangesTheCompensation() {
+        val square = listOf("PU0,0", "PD1600,0", "PD1600,1600", "PD0,1600", "PD0,0")
+        assertTrue(DragKnife.process(square, 13.0) != DragKnife.process(square, 26.0))
+    }
+
+    @Test
     fun straightOpenPathIsLeftAlone() {
         // Collinear points = 180° interior angles (> 150°), open path: nothing to compensate.
         val line = listOf("PU0,0", "PD1000,0", "PD2000,0", "PD3000,0")
