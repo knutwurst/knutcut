@@ -21,6 +21,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.unit.IntSize
 import de.knutwurst.knutcut.data.Mat
+import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Pt
 import kotlin.math.atan2
 import kotlin.math.min
@@ -49,7 +50,8 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     val gridMajor = Color(0x40FFFFFF)
     val matColor = Color(0xFFBDBDBD)
     val matFill = Color(0x14FFFFFF)
-    val designColor = MaterialTheme.colorScheme.primary
+    val knifeColor = MaterialTheme.colorScheme.primary
+    val penColor = MaterialTheme.colorScheme.secondary
     val handleColor = MaterialTheme.colorScheme.tertiary
 
     Canvas(
@@ -152,14 +154,17 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
 
         drawRulers(vm.mat, origin, ppm)
 
-        // design
-        for (pl in vm.placedPolylines()) {
-            if (pl.points.isEmpty()) continue
-            val path = Path()
-            val f = s(pl.points.first()); path.moveTo(f.x, f.y)
-            for (k in 1 until pl.points.size) { val q = s(pl.points[k]); path.lineTo(q.x, q.y) }
-            if (pl.closed) path.close()
-            drawPath(path, designColor, style = Stroke(width = 2.5f))
+        // design — knife layers in the primary colour, pen layers in the secondary
+        for ((tool, pls) in vm.placedLayers()) {
+            val col = if (tool == Tool.PEN) penColor else knifeColor
+            for (pl in pls) {
+                if (pl.points.isEmpty()) continue
+                val path = Path()
+                val f = s(pl.points.first()); path.moveTo(f.x, f.y)
+                for (k in 1 until pl.points.size) { val q = s(pl.points[k]); path.lineTo(q.x, q.y) }
+                if (pl.closed) path.close()
+                drawPath(path, col, style = Stroke(width = 2.5f))
+            }
         }
 
         // selection box + handles

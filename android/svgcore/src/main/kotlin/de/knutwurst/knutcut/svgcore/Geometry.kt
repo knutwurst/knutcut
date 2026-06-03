@@ -11,6 +11,9 @@ data class Pt(val xMm: Double, val yMm: Double)
  */
 data class Polyline(val points: List<Pt>, val closed: Boolean)
 
+/** A named shape from one SVG element (its polylines in mm) — a layer in the editor. */
+data class SvgShape(val name: String, val polylines: List<Polyline>)
+
 /** Axis-aligned bounding box in millimetres. */
 data class Bounds(val minX: Double, val minY: Double, val maxX: Double, val maxY: Double) {
     val widthMm: Double get() = maxX - minX

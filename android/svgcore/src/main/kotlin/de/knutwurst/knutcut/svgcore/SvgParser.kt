@@ -18,11 +18,16 @@ object SvgParser {
 
     private data class ViewBox(val minX: Double, val minY: Double, val w: Double, val h: Double)
 
-    fun parse(svg: String, toleranceMm: Double = PathFlattener.DEFAULT_TOLERANCE_MM): List<Polyline> {
+    /** Flat list of all polylines in the document (every shape merged). */
+    fun parse(svg: String, toleranceMm: Double = PathFlattener.DEFAULT_TOLERANCE_MM): List<Polyline> =
+        parseShapes(svg, toleranceMm).flatMap { it.polylines }
+
+    /** One [SvgShape] per drawable element (path/rect/…), in document order. */
+    fun parseShapes(svg: String, toleranceMm: Double = PathFlattener.DEFAULT_TOLERANCE_MM): List<SvgShape> {
         val root = buildDoc(svg).documentElement ?: return emptyList()
-        val out = ArrayList<Polyline>()
-        walk(root, rootUnitMatrix(root), out, toleranceMm)
-        return out
+        val shapes = ArrayList<SvgShape>()
+        walk(root, rootUnitMatrix(root), shapes, toleranceMm, intArrayOf(0))
+        return shapes
     }
 
     private fun buildDoc(svg: String): Document {
@@ -50,16 +55,21 @@ object SvgParser {
         return Matrix.scale(s, s)
     }
 
-    private fun walk(el: Element, parent: Matrix, out: MutableList<Polyline>, tol: Double) {
+    private fun walk(el: Element, parent: Matrix, shapes: MutableList<SvgShape>, tol: Double, count: IntArray) {
         val m = parent * Matrix.parse(el.getAttribute("transform"))
         val subs = shapeToSubPaths(el)
         if (subs != null) {
-            for (sub in subs) out.add(flatten(sub, m, tol))
+            val polys = subs.map { flatten(it, m, tol) }.filter { it.points.size >= 2 }
+            if (polys.isNotEmpty()) {
+                count[0]++
+                val id = el.getAttribute("id")
+                shapes.add(SvgShape(if (id.isNotBlank()) id else "Ebene ${count[0]}", polys))
+            }
             return
         }
         var child = el.firstChild
         while (child != null) {
-            if (child.nodeType == Node.ELEMENT_NODE) walk(child as Element, m, out, tol)
+            if (child.nodeType == Node.ELEMENT_NODE) walk(child as Element, m, shapes, tol, count)
             child = child.nextSibling
         }
     }

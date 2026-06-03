@@ -30,6 +30,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -73,6 +75,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     var hasBtPerm by remember { mutableStateOf(hasBluetoothPermission(context)) }
     var showDevices by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showLayers by remember { mutableStateOf(false) }
 
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         hasBtPerm = hasBluetoothPermission(context)
@@ -126,7 +129,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)),
             )
 
-            PlacementBar(vm)
+            PlacementBar(vm) { showLayers = true }
             Spacer(Modifier.height(4.dp))
             MaterialBar(vm)
             Spacer(Modifier.height(8.dp))
@@ -154,7 +157,13 @@ fun MainScreen(vm: KnutcutViewModel) {
                     enabled = vm.hasDesign && !vm.cutting,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                 ) {
-                    Text(if (vm.connected) vm.tool.action else "Plotter verbinden")
+                    Text(
+                        when {
+                            !vm.connected -> "Plotter verbinden"
+                            vm.layers.any { it.visible && it.tool == Tool.KNIFE } -> "Schneiden"
+                            else -> "Zeichnen"
+                        }
+                    )
                 }
             }
         }
@@ -212,16 +221,43 @@ fun MainScreen(vm: KnutcutViewModel) {
             },
         )
     }
+
+    if (showLayers) {
+        AlertDialog(
+            onDismissRequest = { showLayers = false },
+            confirmButton = { TextButton(onClick = { showLayers = false }) { Text("Schließen") } },
+            title = { Text("${vm.layers.size} Ebenen") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    vm.layers.forEachIndexed { i, layer ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { vm.toggleLayerVisible(i) }) {
+                                Icon(
+                                    if (layer.visible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = "Sichtbar",
+                                )
+                            }
+                            Text(layer.name, maxLines = 1, modifier = Modifier.weight(1f))
+                            FilterChip(selected = layer.tool == Tool.PEN, onClick = { vm.setLayerTool(i, Tool.PEN) }, label = { Text("Stift") })
+                            Spacer(Modifier.width(6.dp))
+                            FilterChip(selected = layer.tool == Tool.KNIFE, onClick = { vm.setLayerTool(i, Tool.KNIFE) }, label = { Text("Messer") })
+                        }
+                    }
+                }
+            },
+        )
+    }
 }
 
 @Composable
-private fun PlacementBar(vm: KnutcutViewModel) {
+private fun PlacementBar(vm: KnutcutViewModel, onLayers: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val size = vm.designSizeMm()
             val label = if (size == null) "Kein Design – teile eine SVG zu Knutcut"
             else String.format(Locale.GERMAN, "%.0f × %.0f mm", size.first, size.second)
             Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            TextButton(onClick = onLayers, enabled = vm.hasDesign) { Text("Ebenen (${vm.layers.size})") }
             TextButton(onClick = { vm.rotate90() }, enabled = vm.hasDesign) { Text("Drehen 90°") }
             TextButton(onClick = { vm.resetPlacement() }, enabled = vm.hasDesign) { Text("Zurücksetzen") }
         }
@@ -256,7 +292,7 @@ private fun MaterialBar(vm: KnutcutViewModel) {
                     listOf(Tool.PEN, Tool.KNIFE).forEach { t ->
                         FilterChip(
                             selected = vm.tool == t,
-                            onClick = { vm.selectTool(t) },
+                            onClick = { vm.setAllTool(t) },
                             label = { Text(if (t == Tool.KNIFE) "Messer" else "Stift") },
                         )
                     }
