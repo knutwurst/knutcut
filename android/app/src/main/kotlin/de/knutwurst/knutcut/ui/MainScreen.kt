@@ -96,7 +96,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { u ->
             runCatching { context.contentResolver.openInputStream(u)?.use { it.readBytes().toString(Charsets.UTF_8) } }
-                .getOrNull()?.let { vm.loadSvg(it) }
+                .getOrNull()?.let { vm.loadDesign(it) }
         }
     }
 
@@ -144,7 +144,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                         }
                     }
                 }
-                TextButton(onClick = { openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "application/octet-stream")) }) {
+                TextButton(onClick = { openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "text/plain", "application/octet-stream")) }) {
                     Text("Öffnen")
                 }
                 IconButton(onClick = { showSettings = true }) {

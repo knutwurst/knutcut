@@ -25,10 +25,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        readSvg(intent)?.let { vm.loadSvg(it) }
+        readShared(intent)?.let { vm.loadDesign(it) }
     }
 
-    private fun readSvg(intent: Intent?): String? {
+    private fun readShared(intent: Intent?): String? {
         intent ?: return null
         @Suppress("DEPRECATION")
         val uri: Uri? = when (intent.action) {

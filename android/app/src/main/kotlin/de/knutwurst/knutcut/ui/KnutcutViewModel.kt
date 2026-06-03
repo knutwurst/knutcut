@@ -30,6 +30,7 @@ import de.knutwurst.knutcut.svgcore.HpglEncoder
 import de.knutwurst.knutcut.svgcore.Matrix
 import de.knutwurst.knutcut.svgcore.mmToUnits
 import de.knutwurst.knutcut.svgcore.PltCommand
+import de.knutwurst.knutcut.svgcore.PltParser
 import de.knutwurst.knutcut.svgcore.Placement
 import de.knutwurst.knutcut.svgcore.PlotterMessage
 import de.knutwurst.knutcut.svgcore.PlotterSession
@@ -124,6 +125,26 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         tool = Tool.entries.firstOrNull { it.sp == settings.toolSp } ?: Tool.KNIFE
         if (settings.force > 0) force = settings.force
         penForce = settings.penForce
+    }
+
+    /** Load a shared/opened file, picking the SVG or PLT reader by its content. */
+    fun loadDesign(text: String) {
+        val head = text.trimStart()
+        if (head.startsWith("<") || head.contains("<svg", ignoreCase = true)) loadSvg(text) else loadPlt(text)
+    }
+
+    fun loadPlt(text: String) {
+        try {
+            val polys = PltParser.parse(text)
+            if (polys.isEmpty()) { status = "Keine Pfade in der PLT-Datei gefunden."; return }
+            layers = placeAtHome(listOf(Layer("PLT-Datei", polys, tool, visible = true)))
+            selectedLayer = 0
+            camScale = 1f
+            camOffset = Offset.Zero
+            status = "PLT geladen (${polys.size} Pfade)."
+        } catch (e: Exception) {
+            status = "PLT konnte nicht gelesen werden: ${e.message}"
+        }
     }
 
     fun loadSvg(text: String) {
