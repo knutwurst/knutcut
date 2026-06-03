@@ -15,7 +15,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntSize
-import de.knutwurst.knutcut.data.PlotterModel
+import de.knutwurst.knutcut.data.Mat
 import de.knutwurst.knutcut.svgcore.Pt
 import kotlin.math.min
 
@@ -31,7 +31,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
         modifier = modifier.pointerInput(Unit) {
             detectTransformGestures { _, pan, zoom, rotation ->
                 if (!vm.hasDesign) return@detectTransformGestures
-                val s = matScaleFor(sizePx, vm.model)
+                val s = matScaleFor(sizePx, vm.mat)
                 if (s > 0f) {
                     vm.centerMm = Pt(vm.centerMm.xMm + pan.x / s, vm.centerMm.yMm + pan.y / s)
                 }
@@ -41,10 +41,10 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
         },
     ) {
         sizePx = IntSize(size.width.toInt(), size.height.toInt())
-        val matScale = matScaleFor(sizePx, vm.model)
+        val matScale = matScaleFor(sizePx, vm.mat)
         if (matScale <= 0f) return@Canvas
-        val matW = (vm.model.matWidthMm * matScale).toFloat()
-        val matH = (vm.model.matHeightMm * matScale).toFloat()
+        val matW = (vm.mat.widthMm * matScale).toFloat()
+        val matH = (vm.mat.heightMm * matScale).toFloat()
         val ox = (size.width - matW) / 2f
         val oy = (size.height - matH) / 2f
 
@@ -68,8 +68,8 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     }
 }
 
-private fun matScaleFor(sizePx: IntSize, model: PlotterModel): Float {
+private fun matScaleFor(sizePx: IntSize, mat: Mat): Float {
     if (sizePx.width == 0 || sizePx.height == 0) return 0f
     val pad = 0.92f
-    return min(sizePx.width / model.matWidthMm, sizePx.height / model.matHeightMm).toFloat() * pad
+    return min(sizePx.width / mat.widthMm, sizePx.height / mat.heightMm).toFloat() * pad
 }

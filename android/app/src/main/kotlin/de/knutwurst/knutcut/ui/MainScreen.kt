@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -33,6 +34,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -46,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import de.knutwurst.knutcut.data.Devices
 import de.knutwurst.knutcut.data.Materials
 import de.knutwurst.knutcut.data.Tool
 import java.util.Locale
@@ -164,13 +167,13 @@ private fun MaterialBar(vm: KnutcutViewModel) {
                     listOf(Tool.PEN, Tool.KNIFE).forEach { t ->
                         FilterChip(
                             selected = vm.tool == t,
-                            onClick = { vm.tool = t },
+                            onClick = { vm.selectTool(t) },
                             label = { Text(if (t == Tool.KNIFE) "Messer" else "Stift") },
                         )
                     }
                 }
             }
-            Stepper("Druck", vm.force, Materials.FORCE_MIN, Materials.FORCE_MAX) { vm.force = it }
+            Stepper("Druck", vm.force, Materials.FORCE_MIN, Materials.FORCE_MAX) { vm.changeForce(it) }
         }
     }
 }
@@ -190,9 +193,11 @@ private fun Stepper(label: String, value: Int, min: Int, max: Int, onChange: (In
 @Composable
 private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: () -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val devices = remember(hasPerm) {
+    var showAll by remember { mutableStateOf(false) }
+    val all = remember(hasPerm) {
         if (hasPerm) de.knutwurst.knutcut.transport.BluetoothPlotter.bondedDevices(context) else emptyList()
     }
+    val shown = if (showAll) all else all.filter { Devices.looksLikePlotter(it.name) }
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = { TextButton(onClick = onDismiss) { Text("Schließen") } },
@@ -205,16 +210,23 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
                         Spacer(Modifier.height(8.dp))
                         Button(onClick = onRequestPerm) { Text("Berechtigung erteilen") }
                     }
-                    devices.isEmpty() -> {
-                        Text("Kein gekoppeltes Gerät gefunden. Koppele den Plotter zuerst in den Android-Bluetooth-Einstellungen, dann erscheint er hier.")
-                    }
-                    else -> devices.forEach { d ->
+                    shown.isEmpty() -> Text(
+                        if (all.isEmpty()) "Kein gekoppeltes Gerät gefunden. Koppele den Plotter zuerst in den Android-Bluetooth-Einstellungen."
+                        else "Kein Plotter gefunden. Falls dein Plotter anders heißt, aktiviere „Alle Geräte anzeigen“."
+                    )
+                    else -> shown.forEach { d ->
                         TextButton(onClick = { vm.connect(d); onDismiss() }, modifier = Modifier.fillMaxWidth()) {
                             Text(d.name ?: d.address, modifier = Modifier.fillMaxWidth())
                         }
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                if (hasPerm) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(checked = showAll, onCheckedChange = { showAll = it })
+                        Spacer(Modifier.width(8.dp))
+                        Text("Alle Geräte anzeigen")
+                    }
+                }
                 HorizontalDivider()
                 TextButton(onClick = { context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }) {
                     Text("Bluetooth-Einstellungen öffnen")

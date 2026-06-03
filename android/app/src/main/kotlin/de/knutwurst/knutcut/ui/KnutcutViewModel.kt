@@ -9,25 +9,28 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.knutwurst.knutcut.data.Devices
+import de.knutwurst.knutcut.data.Mat
+import de.knutwurst.knutcut.data.Mats
 import de.knutwurst.knutcut.data.Material
 import de.knutwurst.knutcut.data.Materials
 import de.knutwurst.knutcut.data.PlotterModel
+import de.knutwurst.knutcut.data.Settings
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Bounds
+import de.knutwurst.knutcut.svgcore.Bye
+import de.knutwurst.knutcut.svgcore.Handshake
 import de.knutwurst.knutcut.svgcore.HpglEncoder
 import de.knutwurst.knutcut.svgcore.Matrix
+import de.knutwurst.knutcut.svgcore.PltCommand
 import de.knutwurst.knutcut.svgcore.PlotterSession
 import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Protocol
 import de.knutwurst.knutcut.svgcore.Pt
+import de.knutwurst.knutcut.svgcore.Query
 import de.knutwurst.knutcut.svgcore.SvgParser
+import de.knutwurst.knutcut.svgcore.responseStateReady
 import de.knutwurst.knutcut.transport.BluetoothPlotter
 import de.knutwurst.knutcut.transport.SppPlotterLink
-import de.knutwurst.knutcut.svgcore.Query
-import de.knutwurst.knutcut.svgcore.Handshake
-import de.knutwurst.knutcut.svgcore.Bye
-import de.knutwurst.knutcut.svgcore.PltCommand
-import de.knutwurst.knutcut.svgcore.responseStateReady
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,20 +40,23 @@ import kotlinx.coroutines.withContext
 
 class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
+    private val settings = Settings(app)
+
     // Loaded design (in mm, at the SVG's own origin).
     var polylines by mutableStateOf<List<Polyline>>(emptyList()); private set
     var bounds by mutableStateOf<Bounds?>(null); private set
 
-    // Placement on the mat.
-    var model by mutableStateOf<PlotterModel>(Devices.default)
+    // Work area + placement.
+    var model by mutableStateOf<PlotterModel>(Devices.default); private set
+    var mat by mutableStateOf<Mat>(Mats.default); private set
     var scale by mutableStateOf(1.0)
     var rotationDeg by mutableStateOf(0.0)
-    var centerMm by mutableStateOf(Pt(model.matWidthMm / 2, model.matHeightMm / 2))
+    var centerMm by mutableStateOf(Pt(0.0, 0.0))
 
     // Material / cut settings.
     var material by mutableStateOf<Material>(Materials.default); private set
-    var tool by mutableStateOf(Tool.KNIFE)
-    var force by mutableStateOf(Materials.default.force)
+    var tool by mutableStateOf(Tool.KNIFE); private set
+    var force by mutableStateOf(Materials.default.force); private set
 
     // Connection.
     var device by mutableStateOf<BluetoothDevice?>(null); private set
@@ -66,6 +72,15 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     val hasDesign: Boolean get() = polylines.isNotEmpty()
 
+    init {
+        settings.materialId?.let { id ->
+            Materials.presets.firstOrNull { it.id == id }?.let { material = it; force = it.force }
+        }
+        Mats.byName(settings.matName)?.let { mat = it }
+        tool = Tool.entries.firstOrNull { it.sp == settings.toolSp } ?: Tool.KNIFE
+        if (settings.force > 0) force = settings.force
+    }
+
     fun loadSvg(text: String) {
         try {
             val polys = SvgParser.parse(text)
@@ -75,8 +90,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             bounds = b
             scale = 1.0
             rotationDeg = 0.0
-            // place the design's top-left at the plotter origin (0,0)
-            centerMm = Pt(b.widthMm / 2, b.heightMm / 2)
+            centerMm = Pt(b.widthMm / 2, b.heightMm / 2) // design top-left at the origin (0,0)
             status = "Design geladen."
         } catch (e: Exception) {
             status = "SVG konnte nicht gelesen werden: ${e.message}"
@@ -86,6 +100,18 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun selectMaterial(m: Material) {
         material = m
         force = m.force
+        settings.materialId = m.id
+        settings.force = m.force
+    }
+
+    fun selectTool(t: Tool) { tool = t; settings.toolSp = t.sp }
+
+    fun changeForce(v: Int) { force = v; settings.force = v }
+
+    fun selectMat(m: Mat) {
+        mat = m
+        settings.matName = m.name
+        if (hasDesign) resetPlacement()
     }
 
     fun rotate90() { rotationDeg = (rotationDeg + 90.0) % 360.0 }
@@ -94,8 +120,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         scale = 1.0
         rotationDeg = 0.0
         val b = bounds
-        centerMm = if (b != null) Pt(b.widthMm / 2, b.heightMm / 2)
-        else Pt(model.matWidthMm / 2, model.matHeightMm / 2)
+        centerMm = if (b != null) Pt(b.widthMm / 2, b.heightMm / 2) else Pt(0.0, 0.0)
     }
 
     /** Size of the placed design in millimetres (bounding box after scale). */
@@ -116,6 +141,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 device = dev
                 connected = true
                 Devices.matchByName(dev.name)?.let { model = it }
+                settings.deviceAddress = dev.address
                 status = "Verbunden mit ${dev.name}."
             } catch (e: Exception) {
                 connected = false
@@ -127,14 +153,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun disconnect() {
-        link?.close()
-        link = null
-        connected = false
-        device = null
-        status = "Getrennt."
+        link?.close(); link = null; connected = false; device = null; status = "Getrennt."
     }
 
-    /** The design transformed onto the mat (mm), ready to encode or preview. */
+    /** The design placed on the mat (mm, screen orientation: y grows downward from the top-left). */
     fun placedPolylines(): List<Polyline> {
         val b = bounds ?: return emptyList()
         val cx = (b.minX + b.maxX) / 2
@@ -146,11 +168,17 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
     }
 
+    /** Plotter-space polylines: the placed design with Y flipped, since the plotter is Y-up. */
+    private fun plotterPolylines(): List<Polyline> {
+        val h = mat.heightMm
+        return placedPolylines().map { pl -> Polyline(pl.points.map { Pt(it.xMm, h - it.yMm) }, pl.closed) }
+    }
+
     private var cutJob: Job? = null
 
     /**
-     * The cut follows the machine's own workflow so it never cuts into the air: set up, then wait for
-     * the media to be loaded (Laden-Taste), then wait for the start key, and only then send the path.
+     * Follows the machine's workflow so it never cuts into the air: set up, wait for the media to be
+     * loaded (Laden-Taste) and the start key on machines that have them, and only then send the path.
      */
     fun cut() {
         val l = link
@@ -172,14 +200,17 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                     Log.d(TAG, "SP/FS -> ${session.send(PltCommand("SP${tool.sp};FS$force;"))}")
                 }
 
-                status = "Lege Matte/Material ein und drücke die Laden-Taste am Plotter."
-                if (!pollState(session, Query("queryPulled"))) { finishCut("Kein Material geladen (Zeitüberschreitung)."); return@launch }
-
-                status = "Drücke die Start-Taste am Plotter."
-                if (!pollState(session, Query("queryStartKey"))) { finishCut("Start-Taste nicht gedrückt (Zeitüberschreitung)."); return@launch }
+                if (model.hasPaperKey) {
+                    status = "Lege Matte/Material ein und drücke die Laden-Taste am Plotter."
+                    if (!pollState(session, Query("queryPulled"))) { finishCut("Kein Material geladen (Zeitüberschreitung)."); return@launch }
+                }
+                if (model.hasStartKey) {
+                    status = "Drücke die Start-Taste am Plotter."
+                    if (!pollState(session, Query("queryStartKey"))) { finishCut("Start-Taste nicht gedrückt (Zeitüberschreitung)."); return@launch }
+                }
 
                 status = "Schneide…"
-                val commands = HpglEncoder.encode(placedPolylines())
+                val commands = HpglEncoder.encode(plotterPolylines())
                 val fileMsgs = buildList {
                     add(PltCommand("TB66;"))
                     addAll(Protocol.pathFile(commands))
@@ -209,7 +240,6 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         status = msg
     }
 
-    /** Poll a query until the device reports a ready state, or give up after [attempts] tries. */
     private suspend fun pollState(session: PlotterSession, query: Query, attempts: Int = 150, intervalMs: Long = 800): Boolean {
         repeat(attempts) {
             val resp = withContext(Dispatchers.IO) { session.send(query) }
@@ -220,15 +250,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return false
     }
 
-    private companion object {
-        const val TAG = "Knutcut"
-    }
+    fun cancelCut() { cutJob?.cancel() }
 
-    fun cancelCut() {
-        cutJob?.cancel()
-    }
+    override fun onCleared() { link?.close() }
 
-    override fun onCleared() {
-        link?.close()
-    }
+    private companion object { const val TAG = "Knutcut" }
 }
