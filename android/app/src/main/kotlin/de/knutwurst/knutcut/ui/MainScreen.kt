@@ -9,6 +9,8 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,10 +21,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -50,9 +55,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import de.knutwurst.knutcut.BuildConfig
+import de.knutwurst.knutcut.R
 import de.knutwurst.knutcut.data.Devices
 import de.knutwurst.knutcut.data.Materials
 import de.knutwurst.knutcut.data.Mats
@@ -63,6 +70,7 @@ import java.util.Locale
 @Composable
 fun MainScreen(vm: KnutcutViewModel) {
     val context = LocalContext.current
+    val version = appVersion(context)
     var hasBtPerm by remember { mutableStateOf(hasBluetoothPermission(context)) }
     var showDevices by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
@@ -90,10 +98,12 @@ fun MainScreen(vm: KnutcutViewModel) {
     Surface(color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Image(painterResource(R.drawable.logo), contentDescription = null, modifier = Modifier.size(38.dp))
+                Spacer(Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Knutcut", style = MaterialTheme.typography.headlineSmall)
                     Text(
-                        "v${BuildConfig.VERSION_NAME} · Knutwurst",
+                        "v$version · Knutwurst",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -116,7 +126,12 @@ fun MainScreen(vm: KnutcutViewModel) {
                 }
             }
 
-            MatEditor(vm, Modifier.fillMaxWidth().weight(1f).padding(vertical = 8.dp))
+            MatEditor(
+                vm,
+                Modifier.fillMaxWidth().weight(1f).padding(vertical = 8.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)),
+            )
 
             PlacementBar(vm)
             Spacer(Modifier.height(4.dp))
@@ -180,7 +195,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                         }
                     }
                     Spacer(Modifier.height(12.dp))
-                    Text("Knutcut v${BuildConfig.VERSION_NAME} · Knutwurst", style = MaterialTheme.typography.bodySmall)
+                    Text("Knutcut v$version · Knutwurst", style = MaterialTheme.typography.bodySmall)
                 }
             },
         )
@@ -297,6 +312,11 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
         },
     )
 }
+
+/** App version read at runtime from the installed package (the manifest's versionName), like CricutExport. */
+private fun appVersion(context: Context): String =
+    runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull()
+        ?: BuildConfig.VERSION_NAME
 
 private fun hasBluetoothPermission(context: Context): Boolean {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
