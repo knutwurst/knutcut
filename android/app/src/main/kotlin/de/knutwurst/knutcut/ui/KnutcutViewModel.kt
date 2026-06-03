@@ -108,8 +108,6 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     val hasDesign: Boolean get() = layers.isNotEmpty()
 
-    private fun allPolylines(): List<Polyline> = layers.flatMap { it.polylines }
-
     fun selectTheme(m: ThemeMode) { settings.themeMode = m; themeMode = m }
 
     fun changeDragKnifeComp(v: Boolean) { settings.dragKnifeComp = v; dragKnifeComp = v }
@@ -224,19 +222,37 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         layers = layers.mapIndexed { i, l -> if (i == index) l.copy(visible = !l.visible) else l }
     }
 
-    /** Break every layer into one layer per contour, so a single-path SVG can be separated. */
+    /** Bake a layer's placement into its geometry, so its coordinates already sit where it is drawn. */
+    private fun bake(layer: Layer): Layer {
+        val m = layerMatrix(layer)
+        val baked = layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
+        return layer.copy(
+            polylines = baked, centerMm = centerOf(baked.flatMap { it.points }),
+            scaleX = 1.0, scaleY = 1.0, rotationDeg = 0.0, flipX = false, flipY = false,
+        )
+    }
+
+    private fun centerOf(points: List<Pt>): Pt {
+        val b = Bounds.ofOrNull(points) ?: return Pt(0.0, 0.0)
+        return Pt((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2)
+    }
+
+    /** Break every layer into one layer per contour, keeping each where it currently sits. */
     fun splitLayers() {
         var n = 0
-        layers = placeAtHome(layers.flatMap { layer ->
-            layer.polylines.map { pl -> Layer("Form ${++n}", listOf(pl), layer.tool, layer.visible) }
-        })
+        layers = layers.flatMap { layer ->
+            bake(layer).polylines.map { pl ->
+                Layer("Form ${++n}", listOf(pl), layer.tool, layer.visible, centerMm = centerOf(pl.points))
+            }
+        }
         selectedLayer = 0
     }
 
-    /** Merge all layers back into one. */
+    /** Merge all layers into one, keeping the current arrangement. */
     fun mergeLayers() {
         if (layers.isEmpty()) return
-        layers = placeAtHome(listOf(Layer("Alle Formen", allPolylines(), layers.first().tool, visible = true)))
+        val polys = layers.flatMap { bake(it).polylines }
+        layers = listOf(Layer("Alle Formen", polys, layers.first().tool, visible = true, centerMm = centerOf(polys.flatMap { it.points })))
         selectedLayer = 0
     }
 
