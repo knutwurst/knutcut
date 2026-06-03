@@ -13,7 +13,8 @@ Cricut Export app, but from any source), lets the user **place and scale** it on
 
 **In scope**
 - Receive SVG via `ACTION_SEND` (`image/svg+xml`, `text/xml`, `application/octet-stream` fallback) and `ACTION_VIEW`.
-- Place / scale (and likely rotate) on a mat that represents the VEVO Smart 1 work area; show real-world mm size.
+- Place, scale and **rotate** on a mat that represents the plotter work area; show real-world mm size.
+- **Select among multiple plotters** (the Smart1–4 device family); remember the chosen device.
 - Material presets (cut force / speed per material), ported from the stock app's values.
 - Bluetooth-LE connect to the plotter and send the cut; surface progress and the "media loaded?" check.
 
@@ -71,7 +72,8 @@ Mirrors `cricut-export`'s proven layering: a **pure-Kotlin, host-unit-tested cor
   - Share / `VIEW` intent receiver → load SVG.
   - **Mat canvas**: render the SVG on the VEVO Smart 1 work area; drag to place, pinch/handles to scale
     (and rotate); live mm dimensions.
-  - Material picker (presets), connect/scan device, `queryPulled` "media loaded?" gate, **Cut** with progress.
+  - **Device picker** (choose among paired Smart1–4 plotters), material picker (presets),
+    `queryPulled` "media loaded?" gate, **Cut** with progress.
   - Settings: device, calibration offset, units. **German-only UI.**
 
 ## 4. Data flow
@@ -128,7 +130,7 @@ Commands: `:app:assembleRelease`, `:app:testDebugUnitTest`, `:svgcore:test`.
 | BLE-GATT framing unknown | Phase 0 spike (decompile + HCI capture) + golden capture before building the app |
 | Coordinate / scale correctness | byte-for-byte golden test, then a real cut |
 | SVG feature coverage | first target the flattened-mm SVG subset Cricut Export emits; widen later |
-| Device variants (Smart1–4) | parameterize device model + presets; only Smart 1 targeted now |
+| Device variants (Smart1–4) | device picker + per-model parameters/presets; Smart 1 verified first, others enabled as confirmed |
 | Re-sign / DCloud license (modify path) | avoided — we build our own app |
 
 ## 9. Implementation phases (overview)
@@ -143,8 +145,9 @@ Commands: `:app:assembleRelease`, `:app:testDebugUnitTest`, `:svgcore:test`.
 
 ## 10. Defaults / open questions
 
-- Target device: **VEVO Smart 1 only** (architecture parameterized for Smart2–4 later). _(default)_
+- Target devices: **the Smart1–4 family with in-app selection**; **VEVO Smart 1 verified first** (others
+  follow once their parameters are confirmed). _(confirmed)_
+- Mat editor: **place, scale and rotate.** _(confirmed)_
 - Distribution: **debug-signed APK**, on the user's + wife's phones, no Play Store. _(default)_
 - Reusable core: **in-repo `:svgcore` Gradle module**, wired into `cricut-export` later. _(default)_
 - UI language: **German only.** _(default)_
-- Rotate support in the mat editor: assumed **yes** (cheap, useful) — confirm.
