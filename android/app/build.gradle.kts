@@ -30,9 +30,8 @@ android {
     }
 
     buildTypes {
-        debug {
-            applicationIdSuffix = ".debug"
-        }
+        // Debug and release share one application id (de.knutwurst.knutcut) so only a single app
+        // is ever installed; no separate ".debug" package.
         release {
             isMinifyEnabled = true
             isShrinkResources = true
