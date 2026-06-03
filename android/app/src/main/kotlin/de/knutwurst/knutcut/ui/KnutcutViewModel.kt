@@ -239,8 +239,13 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private val EMPTY_BOUNDS = Bounds(0.0, 0.0, 0.0, 0.0)
+    // Bounds depend only on a layer's polylines, which don't change while it is dragged/scaled
+    // (copy() keeps the same list reference), so memoise them by identity to keep redraws cheap.
+    private val boundsCache = java.util.IdentityHashMap<List<Polyline>, Bounds>()
     private fun layerBounds(layer: Layer): Bounds =
-        Bounds.ofOrNull(layer.polylines.flatMap { it.points }) ?: EMPTY_BOUNDS
+        boundsCache.getOrPut(layer.polylines) {
+            Bounds.ofOrNull(layer.polylines.flatMap { it.points }) ?: EMPTY_BOUNDS
+        }
 
     /** Place layers at their original relative positions with the whole design's top-left at (0,0). */
     private fun placeAtHome(ls: List<Layer>): List<Layer> {
