@@ -2,6 +2,7 @@ package de.knutwurst.knutcut.ui
 
 import android.app.Application
 import android.bluetooth.BluetoothDevice
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -11,6 +12,7 @@ import de.knutwurst.knutcut.data.Devices
 import de.knutwurst.knutcut.data.Material
 import de.knutwurst.knutcut.data.Materials
 import de.knutwurst.knutcut.data.PlotterModel
+import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Bounds
 import de.knutwurst.knutcut.svgcore.HpglEncoder
 import de.knutwurst.knutcut.svgcore.Matrix
@@ -47,7 +49,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     // Material / cut settings.
     var material by mutableStateOf<Material>(Materials.default); private set
-    var speed by mutableStateOf(Materials.default.speed)
+    var tool by mutableStateOf(Tool.KNIFE)
     var force by mutableStateOf(Materials.default.force)
 
     // Connection.
@@ -83,7 +85,6 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectMaterial(m: Material) {
         material = m
-        speed = m.speed
         force = m.force
     }
 
@@ -162,13 +163,13 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             val session = PlotterSession(l)
             try {
                 status = "Verbinde mit dem Plotter…"
-                if (withContext(Dispatchers.IO) { session.send(Handshake) } == null) {
-                    finishCut("Keine Antwort vom Plotter."); return@launch
-                }
+                val hs = withContext(Dispatchers.IO) { session.send(Handshake) }
+                Log.d(TAG, "handshake -> $hs")
+                if (hs == null) { finishCut("Keine Antwort vom Plotter."); return@launch }
                 withContext(Dispatchers.IO) {
-                    session.send(PltCommand("TB66;"))
-                    session.send(PltCommand("setmat:${material.id};"))
-                    session.send(PltCommand("SP$speed;FS$force;"))
+                    Log.d(TAG, "TB66 -> ${session.send(PltCommand("TB66;"))}")
+                    Log.d(TAG, "setmat -> ${session.send(PltCommand("setmat:${material.id};"))}")
+                    Log.d(TAG, "SP/FS -> ${session.send(PltCommand("SP${tool.sp};FS$force;"))}")
                 }
 
                 status = "Lege Matte/Material ein und drücke die Laden-Taste am Plotter."
@@ -212,10 +213,15 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun pollState(session: PlotterSession, query: Query, attempts: Int = 150, intervalMs: Long = 800): Boolean {
         repeat(attempts) {
             val resp = withContext(Dispatchers.IO) { session.send(query) }
+            Log.d(TAG, "${query.action} -> $resp")
             if (responseStateReady(resp)) return true
             delay(intervalMs)
         }
         return false
+    }
+
+    private companion object {
+        const val TAG = "Knutcut"
     }
 
     fun cancelCut() {

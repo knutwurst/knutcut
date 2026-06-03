@@ -27,6 +27,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -46,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import de.knutwurst.knutcut.data.Materials
+import de.knutwurst.knutcut.data.Tool
 import java.util.Locale
 
 @Composable
@@ -154,13 +156,20 @@ private fun MaterialBar(vm: KnutcutViewModel) {
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                Stepper("Tempo", vm.speed, Materials.SPEED_MIN, Materials.SPEED_MAX) { vm.speed = it }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text("Werkzeug", style = MaterialTheme.typography.labelSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Tool.entries.forEach { t ->
+                        FilterChip(
+                            selected = vm.tool == t,
+                            onClick = { vm.tool = t },
+                            label = { Text(if (t == Tool.KNIFE) "Messer" else "Stift") },
+                        )
+                    }
+                }
             }
-            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                Stepper("Druck", vm.force, Materials.FORCE_MIN, Materials.FORCE_MAX) { vm.force = it }
-            }
+            Stepper("Druck", vm.force, Materials.FORCE_MIN, Materials.FORCE_MAX) { vm.force = it }
         }
     }
 }

@@ -1,7 +1,10 @@
 package de.knutwurst.knutcut.svgcore
 
-/** Cut parameters, normally chosen from a material preset. [materialId] is the cloud material id. */
-data class CutSettings(val materialId: String, val speed: Int, val force: Int)
+/**
+ * Cut parameters. [materialId] is the cloud material id, [tool] is the SP tool number (1 = knife/right,
+ * 2 = pen/left), [force] is the FS pressure. The machine handles speed itself; it is not sent.
+ */
+data class CutSettings(val materialId: String, val tool: Int, val force: Int)
 
 /**
  * A message sent to the plotter. Each serialises to the exact compact JSON the device expects,
@@ -87,7 +90,7 @@ object Protocol {
         msgs += Query("queryPulled")
         msgs += PltCommand("TB66;")
         msgs += PltCommand("setmat:${settings.materialId};")
-        msgs += PltCommand("SP${settings.speed};FS${settings.force};")
+        msgs += PltCommand("SP${settings.tool};FS${settings.force};")
         msgs.addAll(pathFile(pathCommands, chunk))
         msgs += PltCommand("TB66;")
         msgs += Bye

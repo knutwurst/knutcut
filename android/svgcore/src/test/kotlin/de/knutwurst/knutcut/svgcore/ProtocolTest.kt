@@ -67,11 +67,11 @@ class ProtocolTest {
 
     @Test
     fun buildCutHasExpectedShape() {
-        val msgs = Protocol.buildCut(listOf("PU0,0", "PD1600,0"), CutSettings(materialId = "1", speed = 10, force = 30))
+        val msgs = Protocol.buildCut(listOf("PU0,0", "PD1600,0"), CutSettings(materialId = "1", tool = 1, force = 30))
         assertEquals(Handshake, msgs.first())
         assertEquals(Bye, msgs.last())
         assert(msgs.any { it is PltCommand && it.data == "setmat:1;" })
-        assert(msgs.any { it is PltCommand && it.data == "SP10;FS30;" })
+        assert(msgs.any { it is PltCommand && it.data == "SP1;FS30;" })
         assert(msgs.any { it is PltFile })
     }
 }
