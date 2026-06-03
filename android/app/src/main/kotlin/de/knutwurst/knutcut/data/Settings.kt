@@ -2,9 +2,16 @@ package de.knutwurst.knutcut.data
 
 import android.content.Context
 
-/** Persists the user's choices (material, tool, force, mat, last device) across app restarts. */
+/** Theme override: follow Android, or force light/dark. */
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
+/** Persists the user's choices (material, tool, force, mat, last device, theme) across app restarts. */
 class Settings(context: Context) {
     private val p = context.getSharedPreferences("knutcut", Context.MODE_PRIVATE)
+
+    var themeMode: ThemeMode
+        get() = runCatching { ThemeMode.valueOf(p.getString("theme", ThemeMode.SYSTEM.name)!!) }.getOrDefault(ThemeMode.SYSTEM)
+        set(v) = p.edit().putString("theme", v.name).apply()
 
     var deviceAddress: String?
         get() = p.getString("deviceAddress", null)

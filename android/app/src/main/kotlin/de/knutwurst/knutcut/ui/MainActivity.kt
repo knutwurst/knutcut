@@ -14,7 +14,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { KnutcutTheme { MainScreen(vm) } }
+        setContent { KnutcutTheme(vm.themeMode) { MainScreen(vm) } }
         handleIntent(intent)
     }
 

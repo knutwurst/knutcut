@@ -23,8 +23,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
@@ -52,6 +56,7 @@ import de.knutwurst.knutcut.BuildConfig
 import de.knutwurst.knutcut.data.Devices
 import de.knutwurst.knutcut.data.Materials
 import de.knutwurst.knutcut.data.Mats
+import de.knutwurst.knutcut.data.ThemeMode
 import de.knutwurst.knutcut.data.Tool
 import java.util.Locale
 
@@ -60,6 +65,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     val context = LocalContext.current
     var hasBtPerm by remember { mutableStateOf(hasBluetoothPermission(context)) }
     var showDevices by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
 
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         hasBtPerm = hasBluetoothPermission(context)
@@ -105,6 +111,9 @@ fun MainScreen(vm: KnutcutViewModel) {
                         }
                     )
                 }
+                IconButton(onClick = { showSettings = true }) {
+                    Icon(Icons.Default.Settings, contentDescription = "Einstellungen")
+                }
             }
 
             MatEditor(vm, Modifier.fillMaxWidth().weight(1f).padding(vertical = 8.dp))
@@ -149,6 +158,31 @@ fun MainScreen(vm: KnutcutViewModel) {
             hasPerm = hasBtPerm,
             onRequestPerm = { permLauncher.launch(bluetoothPermissions()) },
             onDismiss = { showDevices = false },
+        )
+    }
+
+    if (showSettings) {
+        AlertDialog(
+            onDismissRequest = { showSettings = false },
+            confirmButton = { TextButton(onClick = { showSettings = false }) { Text("Schließen") } },
+            title = { Text("Einstellungen") },
+            text = {
+                Column {
+                    Text("Erscheinungsbild", style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(
+                            ThemeMode.SYSTEM to "System",
+                            ThemeMode.LIGHT to "Hell",
+                            ThemeMode.DARK to "Dunkel",
+                        ).forEach { (m, lbl) ->
+                            FilterChip(selected = vm.themeMode == m, onClick = { vm.selectTheme(m) }, label = { Text(lbl) })
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text("Knutcut v${BuildConfig.VERSION_NAME} · Knutwurst", style = MaterialTheme.typography.bodySmall)
+                }
+            },
         )
     }
 }

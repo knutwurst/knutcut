@@ -16,6 +16,7 @@ import de.knutwurst.knutcut.data.Material
 import de.knutwurst.knutcut.data.Materials
 import de.knutwurst.knutcut.data.PlotterModel
 import de.knutwurst.knutcut.data.Settings
+import de.knutwurst.knutcut.data.ThemeMode
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Bounds
 import de.knutwurst.knutcut.svgcore.Bye
@@ -76,7 +77,11 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     var status by mutableStateOf<String?>(null)
 
+    var themeMode by mutableStateOf(settings.themeMode); private set
+
     val hasDesign: Boolean get() = polylines.isNotEmpty()
+
+    fun selectTheme(m: ThemeMode) { settings.themeMode = m; themeMode = m }
 
     init {
         settings.materialId?.let { id ->
