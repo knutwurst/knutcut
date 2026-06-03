@@ -1,7 +1,7 @@
 package de.knutwurst.knutcut.svgcore
 
-/** Cut parameters, normally chosen from a material preset. */
-data class CutSettings(val materialId: Int, val speed: Int, val force: Int)
+/** Cut parameters, normally chosen from a material preset. [materialId] is the cloud material id. */
+data class CutSettings(val materialId: String, val speed: Int, val force: Int)
 
 /**
  * A message sent to the plotter. Each serialises to the exact compact JSON the device expects,
