@@ -49,6 +49,7 @@ import de.knutwurst.knutcut.svgcore.Shapes
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -424,17 +425,21 @@ private fun PlacementBar(vm: KnutcutViewModel, onLayers: () -> Unit, onEditSize:
 @Composable
 private fun MaterialBar(vm: KnutcutViewModel) {
     var expanded by remember { mutableStateOf(false) }
+    var manage by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(Modifier.fillMaxWidth()) {
             OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
                 Text(vm.material.name, maxLines = 1)
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                Materials.presets.sortedBy { it.name.lowercase() }.forEach { m ->
+                vm.allMaterials().forEach { m ->
                     DropdownMenuItem(text = { Text(m.name) }, onClick = { vm.selectMaterial(m); expanded = false })
                 }
+                HorizontalDivider()
+                DropdownMenuItem(text = { Text("Materialien verwalten…") }, onClick = { expanded = false; manage = true })
             }
         }
+        if (manage) MaterialManageDialog(vm, onDismiss = { manage = false })
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Column(Modifier.weight(1f)) {
                 Text("Werkzeug", style = MaterialTheme.typography.labelSmall)
@@ -458,6 +463,59 @@ private fun MaterialBar(vm: KnutcutViewModel) {
             ) { if (penSelected) vm.changePenForce(it) else vm.changeForce(it) }
         }
     }
+}
+
+@Composable
+private fun MaterialManageDialog(vm: KnutcutViewModel, onDismiss: () -> Unit) {
+    var editId by remember { mutableStateOf<String?>(null) }
+    var name by remember { mutableStateOf("") }
+    var force by remember { mutableStateOf(180) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Schließen") } },
+        title = { Text("Materialien") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                val custom = vm.customMaterials
+                if (custom.isEmpty()) {
+                    Text("Noch keine eigenen Materialien.", style = MaterialTheme.typography.bodySmall)
+                } else {
+                    custom.forEach { m ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("${m.name} · ${m.force}", maxLines = 1, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { editId = m.id; name = m.name; force = m.force }) { Text("Bearbeiten") }
+                            TextButton(onClick = { vm.deleteMaterial(m.id) }) { Text("Löschen") }
+                        }
+                    }
+                }
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Text(if (editId == null) "Neues Material" else "Material bearbeiten", style = MaterialTheme.typography.labelLarge)
+                OutlinedTextField(
+                    value = name, onValueChange = { name = it }, singleLine = true,
+                    label = { Text("Name") }, modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Messer-Druck", Modifier.weight(1f))
+                    Stepper("", force, Materials.FORCE_MIN, Materials.FORCE_MAX) { force = it }
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        enabled = name.isNotBlank(),
+                        onClick = {
+                            val id = editId
+                            if (id == null) vm.addMaterial(name, force) else vm.updateMaterial(id, name, force)
+                            editId = null; name = ""; force = 180
+                        },
+                    ) { Text(if (editId == null) "Hinzufügen" else "Speichern") }
+                    if (editId != null) {
+                        OutlinedButton(onClick = { editId = null; name = ""; force = 180 }) { Text("Neu") }
+                    }
+                }
+            }
+        },
+    )
 }
 
 @Composable

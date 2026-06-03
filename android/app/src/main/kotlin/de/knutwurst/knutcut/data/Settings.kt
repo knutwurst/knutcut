@@ -47,4 +47,20 @@ class Settings(context: Context) {
     var bladeOffset: Int
         get() = p.getInt("bladeOffset", 13)
         set(v) = p.edit().putInt("bladeOffset", v).apply()
+
+    /** User-defined materials, stored as id/name/force records using control-char separators. */
+    var customMaterials: List<Material>
+        get() = (p.getString("customMaterials", "") ?: "").split(REC).filter { it.isNotBlank() }.mapNotNull {
+            val f = it.split(FIELD)
+            if (f.size == 3) Material(f[0], f[1], f[2].toIntOrNull() ?: 100) else null
+        }
+        set(v) = p.edit().putString(
+            "customMaterials",
+            v.joinToString(REC) { "${it.id}$FIELD${it.name}$FIELD${it.force}" },
+        ).apply()
+
+    private companion object {
+        const val REC = "\u001e"
+        const val FIELD = "\u001f"
+    }
 }

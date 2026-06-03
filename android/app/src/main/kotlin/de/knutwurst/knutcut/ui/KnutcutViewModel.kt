@@ -241,6 +241,38 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         settings.force = m.force
     }
 
+    // User-defined materials, merged with the built-in presets.
+    var customMaterials by mutableStateOf(settings.customMaterials); private set
+
+    fun allMaterials(): List<Material> = (Materials.presets + customMaterials).sortedBy { it.name.lowercase() }
+
+    fun isCustomMaterial(m: Material): Boolean = m.id.startsWith("custom-")
+
+    fun addMaterial(name: String, forceValue: Int): Material {
+        val m = Material(
+            id = "custom-" + java.util.UUID.randomUUID(),
+            name = name.trim().ifBlank { "Material" },
+            force = forceValue.coerceIn(Materials.FORCE_MIN, Materials.FORCE_MAX),
+        )
+        customMaterials = customMaterials + m
+        settings.customMaterials = customMaterials
+        selectMaterial(m)
+        return m
+    }
+
+    fun updateMaterial(id: String, name: String, forceValue: Int) {
+        val f = forceValue.coerceIn(Materials.FORCE_MIN, Materials.FORCE_MAX)
+        customMaterials = customMaterials.map { if (it.id == id) it.copy(name = name.trim().ifBlank { it.name }, force = f) else it }
+        settings.customMaterials = customMaterials
+        customMaterials.firstOrNull { it.id == id }?.let { if (material.id == id) selectMaterial(it) }
+    }
+
+    fun deleteMaterial(id: String) {
+        customMaterials = customMaterials.filter { it.id != id }
+        settings.customMaterials = customMaterials
+        if (material.id == id) selectMaterial(Materials.default)
+    }
+
     /** Set the tool for all layers (the bottom quick-select). */
     fun setAllTool(t: Tool) {
         tool = t
