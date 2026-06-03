@@ -1,7 +1,11 @@
 package de.knutwurst.knutcut.ui
 
+import android.Manifest
 import android.app.Application
 import android.bluetooth.BluetoothDevice
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -145,10 +149,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return b.widthMm * scaleX to b.heightMm * scaleY
     }
 
-    fun connect(dev: BluetoothDevice) {
-        if (connecting) return
+    fun connect(dev: BluetoothDevice, silent: Boolean = false) {
+        if (connecting || connected) return
         connecting = true
-        status = "Verbinde mit ${dev.name}…"
+        if (!silent) status = "Verbinde mit ${dev.name}…"
         viewModelScope.launch {
             try {
                 val l = withContext(Dispatchers.IO) { BluetoothPlotter.connect(getApplication(), dev) }
@@ -161,11 +165,26 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 status = "Verbunden mit ${dev.name}."
             } catch (e: Exception) {
                 connected = false
-                status = "Verbindung fehlgeschlagen: ${e.message}"
+                if (!silent) status = "Verbindung fehlgeschlagen: ${e.message}"
             } finally {
                 connecting = false
             }
         }
+    }
+
+    /** On launch (or when permission arrives): reconnect to the last device if Bluetooth is on. */
+    fun autoConnect() {
+        if (connected || connecting) return
+        val addr = settings.deviceAddress ?: return
+        val ctx = getApplication<Application>()
+        if (!hasConnectPermission(ctx) || !BluetoothPlotter.isEnabled(ctx)) return
+        val dev = runCatching { BluetoothPlotter.adapter(ctx)?.getRemoteDevice(addr) }.getOrNull() ?: return
+        connect(dev, silent = true)
+    }
+
+    private fun hasConnectPermission(ctx: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        return ctx.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
     }
 
     fun disconnect() {

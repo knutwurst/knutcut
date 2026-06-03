@@ -36,7 +36,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
@@ -92,6 +91,9 @@ fun MainScreen(vm: KnutcutViewModel) {
         if (!vm.cutting) vm.status?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
     }
 
+    // Reconnect to the last plotter on launch (once Bluetooth permission is available).
+    LaunchedEffect(hasBtPerm) { vm.autoConnect() }
+
     fun openDevices() {
         if (hasBtPerm) showDevices = true else permLauncher.launch(bluetoothPermissions())
     }
@@ -111,16 +113,6 @@ fun MainScreen(vm: KnutcutViewModel) {
                 }
                 TextButton(onClick = { openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "application/octet-stream")) }) {
                     Text("Öffnen")
-                }
-                Spacer(Modifier.width(8.dp))
-                FilledTonalButton(onClick = { openDevices() }) {
-                    Text(
-                        when {
-                            vm.connecting -> "Verbinde…"
-                            vm.connected -> vm.device?.name ?: "Verbunden"
-                            else -> "Verbinden"
-                        }
-                    )
                 }
                 IconButton(onClick = { showSettings = true }) {
                     Icon(Icons.Default.Settings, contentDescription = "Einstellungen")
@@ -158,11 +150,11 @@ fun MainScreen(vm: KnutcutViewModel) {
                 }
             } else {
                 Button(
-                    onClick = { vm.cut() },
-                    enabled = vm.connected && vm.hasDesign,
+                    onClick = { if (vm.connected) vm.cut() else openDevices() },
+                    enabled = vm.hasDesign && !vm.cutting,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                 ) {
-                    Text(vm.tool.action)
+                    Text(if (vm.connected) vm.tool.action else "Plotter verbinden")
                 }
             }
         }
@@ -183,7 +175,26 @@ fun MainScreen(vm: KnutcutViewModel) {
             confirmButton = { TextButton(onClick = { showSettings = false }) { Text("Schließen") } },
             title = { Text("Einstellungen") },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text("Plotter", style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        when {
+                            vm.connecting -> "Verbinde…"
+                            vm.connected -> "Verbunden: ${vm.device?.name ?: ""}"
+                            else -> "Nicht verbunden"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { showSettings = false; openDevices() }) {
+                            Text(if (vm.connected) "Anderer Plotter" else "Verbinden")
+                        }
+                        if (vm.connected) OutlinedButton(onClick = { vm.disconnect() }) { Text("Trennen") }
+                    }
+
+                    Spacer(Modifier.height(18.dp))
                     Text("Erscheinungsbild", style = MaterialTheme.typography.labelLarge)
                     Spacer(Modifier.height(6.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
