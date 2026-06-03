@@ -10,25 +10,41 @@ Not BLE. The cutter is a classic Bluetooth Serial device.
 
 - Connect: `createRfcommSocketToServiceRecord(00001101-0000-1000-8000-00805F9B34FB)`, then `connect()`.
 - Discovery: Android `startDiscovery()`; the cutter shows up by name (Smart1...). Pair with `createBond()`.
-- Send: each command is a string written straight to the socket output stream. No length prefix and no
-  binary framing. There is also a hex mode that writes hex-decoded bytes.
-- Receive: a background reader splits the input stream on CRLF and hands back each line. Every command
-  is answered by one line, so it is a send-and-wait loop.
+- Send: each message is a small JSON object, framed as `JSON + CRC + CRLF` (see Frame format), written
+  to the socket output stream as text.
+- Receive: a background reader splits the input stream on CRLF and hands back each line. Every message
+  is answered by one CRLF-terminated JSON line, so it is a send-and-wait loop.
 - MTU: classic Bluetooth negotiates this itself; the stock app's setMTU is effectively a no-op.
+
+## Frame format
+
+Every message is a JSON object with a `cseq` counter that starts at 0 and increments per send. On the
+wire:
+
+    JSON(message) + CRC + "\r\n"
+
+- JSON is compact, keys in insertion order, `cseq` appended last, e.g.
+  `{"type":"pltCommand","data":"TB66;","cseq":0}`.
+- CRC is CRC-16/X25 over the JSON bytes (init 0xFFFF, reflected poly 0x8408, final xor 0xFFFF), uppercase
+  hex. Quirk: a three-digit result is zero-padded to four; one/two/four-digit results are left as is. So
+  the example frames as `{"type":"pltCommand","data":"TB66;","cseq":0}C05B\r\n`.
+- Responses are CRLF-terminated JSON lines. A response of type `crc` means the checksum was rejected and
+  the message is resent; sends retry up to five times.
 
 ## Commands
 
-A cut is a sequence of strings, each answered by a CRLF line:
+A cut is a sequence of these messages. The command text (HPGL etc.) lives in the `data` field; `type`
+and `action` select the message:
 
-1. `handshake`
-2. `queryMaterial`, `queryStartKey`, `queryPulled` (is media loaded)
-3. `TB66;` (init)
-4. `setmat:<materialId>;`
-5. `SP<speed>;FS<force>;` (speed and force, from the material preset)
-6. `JS<a>,<b>;` (offset or scale, exact meaning still to confirm)
-7. path data: HPGL `PU<x>,<y>;` (pen up, travel) and `PD<x>,<y>;` (pen down, cut), sent as a chunked
-   file wrapped in `TB66;`
-8. `bye`
+1. `{type:"handshake"}`
+2. `{type:"query",action:"queryMaterial" | "queryStartKey" | "queryPulled"}` (queryPulled = is media loaded)
+3. `{type:"pltCommand",data:"TB66;"}` (init)
+4. `{type:"pltCommand",data:"setmat:<materialId>;"}`
+5. `{type:"pltCommand",data:"SP<speed>;FS<force>;"}` (speed and force, from the material preset)
+6. `{type:"pltCommand",data:"JS<a>,<b>;"}` (offset or scale, exact meaning still to confirm)
+7. `{type:"pltFile",index,total,data}` with HPGL `PU<x>,<y>` (pen up, travel) and `PD<x>,<y>` (pen down,
+   cut) joined by `;`, sent in chunks (later chunks prefixed with `;`), wrapped with `TB66;`
+8. `{type:"bye"}`
 
 ## Coordinates
 
