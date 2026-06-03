@@ -28,6 +28,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.KeyboardType
+import kotlin.math.roundToInt
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
@@ -79,6 +83,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     var showDevices by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showLayers by remember { mutableStateOf(false) }
+    var showTransform by remember { mutableStateOf(false) }
 
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         hasBtPerm = hasBluetoothPermission(context)
@@ -132,7 +137,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)),
             )
 
-            PlacementBar(vm) { showLayers = true }
+            PlacementBar(vm, onLayers = { showLayers = true }, onEditSize = { showTransform = true })
             Spacer(Modifier.height(4.dp))
             MaterialBar(vm)
             Spacer(Modifier.height(8.dp))
@@ -248,6 +253,49 @@ fun MainScreen(vm: KnutcutViewModel) {
         )
     }
 
+    if (showTransform && vm.hasDesign) {
+        val b = vm.bounds
+        var w by remember { mutableStateOf(((b?.widthMm ?: 0.0) * vm.scaleX).roundToInt().toString()) }
+        var h by remember { mutableStateOf(((b?.heightMm ?: 0.0) * vm.scaleY).roundToInt().toString()) }
+        var ang by remember { mutableStateOf(vm.rotationDeg.roundToInt().toString()) }
+        AlertDialog(
+            onDismissRequest = { showTransform = false },
+            title = { Text("Größe & Winkel") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = w, onValueChange = { w = it }, singleLine = true,
+                        label = { Text("Breite (mm)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = h, onValueChange = { h = it }, singleLine = true,
+                        label = { Text("Höhe (mm)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = ang, onValueChange = { ang = it }, singleLine = true,
+                        label = { Text("Winkel (°)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val ww = w.replace(',', '.').toDoubleOrNull()
+                    val hh = h.replace(',', '.').toDoubleOrNull()
+                    val aa = ang.replace(',', '.').toDoubleOrNull()
+                    if (ww != null && hh != null && ww > 0 && hh > 0) vm.setSelectedSizeMm(ww, hh)
+                    if (aa != null) vm.setSelectedRotation(aa)
+                    showTransform = false
+                }) { Text("Übernehmen") }
+            },
+            dismissButton = { TextButton(onClick = { showTransform = false }) { Text("Abbrechen") } },
+        )
+    }
+
     if (showLayers) {
         AlertDialog(
             onDismissRequest = { showLayers = false },
@@ -316,12 +364,18 @@ fun MainScreen(vm: KnutcutViewModel) {
 }
 
 @Composable
-private fun PlacementBar(vm: KnutcutViewModel, onLayers: () -> Unit) {
+private fun PlacementBar(vm: KnutcutViewModel, onLayers: () -> Unit, onEditSize: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         val size = vm.designSizeMm()
         val label = if (size == null) "Kein Design – teile eine SVG zu Knutcut"
         else String.format(Locale.GERMAN, "%.0f × %.0f mm", size.first, size.second)
-        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier
+                .weight(1f)
+                .then(if (vm.hasDesign) Modifier.clickable { onEditSize() } else Modifier),
+        )
         TextButton(onClick = onLayers, enabled = vm.hasDesign) { Text("Ebenen (${vm.layers.size})") }
         TextButton(onClick = { vm.rotate90() }, enabled = vm.hasDesign) { Text("Drehen 90°") }
         TextButton(onClick = { vm.resetPlacement() }, enabled = vm.hasDesign) { Text("Zurücksetzen") }
