@@ -88,7 +88,8 @@ fun MainScreen(vm: KnutcutViewModel) {
     }
 
     LaunchedEffect(vm.status) {
-        vm.status?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+        // During a cut the status is shown persistently in the UI; don't also flash toasts for it.
+        if (!vm.cutting) vm.status?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
     }
 
     fun openDevices() {
@@ -141,7 +142,7 @@ fun MainScreen(vm: KnutcutViewModel) {
             if (vm.cutting) {
                 Text(
                     vm.status ?: "",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )

@@ -229,11 +229,16 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 }
 
                 if (model.hasPaperKey) {
-                    status = "Lege Matte/Material ein und drücke die Laden-Taste am Plotter."
-                    if (!pollState(session, Query("queryPulled"))) { finishCut("Kein Material geladen (Zeitüberschreitung)."); return@launch }
+                    // Only prompt to load if the media isn't already in; otherwise don't flash a prompt.
+                    val pulled = withContext(Dispatchers.IO) { session.send(Query("queryPulled")) }
+                    Log.d(TAG, "queryPulled(first) -> $pulled")
+                    if (!responseStateReady(pulled)) {
+                        status = "Lege Matte/Material ein und drücke die Laden-Taste am Plotter."
+                        if (!pollState(session, Query("queryPulled"))) { finishCut("Kein Material geladen (Zeitüberschreitung)."); return@launch }
+                    }
                 }
                 if (model.hasStartKey) {
-                    status = "Drücke die Start-Taste am Plotter."
+                    status = "Bereit – drücke jetzt die Start-Taste am Plotter."
                     if (!pollState(session, Query("queryStartKey"))) { finishCut("Start-Taste nicht gedrückt (Zeitüberschreitung)."); return@launch }
                 }
 
