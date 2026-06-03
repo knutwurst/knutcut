@@ -222,7 +222,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                     if (!pollState(session, Query("queryStartKey"))) { finishCut("Start-Taste nicht gedrückt (Zeitüberschreitung)."); return@launch }
                 }
 
-                status = "Schneide…"
+                status = tool.progress
                 val commands = HpglEncoder.encode(plotterPolylines())
                 val fileMsgs = buildList {
                     add(PltCommand("TB66;"))
@@ -236,7 +236,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                     progress = (i + 1).toFloat() / fileMsgs.size
                 }
                 withContext(Dispatchers.IO) { session.send(Bye) }
-                finishCut("Schnitt fertig gesendet.")
+                finishCut("Fertig an den Plotter gesendet.")
             } catch (e: CancellationException) {
                 cutting = false
                 status = "Abgebrochen."

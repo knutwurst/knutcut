@@ -118,7 +118,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                     enabled = vm.connected && vm.hasDesign,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                 ) {
-                    Text("Schneiden")
+                    Text(vm.tool.action)
                 }
             }
         }
