@@ -204,6 +204,15 @@ fun MainScreen(vm: KnutcutViewModel) {
                     }
 
                     Spacer(Modifier.height(18.dp))
+                    Text("Matte", style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Mats.all.forEach { m ->
+                            FilterChip(selected = vm.mat == m, onClick = { vm.selectMat(m) }, label = { Text(m.name) })
+                        }
+                    }
+
+                    Spacer(Modifier.height(18.dp))
                     Text("Erscheinungsbild", style = MaterialTheme.typography.labelLarge)
                     Spacer(Modifier.height(6.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -229,6 +238,11 @@ fun MainScreen(vm: KnutcutViewModel) {
             title = { Text("${vm.layers.size} Ebenen") },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { vm.splitLayers() }, modifier = Modifier.weight(1f)) { Text("Zerlegen") }
+                        OutlinedButton(onClick = { vm.mergeLayers() }, modifier = Modifier.weight(1f)) { Text("Zusammenführen") }
+                    }
+                    Spacer(Modifier.height(8.dp))
                     vm.layers.forEachIndexed { i, layer ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { vm.toggleLayerVisible(i) }) {
@@ -251,22 +265,14 @@ fun MainScreen(vm: KnutcutViewModel) {
 
 @Composable
 private fun PlacementBar(vm: KnutcutViewModel, onLayers: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val size = vm.designSizeMm()
-            val label = if (size == null) "Kein Design – teile eine SVG zu Knutcut"
-            else String.format(Locale.GERMAN, "%.0f × %.0f mm", size.first, size.second)
-            Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            TextButton(onClick = onLayers, enabled = vm.hasDesign) { Text("Ebenen (${vm.layers.size})") }
-            TextButton(onClick = { vm.rotate90() }, enabled = vm.hasDesign) { Text("Drehen 90°") }
-            TextButton(onClick = { vm.resetPlacement() }, enabled = vm.hasDesign) { Text("Zurücksetzen") }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Matte", style = MaterialTheme.typography.labelMedium)
-            Mats.all.forEach { m ->
-                FilterChip(selected = vm.mat == m, onClick = { vm.selectMat(m) }, label = { Text(m.name) })
-            }
-        }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        val size = vm.designSizeMm()
+        val label = if (size == null) "Kein Design – teile eine SVG zu Knutcut"
+        else String.format(Locale.GERMAN, "%.0f × %.0f mm", size.first, size.second)
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        TextButton(onClick = onLayers, enabled = vm.hasDesign) { Text("Ebenen (${vm.layers.size})") }
+        TextButton(onClick = { vm.rotate90() }, enabled = vm.hasDesign) { Text("Drehen 90°") }
+        TextButton(onClick = { vm.resetPlacement() }, enabled = vm.hasDesign) { Text("Zurücksetzen") }
     }
 }
 

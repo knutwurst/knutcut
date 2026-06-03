@@ -141,6 +141,20 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         layers = layers.mapIndexed { i, l -> if (i == index) l.copy(visible = !l.visible) else l }
     }
 
+    /** Break every layer into one layer per contour, so a single-path SVG can be separated. */
+    fun splitLayers() {
+        var n = 0
+        layers = layers.flatMap { layer ->
+            layer.polylines.map { pl -> Layer("Form ${++n}", listOf(pl), layer.tool, layer.visible) }
+        }
+    }
+
+    /** Merge all layers back into one. */
+    fun mergeLayers() {
+        if (layers.isEmpty()) return
+        layers = listOf(Layer("Alle Formen", allPolylines(), layers.first().tool, visible = true))
+    }
+
     fun changeForce(v: Int) { force = v; settings.force = v }
 
     fun selectMat(m: Mat) {

@@ -7,11 +7,11 @@
     <path
         android:fillColor="#2E7D32"
         android:pathData="M28,0 H80 A28,28 0 0 1 108,28 V80 A28,28 0 0 1 80,108 H28 A28,28 0 0 1 0,80 V28 A28,28 0 0 1 28,0 Z" />
-    <!-- white "K" -->
+    <!-- bold rounded "K" -->
     <path
         android:strokeColor="#FFFFFF"
-        android:strokeWidth="12"
+        android:strokeWidth="13"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M41,31 V77 M41,54 L73,31 M41,54 L73,77" />
+        android:pathData="M40,28 V80 M40,54 L72,28 M40,54 L72,80" />
 </vector>
