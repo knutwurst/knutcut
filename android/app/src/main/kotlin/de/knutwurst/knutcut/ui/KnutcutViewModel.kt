@@ -50,7 +50,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     // Work area + placement.
     var model by mutableStateOf<PlotterModel>(Devices.default); private set
     var mat by mutableStateOf<Mat>(Mats.default); private set
-    var scale by mutableStateOf(1.0)
+    var scaleX by mutableStateOf(1.0)
+    var scaleY by mutableStateOf(1.0)
     var rotationDeg by mutableStateOf(0.0)
     var centerMm by mutableStateOf(Pt(0.0, 0.0))
 
@@ -93,7 +94,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             polylines = polys
             val b = Bounds.of(polys.flatMap { it.points })
             bounds = b
-            scale = 1.0
+            scaleX = 1.0
+            scaleY = 1.0
             rotationDeg = 0.0
             centerMm = Pt(b.widthMm / 2, b.heightMm / 2) // design top-left at the origin (0,0)
             status = "Design geladen."
@@ -122,7 +124,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun rotate90() { rotationDeg = (rotationDeg + 90.0) % 360.0 }
 
     fun resetPlacement() {
-        scale = 1.0
+        scaleX = 1.0
+        scaleY = 1.0
         rotationDeg = 0.0
         val b = bounds
         centerMm = if (b != null) Pt(b.widthMm / 2, b.heightMm / 2) else Pt(0.0, 0.0)
@@ -133,7 +136,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Size of the placed design in millimetres (bounding box after scale). */
     fun designSizeMm(): Pair<Double, Double>? {
         val b = bounds ?: return null
-        return b.widthMm * scale to b.heightMm * scale
+        return b.widthMm * scaleX to b.heightMm * scaleY
     }
 
     fun connect(dev: BluetoothDevice) {
@@ -176,7 +179,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val cy = (b.minY + b.maxY) / 2
         return Matrix.translate(centerMm.xMm, centerMm.yMm) *
             Matrix.rotate(rotationDeg) *
-            Matrix.scale(scale, scale) *
+            Matrix.scale(scaleX, scaleY) *
             Matrix.translate(-cx, -cy)
     }
 

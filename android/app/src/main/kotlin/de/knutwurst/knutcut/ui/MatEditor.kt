@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.IntSize
 import de.knutwurst.knutcut.data.Mat
 import de.knutwurst.knutcut.svgcore.Pt
 import kotlin.math.atan2
-import kotlin.math.hypot
 import kotlin.math.min
 
 private sealed interface Drag {
@@ -65,10 +64,21 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 val centerScreen = worldToScreen(vm.centerMm, origin, ppm)
                 var drag: Drag = hitTest(down.position, corners, centerScreen)
 
-                val startScale = vm.scale
                 val startRotation = vm.rotationDeg
-                val startDist = hypot((down.position.x - centerScreen.x).toDouble(), (down.position.y - centerScreen.y).toDouble())
                 val startAngle = atan2((down.position.y - centerScreen.y).toDouble(), (down.position.x - centerScreen.x).toDouble())
+
+                // Resize anchor: the corner opposite the grabbed one stays fixed in world space.
+                val b = vm.bounds
+                val localCorners = if (b != null)
+                    listOf(Pt(b.minX, b.minY), Pt(b.maxX, b.minY), Pt(b.maxX, b.maxY), Pt(b.minX, b.maxY))
+                else emptyList()
+                val centerLocal = if (b != null) Pt((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2) else Pt(0.0, 0.0)
+                val rsRot = Math.toRadians(vm.rotationDeg)
+                val resizeCorner = (drag as? Drag.Resize)?.corner ?: -1
+                val worldCorners = vm.placedCorners()
+                val anchorLocal = if (resizeCorner >= 0) localCorners[(resizeCorner + 2) % 4] else Pt(0.0, 0.0)
+                val draggedLocal = if (resizeCorner >= 0) localCorners[resizeCorner] else Pt(0.0, 0.0)
+                val anchorWorld = if (resizeCorner >= 0 && worldCorners.size == 4) worldCorners[(resizeCorner + 2) % 4] else Pt(0.0, 0.0)
 
                 while (true) {
                     val event = awaitPointerEvent()
@@ -98,8 +108,23 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                                 vm.centerMm = Pt(vm.centerMm.xMm + dp.x / ppm, vm.centerMm.yMm + dp.y / ppm)
                             }
                             is Drag.Resize -> {
-                                val curDist = hypot((p.position.x - cs.x).toDouble(), (p.position.y - cs.y).toDouble())
-                                if (startDist > 1.0) vm.scale = (startScale * (curDist / startDist)).coerceIn(0.05, 50.0)
+                                val pw = screenToWorld(p.position, origin, ppm)
+                                val dxw = pw.xMm - anchorWorld.xMm
+                                val dyw = pw.yMm - anchorWorld.yMm
+                                // un-rotate into the design's local axes
+                                val cn = Math.cos(-rsRot); val sn = Math.sin(-rsRot)
+                                val ux = dxw * cn - dyw * sn
+                                val uy = dxw * sn + dyw * cn
+                                val ldx = draggedLocal.xMm - anchorLocal.xMm
+                                val ldy = draggedLocal.yMm - anchorLocal.yMm
+                                val sx = if (kotlin.math.abs(ldx) > 1e-6) (ux / ldx).coerceAtLeast(0.02) else vm.scaleX
+                                val sy = if (kotlin.math.abs(ldy) > 1e-6) (uy / ldy).coerceAtLeast(0.02) else vm.scaleY
+                                vm.scaleX = sx; vm.scaleY = sy
+                                // move the centre so the anchor corner stays put
+                                val ax = (centerLocal.xMm - anchorLocal.xMm) * sx
+                                val ay = (centerLocal.yMm - anchorLocal.yMm) * sy
+                                val cp = Math.cos(rsRot); val sp = Math.sin(rsRot)
+                                vm.centerMm = Pt(anchorWorld.xMm + (ax * cp - ay * sp), anchorWorld.yMm + (ax * sp + ay * cp))
                             }
                             Drag.Rotate -> {
                                 val a = atan2((p.position.y - cs.y).toDouble(), (p.position.x - cs.x).toDouble())
@@ -213,6 +238,9 @@ private fun originFor(sizePx: IntSize, mat: Mat, camScale: Float, camOffset: Off
 
 private fun worldToScreen(p: Pt, origin: Offset, ppm: Float): Offset =
     Offset(origin.x + (p.xMm * ppm).toFloat(), origin.y + (p.yMm * ppm).toFloat())
+
+private fun screenToWorld(o: Offset, origin: Offset, ppm: Float): Pt =
+    Pt(((o.x - origin.x) / ppm).toDouble(), ((o.y - origin.y) / ppm).toDouble())
 
 private fun rotateHandlePos(corners: List<Offset>, center: Offset): Offset {
     val topMid = (corners[0] + corners[1]) / 2f

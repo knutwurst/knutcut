@@ -159,7 +159,7 @@ private fun PlacementBar(vm: KnutcutViewModel) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val size = vm.designSizeMm()
             val label = if (size == null) "Kein Design – teile eine SVG zu Knutcut"
-            else String.format(Locale.GERMAN, "%.0f × %.0f mm · %d%%", size.first, size.second, (vm.scale * 100).toInt())
+            else String.format(Locale.GERMAN, "%.0f × %.0f mm", size.first, size.second)
             Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             TextButton(onClick = { vm.rotate90() }, enabled = vm.hasDesign) { Text("Drehen 90°") }
             TextButton(onClick = { vm.resetPlacement() }, enabled = vm.hasDesign) { Text("Zurücksetzen") }
