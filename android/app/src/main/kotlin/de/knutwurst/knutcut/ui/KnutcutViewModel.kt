@@ -143,6 +143,15 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectLayer(i: Int) { if (i in layers.indices) selectedLayer = i }
 
+    /** Add a new layer (e.g. a primitive shape) centred on the mat and select it. */
+    fun addLayer(name: String, polylines: List<Polyline>) {
+        if (polylines.isEmpty()) return
+        val layer = Layer(name, polylines, tool, visible = true, centerMm = Pt(mat.widthMm / 2, mat.heightMm / 2))
+        layers = layers + layer
+        selectedLayer = layers.lastIndex
+        status = "$name hinzugefügt."
+    }
+
     /** Mirror the selected layer (around its own centre). */
     fun mirrorSelectedHorizontal() = updateSelected { it.copy(flipX = !it.flipX) }
     fun mirrorSelectedVertical() = updateSelected { it.copy(flipY = !it.flipY) }

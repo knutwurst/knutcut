@@ -45,6 +45,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import de.knutwurst.knutcut.svgcore.Shapes
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -85,6 +86,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     var showSettings by remember { mutableStateOf(false) }
     var showLayers by remember { mutableStateOf(false) }
     var showTransform by remember { mutableStateOf(false) }
+    var showShapes by remember { mutableStateOf(false) }
 
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         hasBtPerm = hasBluetoothPermission(context)
@@ -122,6 +124,25 @@ fun MainScreen(vm: KnutcutViewModel) {
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                Box {
+                    TextButton(onClick = { showShapes = true }) { Text("Form") }
+                    DropdownMenu(expanded = showShapes, onDismissRequest = { showShapes = false }) {
+                        val shapes = listOf(
+                            "Quadrat" to Shapes.rect(40.0, 40.0),
+                            "Rechteck" to Shapes.rect(60.0, 40.0),
+                            "Kreis" to Shapes.circle(40.0),
+                            "Dreieck" to Shapes.regularPolygon(3, 40.0),
+                            "Fünfeck" to Shapes.regularPolygon(5, 40.0),
+                            "Sechseck" to Shapes.regularPolygon(6, 40.0),
+                            "Stern" to Shapes.star(5, 40.0),
+                        )
+                        shapes.forEach { (name, poly) ->
+                            DropdownMenuItem(text = { Text(name) }, onClick = {
+                                vm.addLayer(name, listOf(poly)); showShapes = false
+                            })
+                        }
+                    }
                 }
                 TextButton(onClick = { openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "application/octet-stream")) }) {
                     Text("Öffnen")
