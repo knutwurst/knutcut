@@ -49,6 +49,7 @@ import de.knutwurst.knutcut.transport.SppPlotterLink
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -622,21 +623,21 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             }
 
             status = if (Tool.KNIFE in toolsUsed) Tool.KNIFE.progress else Tool.PEN.progress
-            // Build one continuous command stream (the stock app's "plt"): the path for each visible
-            // tool, with a tool switch (SP/FS) inlined before any later tool. Pressure for the first
-            // tool was set above.
+            // Build one continuous command stream (the stock app's "plt"). Each tool's block starts
+            // with its own SP/FS *inside* the stream — the machine takes the tool (SP1 = right/knife,
+            // SP2 = left/pen) from the path data, not from a standalone setup command.
             val plt = ArrayList<String>()
-            toolsUsed.forEachIndexed { idx, t ->
+            toolsUsed.forEach { t ->
                 val polys = plotterPolylinesFor(t)
                 var cmds = HpglEncoder.encode(polys)
-                if (cmds.isEmpty()) return@forEachIndexed
+                if (cmds.isEmpty()) return@forEach
                 val raw = cmds.size
                 if (dragKnifeComp) cmds = DragKnife.process(cmds, bladeOffset.toDouble())
                 val xs = polys.flatMap { it.points }.map { mmToUnits(it.xMm) }
                 val ys = polys.flatMap { it.points }.map { mmToUnits(it.yMm) }
                 Log.d(TAG, "tool=${t.sp} force=${forceFor(t)} polylines=${polys.size} cmds=$raw->${cmds.size} (comp=$dragKnifeComp) " +
                     "x=[${xs.minOrNull()}..${xs.maxOrNull()}] y=[${ys.minOrNull()}..${ys.maxOrNull()}]")
-                if (idx > 0) { plt += "SP${t.sp}"; plt += "FS${forceFor(t)}" }
+                plt += "SP${t.sp}"; plt += "FS${forceFor(t)}"
                 plt.addAll(cmds)
             }
             if (plt.isEmpty()) { finishCut("Keine sichtbaren Ebenen."); return }
@@ -657,6 +658,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         } catch (e: CancellationException) {
             cutting = false
             status = "Abgebrochen."
+            // Stop streaming and tell the machine to finish the current file (the stock app's stop).
+            withContext(NonCancellable + Dispatchers.IO) {
+                runCatching { session.send(PltCommand("TB66;"), timeoutMs = 1500, maxAttempts = 1) }
+            }
             throw e
         } catch (e: Exception) {
             finishCut("Fehler: ${e.message}")
