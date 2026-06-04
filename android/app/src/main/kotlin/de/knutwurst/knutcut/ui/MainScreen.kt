@@ -12,8 +12,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,7 +33,18 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.CenterFocusStrong
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Flip
+import androidx.compose.material.icons.filled.FormatAlignLeft
+import androidx.compose.material.icons.filled.FormatAlignRight
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.VerticalAlignBottom
+import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -64,6 +76,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -218,7 +231,19 @@ private fun CuttingBar(vm: KnutcutViewModel) {
     OutlinedButton(onClick = { vm.cancelCut() }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Abbrechen") }
 }
 
+/** A compact, consistent action chip with a leading icon (Canva/Cricut style). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ActionChip(label: String, icon: ImageVector, onClick: () -> Unit) {
+    AssistChip(
+        onClick = onClick,
+        label = { Text(label, maxLines = 1) },
+        leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp)) },
+    )
+}
+
 /** The contextual bar shown while editing: actions on the selected layer, then material + cut. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun EditingBar(
     vm: KnutcutViewModel,
@@ -227,18 +252,14 @@ private fun EditingBar(
     onMaterial: () -> Unit,
     onConnectOrCut: () -> Unit,
 ) {
-    Row(
-        Modifier.horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AssistChip(onClick = onSize, label = { Text("Größe & Winkel") })
-        AssistChip(onClick = { vm.rotate90() }, label = { Text("Drehen 90°") })
-        AssistChip(onClick = { vm.mirrorSelectedHorizontal() }, label = { Text("↔ Spiegeln") })
-        AssistChip(onClick = { vm.mirrorSelectedVertical() }, label = { Text("↕ Spiegeln") })
-        AssistChip(onClick = { vm.duplicateSelected() }, label = { Text("Duplizieren") })
-        if (vm.layers.size > 1) AssistChip(onClick = { vm.deleteSelected() }, label = { Text("Löschen") })
-        AssistChip(onClick = { vm.resetPlacement() }, label = { Text("Zurücksetzen") })
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        ActionChip("Größe & Winkel", Icons.Default.AspectRatio, onSize)
+        ActionChip("Drehen 90°", Icons.Default.RotateRight) { vm.rotate90() }
+        ActionChip("Spiegeln ↔", Icons.Default.Flip) { vm.mirrorSelectedHorizontal() }
+        ActionChip("Spiegeln ↕", Icons.Default.Flip) { vm.mirrorSelectedVertical() }
+        ActionChip("Duplizieren", Icons.Default.ContentCopy) { vm.duplicateSelected() }
+        if (vm.layers.size > 1) ActionChip("Löschen", Icons.Default.Delete) { vm.deleteSelected() }
+        ActionChip("Zurücksetzen", Icons.Default.Refresh) { vm.resetPlacement() }
     }
     Spacer(Modifier.height(8.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -267,7 +288,7 @@ private fun EditingBar(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -280,12 +301,12 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             }
             Spacer(Modifier.height(10.dp))
             Text("Ausgewählte Ebene ausrichten", style = MaterialTheme.typography.labelLarge)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                AssistChip(onClick = { vm.alignSelected(0, 0) }, label = { Text("Mitte") })
-                AssistChip(onClick = { vm.alignSelected(-1, 0) }, label = { Text("Links") })
-                AssistChip(onClick = { vm.alignSelected(1, 0) }, label = { Text("Rechts") })
-                AssistChip(onClick = { vm.alignSelected(0, -1) }, label = { Text("Oben") })
-                AssistChip(onClick = { vm.alignSelected(0, 1) }, label = { Text("Unten") })
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                ActionChip("Mitte", Icons.Default.CenterFocusStrong) { vm.alignSelected(0, 0) }
+                ActionChip("Links", Icons.Default.FormatAlignLeft) { vm.alignSelected(-1, 0) }
+                ActionChip("Rechts", Icons.Default.FormatAlignRight) { vm.alignSelected(1, 0) }
+                ActionChip("Oben", Icons.Default.VerticalAlignTop) { vm.alignSelected(0, -1) }
+                ActionChip("Unten", Icons.Default.VerticalAlignBottom) { vm.alignSelected(0, 1) }
             }
             Spacer(Modifier.height(10.dp))
             if (vm.layers.size > 1) {
