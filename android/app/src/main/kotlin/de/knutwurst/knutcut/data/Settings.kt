@@ -38,6 +38,11 @@ class Settings(context: Context) {
         get() = p.getString("matName", null)
         set(v) = p.edit().putString("matName", v).apply()
 
+    /** Top origin offset in mm: the mat's non-cuttable leading edge, so the plot starts below it. */
+    var originOffsetMm: Int
+        get() = p.getInt("originOffsetMm", 25)
+        set(v) = p.edit().putInt("originOffsetMm", v).apply()
+
     var displayUnit: DisplayUnit
         get() = runCatching { DisplayUnit.valueOf(p.getString("displayUnit", DisplayUnit.MM.name)!!) }.getOrDefault(DisplayUnit.MM)
         set(v) = p.edit().putString("displayUnit", v.name).apply()

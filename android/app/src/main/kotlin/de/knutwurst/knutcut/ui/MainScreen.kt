@@ -458,6 +458,14 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Mats.all.forEach { m -> FilterChip(selected = vm.mat == m, onClick = { vm.selectMat(m) }, label = { Text(m.name) }) }
             }
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Nullpunkt-Versatz Y (mm)", style = MaterialTheme.typography.bodyMedium)
+                    Text("Greifrand der Matte oben — der Plot beginnt so weit unterhalb.", style = MaterialTheme.typography.bodySmall)
+                }
+                EditableStepper(vm.originOffsetMm, 0, 100, step = 1) { vm.changeOriginOffset(it) }
+            }
 
             Spacer(Modifier.height(18.dp))
             Text("Einheit", style = MaterialTheme.typography.labelLarge)

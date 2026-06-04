@@ -112,6 +112,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var themeMode by mutableStateOf(settings.themeMode); private set
 
     var displayUnit by mutableStateOf(settings.displayUnit); private set
+    var originOffsetMm by mutableStateOf(settings.originOffsetMm); private set
 
     var dragKnifeComp by mutableStateOf(settings.dragKnifeComp); private set
     var bladeOffset by mutableStateOf(settings.bladeOffset); private set
@@ -121,6 +122,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun selectTheme(m: ThemeMode) { settings.themeMode = m; themeMode = m }
 
     fun changeDisplayUnit(u: DisplayUnit) { settings.displayUnit = u; displayUnit = u }
+
+    fun changeOriginOffset(mm: Int) { originOffsetMm = mm.coerceIn(0, 100); settings.originOffsetMm = originOffsetMm }
 
     /** Format a millimetre length in the chosen display unit, e.g. "4.0 cm". */
     fun formatLen(mm: Double): String =
@@ -534,9 +537,14 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun isOutsideMat(p: Pt, tolMm: Double = 1.0): Boolean =
         p.xMm < -tolMm || p.yMm < -tolMm || p.xMm > mat.widthMm + tolMm || p.yMm > mat.heightMm + tolMm
 
-    /** True if everything that will be cut fits within the mat. */
-    fun designWithinMat(): Boolean =
-        placedPolylines(cutLayers()).all { (_, pls) -> pls.all { pl -> pl.points.none { isOutsideMat(it) } } }
+    /** True if everything that will be cut fits within the mat, allowing for the top origin offset. */
+    fun designWithinMat(): Boolean {
+        val tol = 1.0
+        val maxY = mat.heightMm - originOffsetMm + tol
+        return placedPolylines(cutLayers()).all { (_, pls) ->
+            pls.all { pl -> pl.points.none { it.xMm < -tol || it.xMm > mat.widthMm + tol || it.yMm < -tol || it.yMm > maxY } }
+        }
+    }
 
     /** The topmost visible layer whose placed box contains [ptMm], or -1 if none. */
     fun layerAt(ptMm: Pt): Int {
@@ -560,15 +568,17 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Plotter-space polylines for one tool's layers being cut. Verified on the device by two test
-     * plots: the machine shares the editor's coordinate system (origin top-left, x right, y down), so
-     * no flip or mirror is applied — the placed coordinates go to the machine as-is.
+     * Plotter-space polylines for one tool's layers being cut. The machine shares the editor's
+     * coordinate system (origin top-left, x right, y down; verified by device plots), so no flip is
+     * applied. Y is shifted down by [originOffsetMm] for the mat's non-cuttable leading edge.
      */
-    private fun plotterPolylinesFor(t: Tool): List<Polyline> =
-        cutLayers().filter { it.tool == t }.flatMap { layer ->
+    private fun plotterPolylinesFor(t: Tool): List<Polyline> {
+        val dy = originOffsetMm.toDouble()
+        return cutLayers().filter { it.tool == t }.flatMap { layer ->
             val m = layerMatrix(layer)
-            layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
+            layer.polylines.map { pl -> Polyline(pl.points.map { val p = m.apply(it); Pt(p.xMm, p.yMm + dy) }, pl.closed) }
         }
+    }
 
     private var cutJob: Job? = null
 
@@ -606,6 +616,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             // this JS scale before it will feed material or accept a path (stock setPosition page).
             val widthUnits = (mat.widthMm * UNITS_PER_MM).toInt()
             val lengthUnits = (mat.heightMm * UNITS_PER_MM).toInt()
+            Log.d(TAG, "mat=${mat.name} ${mat.widthMm}x${mat.heightMm}mm setScale=JS$widthUnits,$lengthUnits designSizeMm=${designSizeMm()}")
             withContext(Dispatchers.IO) {
                 Log.d(TAG, "setmat -> ${session.send(PltCommand("setmat:${material.id};"))}")
                 Log.d(TAG, "setPressure -> ${session.send(PltCommand("SP${primaryTool.sp};FS${forceFor(primaryTool)};"))}")
