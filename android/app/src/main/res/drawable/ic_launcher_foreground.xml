@@ -3,11 +3,38 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- merged K + C monogram (spine + a C open to the right), centred in the adaptive safe zone -->
+    <!-- vector pen path (bezier curve + anchor squares + control handles), centred in the safe zone -->
+
+    <!-- control handles (behind the curve, lighter for hierarchy) -->
     <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="13"
+        android:strokeColor="#B3FFFFFF"
+        android:strokeWidth="2.5"
         android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M28,34 V74 M74,39 A20,20 0 0 0 41,54 A20,20 0 0 0 74,69" />
+        android:pathData="M32,38 L54,38 M76,70 L54,70" />
+
+    <!-- soft shadow under the bezier curve -->
+    <path
+        android:strokeColor="#26000000"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:pathData="M32,40.5 C54,40.5 54,72.5 76,72.5" />
+    <!-- the bezier path (hero) -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:pathData="M32,38 C54,38 54,70 76,70" />
+
+    <!-- round control-point dots -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M50.5,38 a3.5,3.5 0 1 0 7,0 a3.5,3.5 0 1 0 -7,0 Z M50.5,70 a3.5,3.5 0 1 0 7,0 a3.5,3.5 0 1 0 -7,0 Z" />
+
+    <!-- anchor squares (shadow then white) -->
+    <path
+        android:fillColor="#26000000"
+        android:pathData="M29.5,35.5 H34.5 A2,2 0 0 1 36.5,37.5 V42.5 A2,2 0 0 1 34.5,44.5 H29.5 A2,2 0 0 1 27.5,42.5 V37.5 A2,2 0 0 1 29.5,35.5 Z M73.5,67.5 H78.5 A2,2 0 0 1 80.5,69.5 V74.5 A2,2 0 0 1 78.5,76.5 H73.5 A2,2 0 0 1 71.5,74.5 V69.5 A2,2 0 0 1 73.5,67.5 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M29.5,33.5 H34.5 A2,2 0 0 1 36.5,35.5 V40.5 A2,2 0 0 1 34.5,42.5 H29.5 A2,2 0 0 1 27.5,40.5 V35.5 A2,2 0 0 1 29.5,33.5 Z M73.5,65.5 H78.5 A2,2 0 0 1 80.5,67.5 V72.5 A2,2 0 0 1 78.5,74.5 H73.5 A2,2 0 0 1 71.5,72.5 V67.5 A2,2 0 0 1 73.5,65.5 Z" />
 </vector>
