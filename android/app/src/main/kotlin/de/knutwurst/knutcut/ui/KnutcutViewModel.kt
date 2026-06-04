@@ -662,20 +662,15 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Corners of the selected layer's box — the editor draws and manipulates these. */
     fun placedCorners(): List<Pt> = layerCorners(selectedLayer)
 
-    /** Bottom of the usable area in editor coords: the plot is shifted down by the origin offset at
-     *  cut time, so anything below this would run off the mat. The editor draws this as a no-go band. */
-    fun usableMaxYMm(): Double = (mat.heightMm - originOffsetMm).coerceAtLeast(0.0)
-
-    /** True if a placed point lies outside the usable area (with a small tolerance), so the editor can flag it. */
+    /** True if a placed point lies outside the mat (with a small tolerance), so the editor can flag it. */
     fun isOutsideMat(p: Pt, tolMm: Double = 1.0): Boolean =
-        p.xMm < -tolMm || p.yMm < -tolMm || p.xMm > mat.widthMm + tolMm || p.yMm > usableMaxYMm() + tolMm
+        p.xMm < -tolMm || p.yMm < -tolMm || p.xMm > mat.widthMm + tolMm || p.yMm > mat.heightMm + tolMm
 
-    /** True if everything that will be cut fits within the usable area (accounting for the origin offset). */
+    /** True if everything that will be cut fits on the mat (the full 12×12" area is usable). */
     fun designWithinMat(): Boolean {
         val tol = 1.0
-        val maxY = usableMaxYMm() + tol
         return placedPolylines(cutLayers()).all { (_, pls) ->
-            pls.all { pl -> pl.points.none { it.xMm < -tol || it.xMm > mat.widthMm + tol || it.yMm < -tol || it.yMm > maxY } }
+            pls.all { pl -> pl.points.none { it.xMm < -tol || it.xMm > mat.widthMm + tol || it.yMm < -tol || it.yMm > mat.heightMm + tol } }
         }
     }
 
@@ -703,7 +698,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * Plotter-space polylines for one tool's layers being cut. The machine shares the editor's
      * coordinate system (origin top-left, x right, y down; verified by device plots), so no flip is
-     * applied. Y is shifted down by [originOffsetMm] for the mat's non-cuttable leading edge.
+     * applied. The whole 12×12" area is freely usable in the editor; Y is shifted down by
+     * [originOffsetMm] here so the plot starts below the leading-edge gripper.
      */
     private fun plotterPolylinesFor(t: Tool): List<Polyline> {
         val dy = originOffsetMm.toDouble()
@@ -745,10 +741,13 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             val primaryTool = if (Tool.KNIFE in toolsUsed) Tool.KNIFE else toolsUsed.first()
 
             // Setup, in the stock app's order: material, pressure (SP/FS), then the work-area scale.
-            // Width is always 12" (12192 units); the second value is the mat length. The machine needs
-            // this JS scale before it will feed material or accept a path (stock setPosition page).
+            // Width is the grid width (12" = 12192 units); the second value is the work-area length the
+            // machine may travel. The physical mat has margins above and below the printed grid, and the
+            // plot is shifted down by the origin offset so the grid starts below the top margin — so the
+            // declared length must be offset + grid, or the bottom of the grid gets clipped. The machine
+            // needs this JS scale before it will feed material or accept a path (stock setPosition page).
             val widthUnits = (mat.widthMm * UNITS_PER_MM).toInt()
-            val lengthUnits = (mat.heightMm * UNITS_PER_MM).toInt()
+            val lengthUnits = ((mat.heightMm + originOffsetMm) * UNITS_PER_MM).toInt()
             Log.d(TAG, "mat=${mat.name} ${mat.widthMm}x${mat.heightMm}mm setScale=JS$widthUnits,$lengthUnits designSizeMm=${designSizeMm()}")
             withContext(Dispatchers.IO) {
                 Log.d(TAG, "setmat -> ${session.send(PltCommand("setmat:${material.id};"))}")

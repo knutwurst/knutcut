@@ -207,17 +207,6 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
         drawRect(matFill, topLeft = tl, size = Size(br.x - tl.x, br.y - tl.y))
         drawRect(matColor, topLeft = tl, size = Size(br.x - tl.x, br.y - tl.y), style = Stroke(width = 2f))
 
-        // No-go band: the origin offset pushes the plot down, so this much at the bottom can't be plotted.
-        val usableMaxY = vm.usableMaxYMm()
-        if (usableMaxY < vm.mat.heightMm) {
-            val bt = s(Pt(0.0, usableMaxY))
-            drawRect(offMatColor.copy(alpha = 0.10f), topLeft = bt, size = Size(br.x - bt.x, br.y - bt.y))
-            drawLine(
-                offMatColor.copy(alpha = 0.6f), Offset(tl.x, bt.y), Offset(br.x, bt.y),
-                strokeWidth = 1.5f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)),
-            )
-        }
-
         drawRulers(vm.mat, origin, ppm, rulerColor)
 
         // design — knife layers in the primary colour, pen layers in the secondary; anything that
