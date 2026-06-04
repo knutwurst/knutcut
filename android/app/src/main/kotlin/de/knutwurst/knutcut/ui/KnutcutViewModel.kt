@@ -559,12 +559,16 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return true
     }
 
-    /** Plotter-space polylines for one tool's layers being cut (placed + Y-flipped, since the plotter is Y-up). */
+    /**
+     * Plotter-space polylines for one tool's layers being cut. The mat editor is x-right / y-down with
+     * the origin top-left; the machine mirrors X internally, so we mirror X here (W − x) and keep Y as
+     * is. That puts the design's top-left at the machine's origin (no 180° flip).
+     */
     private fun plotterPolylinesFor(t: Tool): List<Polyline> {
-        val h = mat.heightMm
+        val w = mat.widthMm
         return cutLayers().filter { it.tool == t }.flatMap { layer ->
             val m = layerMatrix(layer)
-            layer.polylines.map { pl -> Polyline(pl.points.map { val w = m.apply(it); Pt(w.xMm, h - w.yMm) }, pl.closed) }
+            layer.polylines.map { pl -> Polyline(pl.points.map { val p = m.apply(it); Pt(w - p.xMm, p.yMm) }, pl.closed) }
         }
     }
 
@@ -632,7 +636,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 var cmds = HpglEncoder.encode(polys)
                 if (cmds.isEmpty()) return@forEach
                 val raw = cmds.size
-                if (dragKnifeComp) cmds = DragKnife.process(cmds, bladeOffset.toDouble())
+                // Drag-knife compensation is for the blade only — never apply it to the pen.
+                if (dragKnifeComp && t == Tool.KNIFE) cmds = DragKnife.process(cmds, bladeOffset.toDouble())
                 val xs = polys.flatMap { it.points }.map { mmToUnits(it.xMm) }
                 val ys = polys.flatMap { it.points }.map { mmToUnits(it.yMm) }
                 Log.d(TAG, "tool=${t.sp} force=${forceFor(t)} polylines=${polys.size} cmds=$raw->${cmds.size} (comp=$dragKnifeComp) " +
@@ -641,9 +646,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 plt.addAll(cmds)
             }
             if (plt.isEmpty()) { finishCut("Keine sichtbaren Ebenen."); return }
+            plt += "PU"   // lift the tool at the end so the pen/knife isn't left pressed down
 
             // Stream as one continuous pltFile sequence (index 0..total-1, 30 commands per chunk),
-            // exactly like the stock sendFile — no pltCommands interleaved, no trailing TB66.
+            // exactly like the stock sendFile.
             val fileMsgs = Protocol.pathFile(plt, 30)
             Log.d(TAG, "sendFile: ${plt.size} cmds in ${fileMsgs.size} chunks")
             fileMsgs.forEachIndexed { i, m ->
@@ -654,6 +660,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 progress = (i + 1).toFloat() / fileMsgs.size
             }
+            // Finish: end the file so the machine lifts the tool and returns (stock sends TB66 here).
+            withContext(Dispatchers.IO) { Log.d(TAG, "finish TB66 -> ${session.send(PltCommand("TB66;"))}") }
             finishCut("Fertig an den Plotter gesendet.")
         } catch (e: CancellationException) {
             cutting = false
