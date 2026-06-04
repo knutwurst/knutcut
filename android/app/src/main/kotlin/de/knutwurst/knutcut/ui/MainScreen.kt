@@ -76,6 +76,7 @@ import de.knutwurst.knutcut.data.Devices
 import de.knutwurst.knutcut.data.DisplayUnit
 import de.knutwurst.knutcut.data.Materials
 import de.knutwurst.knutcut.data.Mats
+import de.knutwurst.knutcut.data.display
 import de.knutwurst.knutcut.data.ThemeMode
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Shapes
@@ -245,7 +246,7 @@ private fun EditingBar(
             Text("Ebenen (${vm.layers.size})", maxLines = 1)
         }
         OutlinedButton(onClick = onMaterial, modifier = Modifier.weight(1f)) {
-            Text(vm.material.name, maxLines = 1)
+            Text(vm.material.display(), maxLines = 1)
         }
     }
     if (vm.layers.size > 1) {
@@ -328,7 +329,7 @@ private fun MaterialSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             vm.allMaterials().forEach { m ->
                 val selected = vm.material.id == m.id
                 Text(
-                    m.name,
+                    m.display(),
                     color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                     modifier = Modifier.fillMaxWidth().clickable { vm.selectMaterial(m) }.padding(vertical = 10.dp),

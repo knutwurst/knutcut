@@ -20,6 +20,7 @@ import de.knutwurst.knutcut.data.Mat
 import de.knutwurst.knutcut.data.Mats
 import de.knutwurst.knutcut.data.Material
 import de.knutwurst.knutcut.data.Materials
+import de.knutwurst.knutcut.data.display
 import de.knutwurst.knutcut.data.PlotterModel
 import de.knutwurst.knutcut.data.Settings
 import de.knutwurst.knutcut.data.ThemeMode
@@ -270,7 +271,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     // User-defined materials, merged with the built-in presets.
     var customMaterials by mutableStateOf(settings.customMaterials); private set
 
-    fun allMaterials(): List<Material> = (Materials.presets + customMaterials).sortedBy { it.name.lowercase() }
+    fun allMaterials(): List<Material> = (Materials.presets + customMaterials).sortedBy { it.display().lowercase() }
 
     fun isCustomMaterial(m: Material): Boolean = m.id.startsWith("custom-")
 
