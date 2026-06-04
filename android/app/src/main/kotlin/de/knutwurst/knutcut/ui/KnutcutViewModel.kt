@@ -560,17 +560,15 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Plotter-space polylines for one tool's layers being cut. The mat editor is x-right / y-down with
-     * the origin top-left; the machine mirrors X internally, so we mirror X here (W − x) and keep Y as
-     * is. That puts the design's top-left at the machine's origin (no 180° flip).
+     * Plotter-space polylines for one tool's layers being cut. Verified on the device by two test
+     * plots: the machine shares the editor's coordinate system (origin top-left, x right, y down), so
+     * no flip or mirror is applied — the placed coordinates go to the machine as-is.
      */
-    private fun plotterPolylinesFor(t: Tool): List<Polyline> {
-        val w = mat.widthMm
-        return cutLayers().filter { it.tool == t }.flatMap { layer ->
+    private fun plotterPolylinesFor(t: Tool): List<Polyline> =
+        cutLayers().filter { it.tool == t }.flatMap { layer ->
             val m = layerMatrix(layer)
-            layer.polylines.map { pl -> Polyline(pl.points.map { val p = m.apply(it); Pt(w - p.xMm, p.yMm) }, pl.closed) }
+            layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
         }
-    }
 
     private var cutJob: Job? = null
 
