@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -34,26 +35,22 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AspectRatio
-import androidx.compose.material.icons.filled.CenterFocusStrong
+import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flip
-import androidx.compose.material.icons.filled.FormatAlignLeft
-import androidx.compose.material.icons.filled.FormatAlignRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.VerticalAlignBottom
-import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -62,6 +59,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -76,6 +74,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -231,18 +230,15 @@ private fun CuttingBar(vm: KnutcutViewModel) {
     OutlinedButton(onClick = { vm.cancelCut() }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Abbrechen") }
 }
 
-/** A compact, consistent action chip with a leading icon (Canva/Cricut style). */
-@OptIn(ExperimentalMaterial3Api::class)
+/** A compact icon button used in the editing toolbar (Canva/Figma style). */
 @Composable
-private fun ActionChip(label: String, icon: ImageVector, onClick: () -> Unit) {
-    AssistChip(
-        onClick = onClick,
-        label = { Text(label, maxLines = 1) },
-        leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp)) },
-    )
+private fun IconAction(label: String, icon: ImageVector, rotate: Float = 0f, onClick: () -> Unit) {
+    FilledTonalIconButton(onClick = onClick, modifier = Modifier.size(40.dp)) {
+        Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp).rotate(rotate))
+    }
 }
 
-/** The contextual bar shown while editing: actions on the selected layer, then material + cut. */
+/** The contextual bar shown while editing: a single icon toolbar, then material + a cut summary. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun EditingBar(
@@ -252,23 +248,25 @@ private fun EditingBar(
     onMaterial: () -> Unit,
     onConnectOrCut: () -> Unit,
 ) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        ActionChip("Größe & Winkel", Icons.Default.AspectRatio, onSize)
-        ActionChip("Drehen 90°", Icons.Default.RotateRight) { vm.rotate90() }
-        ActionChip("Spiegeln ↔", Icons.Default.Flip) { vm.mirrorSelectedHorizontal() }
-        ActionChip("Spiegeln ↕", Icons.Default.Flip) { vm.mirrorSelectedVertical() }
-        ActionChip("Duplizieren", Icons.Default.ContentCopy) { vm.duplicateSelected() }
-        if (vm.layers.size > 1) ActionChip("Löschen", Icons.Default.Delete) { vm.deleteSelected() }
-        ActionChip("Zurücksetzen", Icons.Default.Refresh) { vm.resetPlacement() }
+    val actions: @Composable () -> Unit = {
+        IconAction("Größe & Winkel", Icons.Default.AspectRatio, onClick = onSize)
+        IconAction("Drehen 90°", Icons.Default.RotateRight) { vm.rotate90() }
+        IconAction("Horizontal spiegeln", Icons.Default.Flip) { vm.mirrorSelectedHorizontal() }
+        IconAction("Vertikal spiegeln", Icons.Default.Flip, rotate = 90f) { vm.mirrorSelectedVertical() }
+        IconAction("Duplizieren", Icons.Default.ContentCopy) { vm.duplicateSelected() }
+        if (vm.layers.size > 1) IconAction("Löschen", Icons.Default.Delete) { vm.deleteSelected() }
+        IconAction("Zurücksetzen", Icons.Default.Refresh) { vm.resetPlacement() }
     }
+    if (vm.actionBarWrap) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { actions() }
+    } else {
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) { actions() }
+    }
+
     Spacer(Modifier.height(8.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        OutlinedButton(onClick = onLayers, modifier = Modifier.weight(1f)) {
-            Text("Ebenen (${vm.layers.size})", maxLines = 1)
-        }
-        OutlinedButton(onClick = onMaterial, modifier = Modifier.weight(1f)) {
-            Text(vm.material.display(), maxLines = 1)
-        }
+        OutlinedButton(onClick = onLayers, modifier = Modifier.weight(1f)) { Text("Ebenen (${vm.layers.size})", maxLines = 1) }
+        OutlinedButton(onClick = onMaterial, modifier = Modifier.weight(1f)) { Text(vm.material.display(), maxLines = 1) }
     }
     if (vm.layers.size > 1) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -276,19 +274,44 @@ private fun EditingBar(
             Text("Nur ausgewählte Ebene schneiden", style = MaterialTheme.typography.bodyMedium)
         }
     }
-    Spacer(Modifier.height(8.dp))
+    // Safety net: a quick "what will happen" line right above the start button.
+    Spacer(Modifier.height(6.dp))
+    Text(
+        "Bereit: ${vm.cutPlanSummary()}",
+        style = MaterialTheme.typography.bodyMedium,
+        textAlign = TextAlign.Center,
+        color = if (vm.cutUsesKnife()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(4.dp))
     Button(onClick = onConnectOrCut, enabled = vm.hasDesign && !vm.cutting, modifier = Modifier.fillMaxWidth().height(52.dp)) {
         Text(
             when {
                 !vm.connected -> "Plotter verbinden"
-                vm.layers.any { it.visible && it.tool == Tool.KNIFE } -> "Schneiden"
+                vm.cutUsesKnife() -> "Schneiden"
                 else -> "Zeichnen"
             }
         )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+/** A 3×3 anchor grid for aligning the selected layer on the mat — the cell's position is its meaning. */
+@Composable
+private fun AlignmentGrid(onAlign: (Int, Int) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        for (row in -1..1) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                for (col in -1..1) {
+                    OutlinedIconButton(onClick = { onAlign(col, row) }, modifier = Modifier.size(44.dp)) {
+                        Icon(Icons.Default.Circle, contentDescription = "Ausrichten", modifier = Modifier.size(8.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -300,14 +323,9 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                 OutlinedButton(onClick = { vm.mergeLayers() }, modifier = Modifier.weight(1f)) { Text("Zusammenführen", maxLines = 1) }
             }
             Spacer(Modifier.height(10.dp))
-            Text("Ausgewählte Ebene ausrichten", style = MaterialTheme.typography.labelLarge)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                ActionChip("Mitte", Icons.Default.CenterFocusStrong) { vm.alignSelected(0, 0) }
-                ActionChip("Links", Icons.Default.FormatAlignLeft) { vm.alignSelected(-1, 0) }
-                ActionChip("Rechts", Icons.Default.FormatAlignRight) { vm.alignSelected(1, 0) }
-                ActionChip("Oben", Icons.Default.VerticalAlignTop) { vm.alignSelected(0, -1) }
-                ActionChip("Unten", Icons.Default.VerticalAlignBottom) { vm.alignSelected(0, 1) }
-            }
+            Text("Auf der Matte ausrichten", style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.height(4.dp))
+            AlignmentGrid { hx, vy -> vm.alignSelected(hx, vy) }
             Spacer(Modifier.height(10.dp))
             if (vm.layers.size > 1) {
                 Text("Antippen wählt die Ebene; auf der Matte verschieben.", style = MaterialTheme.typography.bodySmall)
@@ -414,6 +432,16 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
             Text("Einheit", style = MaterialTheme.typography.labelLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DisplayUnit.entries.forEach { u -> FilterChip(selected = vm.displayUnit == u, onClick = { vm.changeDisplayUnit(u) }, label = { Text(u.label) }) }
+            }
+
+            Spacer(Modifier.height(18.dp))
+            Text("Bedienung", style = MaterialTheme.typography.labelLarge)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Aktionsleiste umbrechen", style = MaterialTheme.typography.bodyMedium)
+                    Text("Aus: in einer Zeile scrollen. An: auf mehrere Zeilen umbrechen.", style = MaterialTheme.typography.bodySmall)
+                }
+                Switch(checked = vm.actionBarWrap, onCheckedChange = { vm.changeActionBarWrap(it) })
             }
 
             Spacer(Modifier.height(18.dp))

@@ -109,6 +109,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var themeMode by mutableStateOf(settings.themeMode); private set
 
     var displayUnit by mutableStateOf(settings.displayUnit); private set
+    var actionBarWrap by mutableStateOf(settings.actionBarWrap); private set
 
     var dragKnifeComp by mutableStateOf(settings.dragKnifeComp); private set
     var bladeOffset by mutableStateOf(settings.bladeOffset); private set
@@ -118,6 +119,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun selectTheme(m: ThemeMode) { settings.themeMode = m; themeMode = m }
 
     fun changeDisplayUnit(u: DisplayUnit) { settings.displayUnit = u; displayUnit = u }
+
+    fun changeActionBarWrap(v: Boolean) { settings.actionBarWrap = v; actionBarWrap = v }
 
     /** Format a millimetre length in the chosen display unit, e.g. "4.0 cm". */
     fun formatLen(mm: Double): String =
@@ -432,9 +435,27 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun placedLayers(): List<Pair<Tool, List<Polyline>>> = placedPolylines(layers.filter { it.visible })
 
     /** The layers a cut will send: just the selected one when [cutSelectedOnly], else all visible. */
-    private fun cutLayers(): List<Layer> =
+    fun cutLayers(): List<Layer> =
         if (cutSelectedOnly) listOfNotNull(layers.getOrNull(selectedLayer)?.takeIf { it.visible })
         else layers.filter { it.visible }
+
+    /** A short "what will happen" line for the safety net above the cut button. */
+    fun cutPlanSummary(): String {
+        val ls = cutLayers()
+        val n = ls.size
+        val ebenen = if (n == 1) "1 Ebene" else "$n Ebenen"
+        val tools = ls.map { it.tool }.distinct()
+        val tool = when {
+            tools.isEmpty() -> "–"
+            tools.size > 1 -> "Messer + Stift"
+            tools.first() == Tool.KNIFE -> "Messer"
+            else -> "Stift"
+        }
+        return "$ebenen · $tool"
+    }
+
+    /** True if any layer that will be cut uses the knife (for a warning tint). */
+    fun cutUsesKnife(): Boolean = cutLayers().any { it.tool == Tool.KNIFE }
 
     /** Placement matrix for one layer: rotate/scale/mirror about its own centre, then move to [Layer.centerMm]. */
     private fun layerMatrix(layer: Layer): Matrix =
