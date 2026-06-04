@@ -412,14 +412,14 @@ private fun MaterialSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                 // Order matches the plotter: pen holder left, knife holder right.
                 listOf(Tool.PEN, Tool.KNIFE).forEach { t ->
                     FilterChip(
-                        selected = vm.tool == t,
+                        selected = vm.selectedTool == t,
                         onClick = { vm.setAllTool(t) },
                         label = { Text(if (t == Tool.KNIFE) "Messer" else "Stift") },
                     )
                 }
             }
             Spacer(Modifier.height(8.dp))
-            val penSelected = vm.tool == Tool.PEN
+            val penSelected = vm.selectedTool == Tool.PEN
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(if (penSelected) "Druck (Stift)" else "Druck (Messer)", Modifier.weight(1f))
                 EditableStepper(if (penSelected) vm.penForce else vm.force, Materials.FORCE_MIN, Materials.FORCE_MAX, step = 5) {

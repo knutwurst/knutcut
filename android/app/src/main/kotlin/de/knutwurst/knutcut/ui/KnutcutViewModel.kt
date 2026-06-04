@@ -347,6 +347,13 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         if (material.id == id) selectMaterial(Materials.default)
     }
 
+    /**
+     * Tool of the currently selected layer, falling back to the global default. Drives which
+     * pressure (pen vs. knife) the Material & Druck sheet shows, so the value always matches the
+     * tool the selected layer will actually cut with.
+     */
+    val selectedTool: Tool get() = layers.getOrNull(selectedLayer)?.tool ?: tool
+
     /** Set the tool for all layers (the bottom quick-select). */
     fun setAllTool(t: Tool) {
         tool = t
