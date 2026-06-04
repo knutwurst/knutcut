@@ -6,7 +6,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -64,6 +63,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -78,6 +79,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -109,6 +111,8 @@ fun MainScreen(vm: KnutcutViewModel) {
     var showTransform by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
     var showCut by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         hasBtPerm = hasBluetoothPermission(context)
@@ -123,12 +127,19 @@ fun MainScreen(vm: KnutcutViewModel) {
     fun openFile() = openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "text/plain", "application/octet-stream"))
     fun openDevices() { if (hasBtPerm) showDevices = true else permLauncher.launch(bluetoothPermissions()) }
 
+    // Important messages go to a Snackbar (don't stack/auto-vanish like a Toast); the live cut status
+    // is shown inline in the CuttingBar instead.
     LaunchedEffect(vm.status) {
-        if (!vm.cutting) vm.status?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+        val s = vm.status
+        if (s != null && !vm.cutting) {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(s)
+        }
     }
     LaunchedEffect(hasBtPerm) { vm.autoConnect() }
 
     Surface(color = MaterialTheme.colorScheme.background) {
+      Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
             // Top bar
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -171,11 +182,23 @@ fun MainScreen(vm: KnutcutViewModel) {
                     onLayers = { showLayers = true },
                     onMaterial = { showMaterial = true },
                     onConnectOrCut = { if (vm.connected) showCut = true else openDevices() },
+                    onDelete = { showDeleteConfirm = true },
                 )
             }
         }
+        SnackbarHost(snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding())
+      }
     }
 
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Ebene löschen?") },
+            text = { Text("Die ausgewählte Ebene wird entfernt.") },
+            confirmButton = { TextButton(onClick = { vm.deleteSelected(); showDeleteConfirm = false }) { Text("Löschen") } },
+            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Abbrechen") } },
+        )
+    }
     if (showDevices) {
         DeviceDialog(vm, hasBtPerm, onRequestPerm = { permLauncher.launch(bluetoothPermissions()) }, onDismiss = { showDevices = false })
     }
@@ -237,8 +260,8 @@ private fun CuttingBar(vm: KnutcutViewModel) {
 
 /** A compact icon button used in the editing toolbar (Canva/Figma style). */
 @Composable
-private fun IconAction(label: String, icon: ImageVector, rotate: Float = 0f, onClick: () -> Unit) {
-    FilledTonalIconButton(onClick = onClick, modifier = Modifier.size(40.dp)) {
+private fun IconAction(label: String, icon: ImageVector, rotate: Float = 0f, enabled: Boolean = true, onClick: () -> Unit) {
+    FilledTonalIconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(40.dp)) {
         Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp).rotate(rotate))
     }
 }
@@ -252,20 +275,26 @@ private fun EditingBar(
     onLayers: () -> Unit,
     onMaterial: () -> Unit,
     onConnectOrCut: () -> Unit,
+    onDelete: () -> Unit,
 ) {
+    // Per-layer actions only make sense with a layer selected; greyed out when the mat is selected.
+    val perLayer = !vm.matSelected
     // One toolbar row, spread across the full width (wraps to a new row if it can't fit).
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        IconAction("Größe & Winkel", Icons.Default.AspectRatio, onClick = onSize)
-        IconAction("Drehen 90°", Icons.Default.RotateRight) { vm.rotate90() }
-        IconAction("Horizontal spiegeln", Icons.Default.Flip) { vm.mirrorSelectedHorizontal() }
-        IconAction("Vertikal spiegeln", Icons.Default.Flip, rotate = 90f) { vm.mirrorSelectedVertical() }
-        IconAction("Duplizieren", Icons.Default.ContentCopy) { vm.duplicateSelected() }
-        IconAction("Löschen", Icons.Default.Delete) { vm.deleteSelected() }
-        IconAction("Zurücksetzen", Icons.Default.Refresh) { vm.resetPlacement() }
+        IconAction("Größe & Winkel", Icons.Default.AspectRatio, enabled = perLayer, onClick = onSize)
+        IconAction("Drehen 90°", Icons.Default.RotateRight, enabled = perLayer) { vm.rotate90() }
+        IconAction("Horizontal spiegeln", Icons.Default.Flip, enabled = perLayer) { vm.mirrorSelectedHorizontal() }
+        IconAction("Vertikal spiegeln", Icons.Default.Flip, rotate = 90f, enabled = perLayer) { vm.mirrorSelectedVertical() }
+        IconAction("Duplizieren", Icons.Default.ContentCopy, enabled = perLayer) { vm.duplicateSelected() }
+        IconAction("Löschen", Icons.Default.Delete, enabled = perLayer, onClick = onDelete)
+        IconAction(
+            if (vm.matSelected) "Alles zurücksetzen" else "Ebene zurücksetzen",
+            Icons.Default.Refresh,
+        ) { if (vm.matSelected) vm.resetAll() else vm.resetSelectedPlacement() }
     }
 
     Spacer(Modifier.height(8.dp))
@@ -278,8 +307,7 @@ private fun EditingBar(
         Text(
             when {
                 !vm.connected -> "Plotter verbinden"
-                vm.cutUsesKnife() -> "Schneiden"
-                else -> "Zeichnen"
+                else -> vm.cutActionLabel()
             }
         )
     }
@@ -320,17 +348,52 @@ private fun CutSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                 }
                 Spacer(Modifier.height(10.dp))
             }
+            // Compute the cut set once for the whole sheet (avoids re-filtering the layers repeatedly).
+            val ls = vm.cutLayers()
+            val knifeN = ls.count { it.tool == Tool.KNIFE }
+            val penN = ls.size - knifeN
+            val single = if (ls.isEmpty()) null else if (penN == 0) Tool.KNIFE else if (knifeN == 0) Tool.PEN else null
+            val withinMat = vm.designWithinMat()
+            // When every layer uses the same tool, offer a quick draw/cut switch. When the layers mix
+            // tools, show how many will be cut and how many drawn instead.
+            if (single != null) {
+                val knife = single == Tool.KNIFE
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (knife) "Werkzeug: Schneiden (Messer)" else "Werkzeug: Zeichnen (Stift)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(checked = knife, onCheckedChange = { vm.setCutTool(if (it) Tool.KNIFE else Tool.PEN) })
+                }
+                Spacer(Modifier.height(8.dp))
+            } else {
+                Text("$knifeN Ebene${if (knifeN == 1) "" else "n"} schneiden · $penN Ebene${if (penN == 1) "" else "n"} zeichnen", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(8.dp))
+            }
+            val ebenen = if (ls.size == 1) "1 Ebene" else "${ls.size} Ebenen"
+            val toolLabel = when (single) { Tool.KNIFE -> "Messer"; Tool.PEN -> "Stift"; else -> if (ls.isEmpty()) "–" else "Messer + Stift" }
             Text(
-                vm.cutPlanSummary(),
+                "$ebenen · $toolLabel",
                 style = MaterialTheme.typography.bodyLarge,
-                color = if (vm.cutUsesKnife()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (knifeN > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text("Material: ${vm.material.display()}", style = MaterialTheme.typography.bodySmall)
+            if (!withinMat) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Das Design ragt über den nutzbaren Bereich der Matte hinaus – bitte verkleinern oder verschieben.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
             Spacer(Modifier.height(14.dp))
+            val label = when (single) { Tool.KNIFE -> "Schneiden"; Tool.PEN -> "Zeichnen"; else -> "Plotten" }
             Button(
                 onClick = { onDismiss(); vm.cut() },
+                enabled = withinMat && ls.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-            ) { Text(if (vm.cutUsesKnife()) "Schneiden starten" else "Zeichnen starten") }
+            ) { Text("$label starten") }
         }
     }
 }
@@ -412,14 +475,14 @@ private fun MaterialSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                 // Order matches the plotter: pen holder left, knife holder right.
                 listOf(Tool.PEN, Tool.KNIFE).forEach { t ->
                     FilterChip(
-                        selected = vm.selectedTool == t,
-                        onClick = { vm.setAllTool(t) },
+                        selected = vm.activeTool == t,
+                        onClick = { vm.setActiveTool(t) },
                         label = { Text(if (t == Tool.KNIFE) "Messer" else "Stift") },
                     )
                 }
             }
             Spacer(Modifier.height(8.dp))
-            val penSelected = vm.selectedTool == Tool.PEN
+            val penSelected = vm.activeTool == Tool.PEN
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(if (penSelected) "Druck (Stift)" else "Druck (Messer)", Modifier.weight(1f))
                 EditableStepper(if (penSelected) vm.penForce else vm.force, Materials.FORCE_MIN, Materials.FORCE_MAX, step = 5) {
@@ -431,7 +494,7 @@ private fun MaterialSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
     if (manage) MaterialManageDialog(vm, onDismiss = { manage = false })
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -> Unit, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -465,6 +528,23 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                     Text("Greifrand der Matte oben — der Plot beginnt so weit unterhalb.", style = MaterialTheme.typography.bodySmall)
                 }
                 EditableStepper(vm.originOffsetMm, 0, 100, step = 1) { vm.changeOriginOffset(it) }
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("Raster (Snap)", style = MaterialTheme.typography.bodyMedium)
+            Text("Objekte rasten beim Verschieben auf diesem Raster ein.", style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(4.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(0f to "Aus", 0.1f to "0,1 mm", 1f to "1 mm", 5f to "5 mm", 10f to "1 cm").forEach { (v, lbl) ->
+                    FilterChip(selected = vm.snapMm == v, onClick = { vm.changeSnap(v) }, label = { Text(lbl) })
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Ausrichtungshilfe", style = MaterialTheme.typography.bodyMedium)
+                    Text("Mittelpunkte rasten an anderen Ebenen und der Mattenmitte ein.", style = MaterialTheme.typography.bodySmall)
+                }
+                Switch(checked = vm.alignGuides, onCheckedChange = { vm.changeAlignGuides(it) })
             }
 
             Spacer(Modifier.height(18.dp))
@@ -601,7 +681,13 @@ private fun EditableStepper(value: Int, min: Int, max: Int, step: Int = 1, onCha
             },
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center),
-            modifier = Modifier.width(72.dp).padding(horizontal = 4.dp),
+            modifier = Modifier.width(72.dp).padding(horizontal = 4.dp).onFocusChanged { f ->
+                // On blur, snap a blank or out-of-range entry back to the committed value.
+                if (!f.isFocused) {
+                    val n = text.toIntOrNull()
+                    if (n == null || n < min || n > max) text = value.toString()
+                }
+            },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         )
         OutlinedButton(onClick = { onChange((value + step).coerceIn(min, max)) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), modifier = Modifier.size(40.dp)) { Text("+") }

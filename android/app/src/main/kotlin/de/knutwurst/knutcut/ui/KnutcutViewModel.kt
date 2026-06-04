@@ -40,6 +40,7 @@ import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Protocol
 import de.knutwurst.knutcut.svgcore.Pt
 import de.knutwurst.knutcut.svgcore.Query
+import de.knutwurst.knutcut.svgcore.Snap
 import de.knutwurst.knutcut.svgcore.SvgParser
 import de.knutwurst.knutcut.svgcore.UNITS_PER_MM
 import de.knutwurst.knutcut.svgcore.responseState
@@ -86,6 +87,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Bounds of the selected layer in its own coordinates — the handles operate on this. */
     val bounds: Bounds? get() = layers.getOrNull(selectedLayer)?.let { layerBounds(it) }
 
+    /** True when no layer is selected — the mat itself is the active selection. */
+    val matSelected: Boolean get() = selectedLayer !in layers.indices
+
     // Mat view camera (zoom + pan of the work area).
     var camScale by mutableStateOf(1f)
     var camOffset by mutableStateOf(Offset.Zero)
@@ -113,6 +117,11 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     var displayUnit by mutableStateOf(settings.displayUnit); private set
     var originOffsetMm by mutableStateOf(settings.originOffsetMm); private set
+    var snapMm by mutableStateOf(settings.snapMm); private set
+    var alignGuides by mutableStateOf(settings.alignGuides); private set
+    // Transient guide lines shown while a drag is snapped to another layer's (or the mat's) centre.
+    var alignGuideX by mutableStateOf<Double?>(null); private set
+    var alignGuideY by mutableStateOf<Double?>(null); private set
 
     var dragKnifeComp by mutableStateOf(settings.dragKnifeComp); private set
     var bladeOffset by mutableStateOf(settings.bladeOffset); private set
@@ -124,6 +133,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun changeDisplayUnit(u: DisplayUnit) { settings.displayUnit = u; displayUnit = u }
 
     fun changeOriginOffset(mm: Int) { originOffsetMm = mm.coerceIn(0, 100); settings.originOffsetMm = originOffsetMm }
+
+    fun changeSnap(mm: Float) { snapMm = mm; settings.snapMm = mm }
+
+    fun changeAlignGuides(on: Boolean) { alignGuides = on; settings.alignGuides = on; if (!on) clearGuides() }
 
     /** Format a millimetre length in the chosen display unit, e.g. "4.0 cm". */
     fun formatLen(mm: Double): String =
@@ -161,6 +174,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             selectedLayer = layers.size - added.size
         }
         markedLayers = emptySet()
+        pruneBoundsCache()
         status = "Design geladen (${parsed.size} Ebene${if (parsed.size == 1) "" else "n"})."
     }
 
@@ -199,6 +213,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectLayer(i: Int) { if (i in layers.indices) selectedLayer = i }
 
+    /** Clear the layer selection and any marks — the mat itself becomes the active selection. */
+    fun deselectLayers() { selectedLayer = -1; markedLayers = emptySet() }
+
     /** Add a new layer (e.g. a primitive shape) centred on the mat and select it. */
     fun addLayer(name: String, polylines: List<Polyline>) {
         if (polylines.isEmpty()) return
@@ -232,6 +249,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         layers = layers.filterIndexed { idx, _ -> idx != i }
         selectedLayer = selectedLayer.coerceIn(0, (layers.size - 1).coerceAtLeast(0))
         markedLayers = emptySet()
+        pruneBoundsCache()
     }
 
     /** Set the selected layer's size in mm (bounding box after scale), keeping its top-left corner fixed. */
@@ -295,6 +313,12 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             Bounds.ofOrNull(layer.polylines.flatMap { it.points }) ?: EMPTY_BOUNDS
         }
 
+    /** Drop cached bounds whose geometry is no longer on any layer, so the cache can't grow forever. */
+    private fun pruneBoundsCache() {
+        val keep = layers.map { it.polylines }
+        boundsCache.keys.removeAll { key -> keep.none { it === key } }
+    }
+
     /** Place layers at their original relative positions with the whole design's top-left at (0,0). */
     private fun placeAtHome(ls: List<Layer>): List<Layer> {
         val allPts = ls.flatMap { it.polylines }.flatMap { it.points }
@@ -354,6 +378,20 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      */
     val selectedTool: Tool get() = layers.getOrNull(selectedLayer)?.tool ?: tool
 
+    /** Tool the Material sheet edits: the selected layer's, or the global default when the mat is selected. */
+    val activeTool: Tool get() = if (matSelected) tool else selectedTool
+
+    /** Set the tool the Material sheet edits — the selected layer when one is chosen, else all layers. */
+    fun setActiveTool(t: Tool) {
+        if (matSelected) {
+            setAllTool(t)
+        } else {
+            tool = t
+            settings.toolSp = t.sp
+            setLayerTool(selectedLayer, t)
+        }
+    }
+
     /** Set the tool for all layers (the bottom quick-select). */
     fun setAllTool(t: Tool) {
         tool = t
@@ -394,6 +432,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         }
         selectedLayer = 0
         markedLayers = emptySet()
+        pruneBoundsCache()
     }
 
     /** Merge all layers into one, keeping the current arrangement. */
@@ -403,6 +442,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         layers = listOf(Layer("Alle Formen", polys, layers.first().tool, visible = true, centerMm = centerOf(polys.flatMap { it.points })))
         selectedLayer = 0
         markedLayers = emptySet()
+        pruneBoundsCache()
     }
 
     // --- Multi-select (in the layers list) ---
@@ -424,6 +464,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         layers = out
         selectedLayer = out.indexOf(merged).coerceAtLeast(0)
         markedLayers = emptySet()
+        pruneBoundsCache()
     }
 
     /** Reset the cutting settings (compensation + blade offset) to their defaults. */
@@ -457,10 +498,71 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         camOffset = Offset.Zero
     }
 
+    /** Reset every layer's placement and the mat view, keeping the mat (no layer) selected. */
+    fun resetAll() {
+        resetPlacement()
+        selectedLayer = -1
+    }
+
+    /** Reset only the selected layer's size, aspect ratio, rotation, mirroring and position to home. */
+    fun resetSelectedPlacement() {
+        val i = selectedLayer
+        val layer = layers.getOrNull(i) ?: return
+        val b = layerBounds(layer)
+        layers = layers.mapIndexed { idx, l ->
+            if (idx == i) l.copy(
+                scaleX = 1.0, scaleY = 1.0, rotationDeg = 0.0, flipX = false, flipY = false,
+                centerMm = Pt((b.maxX - b.minX) / 2, (b.maxY - b.minY) / 2),
+            ) else l
+        }
+    }
+
     /** Size of the selected layer in millimetres (bounding box after its scale). */
     fun designSizeMm(): Pair<Double, Double>? {
         val b = bounds ?: return null
         return b.widthMm * scaleX to b.heightMm * scaleY
+    }
+
+    /**
+     * Move the selected layer so its centre is [center], snapping the placed box's top-left to the
+     * snap grid when one is set. The offset between top-left and centre is invariant under the move,
+     * so passing the running (un-snapped) centre each frame keeps small drags from being swallowed.
+     */
+    fun moveSelectedTo(center: Pt, guideTolMm: Double = 0.0) {
+        var c = center
+        // Grid snap: round the placed top-left to the snap step.
+        val corners = placedCorners()
+        if (snapMm > 0f && corners.size == 4) {
+            val cur = centerMm
+            val tlOffset = Pt(corners.minOf { it.xMm } - cur.xMm, corners.minOf { it.yMm } - cur.yMm)
+            c = Snap.gridCenter(c, tlOffset, snapMm.toDouble())
+        }
+        // Alignment guides: snap the centre to another layer's centre or the mat centre when close.
+        if (alignGuides && guideTolMm > 0.0) {
+            val xs = ArrayList<Double>(); val ys = ArrayList<Double>()
+            layers.forEachIndexed { i, l -> if (i != selectedLayer) { xs.add(l.centerMm.xMm); ys.add(l.centerMm.yMm) } }
+            xs.add(mat.widthMm / 2); ys.add(mat.heightMm / 2)
+            alignGuideX = Snap.nearestWithin(c.xMm, xs, guideTolMm)
+            alignGuideY = Snap.nearestWithin(c.yMm, ys, guideTolMm)
+            c = Pt(alignGuideX ?: c.xMm, alignGuideY ?: c.yMm)
+        } else {
+            alignGuideX = null; alignGuideY = null
+        }
+        centerMm = c
+    }
+
+    fun clearGuides() { alignGuideX = null; alignGuideY = null }
+
+    /** Compact "X · Y   W × H" readout for the selected layer (top-left + size), or null for the mat. */
+    fun selectionReadout(): String? {
+        val size = designSizeMm() ?: return null
+        val corners = placedCorners()
+        if (corners.size != 4) return null
+        val u = displayUnit
+        fun v(mm: Double) = String.format(java.util.Locale.GERMAN, "%.1f", u.fromMm(mm))
+        val tlx = corners.minOf { it.xMm }
+        val tly = corners.minOf { it.yMm }
+        return "X ${v(tlx)} · Y ${v(tly)}   ${v(size.first)} × ${v(size.second)} ${u.label}"
     }
 
     fun connect(dev: BluetoothDevice, silent: Boolean = false) {
@@ -519,23 +621,27 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         if (cutSelectedOnly) listOfNotNull(layers.getOrNull(selectedLayer)?.takeIf { it.visible })
         else layers.filter { it.visible }
 
-    /** A short "what will happen" line for the safety net above the cut button. */
-    fun cutPlanSummary(): String {
-        val ls = cutLayers()
-        val n = ls.size
-        val ebenen = if (n == 1) "1 Ebene" else "$n Ebenen"
-        val tools = ls.map { it.tool }.distinct()
-        val tool = when {
-            tools.isEmpty() -> "–"
-            tools.size > 1 -> "Messer + Stift"
-            tools.first() == Tool.KNIFE -> "Messer"
-            else -> "Stift"
-        }
-        return "$ebenen · $tool"
+    /** The single tool all cut layers share, or null if they mix tools (or there are none). */
+    fun cutSingleTool(): Tool? = cutLayers().map { it.tool }.distinct().singleOrNull()
+
+    /** Verb for the action button: cut, draw, or the neutral "plot" when the layers mix tools. */
+    fun cutActionLabel(): String = when (cutSingleTool()) {
+        Tool.PEN -> "Zeichnen"
+        Tool.KNIFE -> "Schneiden"
+        else -> "Plotten"
     }
 
-    /** True if any layer that will be cut uses the knife (for a warning tint). */
-    fun cutUsesKnife(): Boolean = cutLayers().any { it.tool == Tool.KNIFE }
+    /** Switch the tool of the layers that will be cut (the pre-cut draw/cut toggle). */
+    fun setCutTool(t: Tool) {
+        tool = t
+        settings.toolSp = t.sp
+        if (cutSelectedOnly) {
+            val i = selectedLayer
+            if (i in layers.indices) layers = layers.mapIndexed { idx, l -> if (idx == i) l.copy(tool = t) else l }
+        } else {
+            layers = layers.map { it.copy(tool = t) }
+        }
+    }
 
     /** Placement matrix for one layer: rotate/scale/mirror about its own centre, then move to [Layer.centerMm]. */
     private fun layerMatrix(layer: Layer): Matrix =
@@ -556,14 +662,18 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Corners of the selected layer's box — the editor draws and manipulates these. */
     fun placedCorners(): List<Pt> = layerCorners(selectedLayer)
 
-    /** True if a placed point lies outside the mat (with a small tolerance), so the editor can flag it. */
-    fun isOutsideMat(p: Pt, tolMm: Double = 1.0): Boolean =
-        p.xMm < -tolMm || p.yMm < -tolMm || p.xMm > mat.widthMm + tolMm || p.yMm > mat.heightMm + tolMm
+    /** Bottom of the usable area in editor coords: the plot is shifted down by the origin offset at
+     *  cut time, so anything below this would run off the mat. The editor draws this as a no-go band. */
+    fun usableMaxYMm(): Double = (mat.heightMm - originOffsetMm).coerceAtLeast(0.0)
 
-    /** True if everything that will be cut fits within the mat, allowing for the top origin offset. */
+    /** True if a placed point lies outside the usable area (with a small tolerance), so the editor can flag it. */
+    fun isOutsideMat(p: Pt, tolMm: Double = 1.0): Boolean =
+        p.xMm < -tolMm || p.yMm < -tolMm || p.xMm > mat.widthMm + tolMm || p.yMm > usableMaxYMm() + tolMm
+
+    /** True if everything that will be cut fits within the usable area (accounting for the origin offset). */
     fun designWithinMat(): Boolean {
         val tol = 1.0
-        val maxY = mat.heightMm - originOffsetMm + tol
+        val maxY = usableMaxYMm() + tol
         return placedPolylines(cutLayers()).all { (_, pls) ->
             pls.all { pl -> pl.points.none { it.xMm < -tol || it.xMm > mat.widthMm + tol || it.yMm < -tol || it.yMm > maxY } }
         }
@@ -742,11 +852,13 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun cancelCut() {
-        cutJob?.cancel()
+        val job = cutJob
+        if (job == null) { cutting = false; progress = 0f; return }
+        // Cancel the running job; runCut's CancellationException handler resets state and signals the
+        // machine (TB66). Keeping it in one place avoids the two paths fighting over the status.
+        status = "Abbrechen…"
         cutJob = null
-        cutting = false
-        progress = 0f
-        status = "Abgebrochen."
+        job.cancel()
     }
 
     override fun onCleared() { link?.close() }

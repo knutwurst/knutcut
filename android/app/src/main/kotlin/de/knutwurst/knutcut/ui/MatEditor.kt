@@ -3,7 +3,14 @@ package de.knutwurst.knutcut.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -14,13 +21,17 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import de.knutwurst.knutcut.data.Mat
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Pt
@@ -38,6 +49,9 @@ private sealed interface Drag {
 
 private const val HANDLE_HIT_PX = 34f
 private const val ROTATE_ARM_PX = 44f
+private const val TAP_SLOP_PX = 12f
+// Smart-guide line colour: a high-contrast magenta that reads on both light and dark mats.
+private val GUIDE_COLOR = Color(0xFFFF4081)
 
 /**
  * The placement mat. Pinch or one-finger-drag on empty space moves/zooms the *work area* (like a
@@ -59,9 +73,12 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     val penColor = MaterialTheme.colorScheme.secondary
     val handleColor = MaterialTheme.colorScheme.tertiary
     val offMatColor = MaterialTheme.colorScheme.error
+    val guideColor = GUIDE_COLOR
+    val matSummary = vm.selectionReadout()?.let { "Arbeitsfläche, ausgewählt: $it" } ?: "Arbeitsfläche, Matte ausgewählt"
 
-    Canvas(
-        modifier = modifier.pointerInput(Unit) {
+    Box(modifier.semantics { contentDescription = matSummary }) {
+      Canvas(
+        modifier = Modifier.fillMaxSize().pointerInput(Unit) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 var ppm = ppmFor(sizePx, vm.mat, vm.camScale)
@@ -75,7 +92,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
 
                 // Missed the selected layer's box/handles? If the touch is inside another layer,
                 // select it and move that one instead of panning the view.
-                if (drag is Drag.PanCamera && vm.layers.size > 1) {
+                if (drag is Drag.PanCamera && vm.layers.isNotEmpty()) {
                     val hit = vm.layerAt(screenToWorld(down.position, origin, ppm))
                     if (hit >= 0) { vm.selectLayer(hit); drag = Drag.Move }
                 }
@@ -94,6 +111,12 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 val anchorLocal = if (anchorIdx >= 0) localHandles[anchorIdx] else Pt(0.0, 0.0)
                 val draggedLocal = if (resizeHandle >= 0) localHandles[resizeHandle] else Pt(0.0, 0.0)
                 val anchorWorld = if (anchorIdx >= 0 && worldHandles.size == 8) worldHandles[anchorIdx] else Pt(0.0, 0.0)
+                // Captured once so a corner drag scales the start size uniformly (keeps the aspect ratio).
+                val startScaleX = vm.scaleX
+                val startScaleY = vm.scaleY
+                var totalDrag = 0f
+                // Running, un-snapped centre for the move (so snapping never swallows small drags).
+                var moveCenter = vm.centerMm
 
                 while (true) {
                     val event = awaitPointerEvent()
@@ -113,6 +136,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                         event.changes.forEach { it.consume() }
                     } else {
                         val p = pressed[0]
+                        totalDrag += p.positionChange().getDistance()
                         ppm = ppmFor(sizePx, vm.mat, vm.camScale)
                         origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
                         val cs = worldToScreen(vm.centerMm, origin, ppm)
@@ -120,7 +144,9 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                             Drag.Camera, Drag.PanCamera -> vm.camOffset += p.positionChange()
                             Drag.Move -> {
                                 val dp = p.positionChange()
-                                vm.centerMm = Pt(vm.centerMm.xMm + dp.x / ppm, vm.centerMm.yMm + dp.y / ppm)
+                                moveCenter = Pt(moveCenter.xMm + dp.x / ppm, moveCenter.yMm + dp.y / ppm)
+                                // ~8 px alignment tolerance, converted to mm so it feels the same at any zoom.
+                                vm.moveSelectedTo(moveCenter, (8f / ppm).toDouble())
                             }
                             is Drag.Resize -> {
                                 val pw = screenToWorld(p.position, origin, ppm)
@@ -134,9 +160,13 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                                 val ldy = draggedLocal.yMm - anchorLocal.yMm
                                 var sx = vm.scaleX; var sy = vm.scaleY
                                 when {
-                                    d.handle < 4 -> { // corner: uniform scale (keep aspect ratio)
-                                        val f = (Math.hypot(ux, uy) / Math.hypot(ldx, ldy)).coerceAtLeast(0.02)
-                                        sx = f; sy = f
+                                    d.handle < 4 -> { // corner: scale uniformly, keeping the current aspect ratio
+                                        val dxs = ldx * startScaleX
+                                        val dys = ldy * startScaleY
+                                        val len2 = dxs * dxs + dys * dys
+                                        val k = if (len2 > 1e-9) ((ux * dxs + uy * dys) / len2).coerceAtLeast(0.02) else 1.0
+                                        sx = startScaleX * k
+                                        sy = startScaleY * k
                                     }
                                     d.handle == 5 || d.handle == 7 -> // right/left: width only
                                         if (kotlin.math.abs(ldx) > 1e-6) sx = (ux / ldx).coerceAtLeast(0.02)
@@ -158,6 +188,9 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                         p.consume()
                     }
                 }
+                // A tap on empty mat space (no real drag) clears the selection — the mat is selected.
+                if (drag is Drag.PanCamera && totalDrag < TAP_SLOP_PX) vm.deselectLayers()
+                vm.clearGuides()
             }
         },
     ) {
@@ -174,12 +207,25 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
         drawRect(matFill, topLeft = tl, size = Size(br.x - tl.x, br.y - tl.y))
         drawRect(matColor, topLeft = tl, size = Size(br.x - tl.x, br.y - tl.y), style = Stroke(width = 2f))
 
+        // No-go band: the origin offset pushes the plot down, so this much at the bottom can't be plotted.
+        val usableMaxY = vm.usableMaxYMm()
+        if (usableMaxY < vm.mat.heightMm) {
+            val bt = s(Pt(0.0, usableMaxY))
+            drawRect(offMatColor.copy(alpha = 0.10f), topLeft = bt, size = Size(br.x - bt.x, br.y - bt.y))
+            drawLine(
+                offMatColor.copy(alpha = 0.6f), Offset(tl.x, bt.y), Offset(br.x, bt.y),
+                strokeWidth = 1.5f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)),
+            )
+        }
+
         drawRulers(vm.mat, origin, ppm, rulerColor)
 
         // design — knife layers in the primary colour, pen layers in the secondary; anything that
         // runs off the mat is drawn in the error colour as a warning.
         for ((tool, pls) in vm.placedLayers()) {
             val toolColor = if (tool == Tool.PEN) penColor else knifeColor
+            // Pen layers drawn dashed, knife layers solid — so the two are told apart without relying on colour.
+            val effect = if (tool == Tool.PEN) PathEffect.dashPathEffect(floatArrayOf(8f, 6f)) else null
             for (pl in pls) {
                 if (pl.points.isEmpty()) continue
                 val col = if (pl.points.any { vm.isOutsideMat(it) }) offMatColor else toolColor
@@ -187,7 +233,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 val f = s(pl.points.first()); path.moveTo(f.x, f.y)
                 for (k in 1 until pl.points.size) { val q = s(pl.points[k]); path.lineTo(q.x, q.y) }
                 if (pl.closed) path.close()
-                drawPath(path, col, style = Stroke(width = 2.5f))
+                drawPath(path, col, style = Stroke(width = 2.5f, pathEffect = effect))
             }
         }
 
@@ -211,6 +257,34 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
             drawLine(handleColor, topMid, rot, strokeWidth = 1.5f)
             drawCircle(handleColor, radius = 8f, center = rot)
         }
+
+        // smart alignment guides (centre snapping) while dragging
+        vm.alignGuideX?.let { gx ->
+            val x = s(Pt(gx, 0.0)).x
+            drawLine(guideColor, Offset(x, s(Pt(0.0, 0.0)).y), Offset(x, s(Pt(0.0, vm.mat.heightMm)).y), strokeWidth = 1.5f)
+        }
+        vm.alignGuideY?.let { gy ->
+            val y = s(Pt(0.0, gy)).y
+            drawLine(guideColor, Offset(s(Pt(0.0, 0.0)).x, y), Offset(s(Pt(vm.mat.widthMm, 0.0)).x, y), strokeWidth = 1.5f)
+        }
+      }
+
+      // Tiny size + position readout of the selected layer (bottom-left), to help with alignment.
+      vm.selectionReadout()?.let { readout ->
+          Surface(
+              color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+              contentColor = MaterialTheme.colorScheme.onSurface,
+              shape = RoundedCornerShape(6.dp),
+              tonalElevation = 2.dp,
+              modifier = Modifier.align(Alignment.BottomStart).padding(6.dp),
+          ) {
+              Text(
+                  readout,
+                  style = MaterialTheme.typography.labelSmall,
+                  modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+              )
+          }
+      }
     }
 }
 

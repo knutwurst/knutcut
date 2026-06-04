@@ -47,6 +47,16 @@ class Settings(context: Context) {
         get() = runCatching { DisplayUnit.valueOf(p.getString("displayUnit", DisplayUnit.MM.name)!!) }.getOrDefault(DisplayUnit.MM)
         set(v) = p.edit().putString("displayUnit", v.name).apply()
 
+    /** Grid snap step in mm while dragging on the mat (0 = off). */
+    var snapMm: Float
+        get() = p.getFloat("snapMm", 0f)
+        set(v) = p.edit().putFloat("snapMm", v).apply()
+
+    /** Smart alignment guides: snap a dragged layer's centre to another layer's (or the mat's) centre. */
+    var alignGuides: Boolean
+        get() = p.getBoolean("alignGuides", true)
+        set(v) = p.edit().putBoolean("alignGuides", v).apply()
+
     /** Drag-knife corner/closure compensation (the stock app's pltFixUtils). On by default. */
     var dragKnifeComp: Boolean
         get() = p.getBoolean("dragKnifeComp", true)

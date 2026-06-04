@@ -12,8 +12,8 @@
                 android:type="linear"
                 android:startX="6" android:startY="6"
                 android:endX="102" android:endY="102"
-                android:startColor="#FF4CAF50"
-                android:endColor="#FF1B5E20" />
+                android:startColor="@color/brand_green_light"
+                android:endColor="@color/brand_green_dark" />
         </aapt:attr>
     </path>
     <!-- soft top-left sheen for depth -->
