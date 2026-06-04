@@ -3,11 +3,11 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- bold rounded "K" monogram, centred in the adaptive safe zone -->
+    <!-- merged K + C monogram (spine + a C open to the right), centred in the adaptive safe zone -->
     <path
         android:strokeColor="#FFFFFF"
         android:strokeWidth="14"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M40,27 V81 M40,54 L73,27 M40,54 L73,81" />
+        android:pathData="M37,27 V81 M73,37 A22,22 0 0 0 37,54 A22,22 0 0 0 73,71" />
 </vector>

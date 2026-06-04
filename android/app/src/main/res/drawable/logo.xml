@@ -1,17 +1,25 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="48dp"
     android:height="48dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- rounded-square brand background -->
-    <path
-        android:fillColor="#2E7D32"
-        android:pathData="M28,0 H80 A28,28 0 0 1 108,28 V80 A28,28 0 0 1 80,108 H28 A28,28 0 0 1 0,80 V28 A28,28 0 0 1 28,0 Z" />
-    <!-- bold rounded "K" -->
+    <!-- rounded-square background with a diagonal green gradient -->
+    <path android:pathData="M28,0 H80 A28,28 0 0 1 108,28 V80 A28,28 0 0 1 80,108 H28 A28,28 0 0 1 0,80 V28 A28,28 0 0 1 28,0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0" android:startY="0"
+                android:endX="108" android:endY="108"
+                android:startColor="#FF4CAF50"
+                android:endColor="#FF1B5E20" />
+        </aapt:attr>
+    </path>
+    <!-- merged K + C: the K's vertical spine, with a C hugging it (open to the right) -->
     <path
         android:strokeColor="#FFFFFF"
         android:strokeWidth="13"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M40,28 V80 M40,54 L72,28 M40,54 L72,80" />
+        android:pathData="M37,27 V81 M73,37 A22,22 0 0 0 37,54 A22,22 0 0 0 73,71" />
 </vector>
