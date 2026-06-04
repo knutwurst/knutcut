@@ -57,6 +57,11 @@ class Settings(context: Context) {
         get() = p.getBoolean("alignGuides", true)
         set(v) = p.edit().putBoolean("alignGuides", v).apply()
 
+    /** Material ids used in an actual plot, most recent first (max 5). */
+    var recentMaterialIds: List<String>
+        get() = (p.getString("recentMaterials", "") ?: "").split(REC).filter { it.isNotBlank() }
+        set(v) = p.edit().putString("recentMaterials", v.joinToString(REC)).apply()
+
     /** Drag-knife corner/closure compensation (the stock app's pltFixUtils). On by default. */
     var dragKnifeComp: Boolean
         get() = p.getBoolean("dragKnifeComp", true)

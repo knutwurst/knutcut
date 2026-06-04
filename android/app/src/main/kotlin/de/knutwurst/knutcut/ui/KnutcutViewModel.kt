@@ -62,6 +62,38 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     // Loaded design as layers (one per SVG shape), each with its own placement.
     var layers by mutableStateOf<List<Layer>>(emptyList()); private set
     var selectedLayer by mutableStateOf(0); private set
+
+    // Undo/redo of the layer arrangement (placement + selection). Captured before each edit.
+    private var undoStack by mutableStateOf<List<Pair<List<Layer>, Int>>>(emptyList())
+    private var redoStack by mutableStateOf<List<Pair<List<Layer>, Int>>>(emptyList())
+    val canUndo: Boolean get() = undoStack.isNotEmpty()
+    val canRedo: Boolean get() = redoStack.isNotEmpty()
+
+    /** Snapshot the current arrangement before a mutating edit. De-duped by reference so nested calls
+     *  (and no-op edits) don't pile up; the editor calls this once at the start of a drag gesture. */
+    fun pushHistory() {
+        if (undoStack.lastOrNull()?.first === layers) return
+        undoStack = (undoStack + (layers to selectedLayer)).takeLast(MAX_HISTORY)
+        redoStack = emptyList()
+    }
+
+    fun undo() {
+        val prev = undoStack.lastOrNull() ?: return
+        redoStack = redoStack + (layers to selectedLayer)
+        undoStack = undoStack.dropLast(1)
+        layers = prev.first
+        selectedLayer = prev.second
+        markedLayers = emptySet()
+    }
+
+    fun redo() {
+        val next = redoStack.lastOrNull() ?: return
+        undoStack = undoStack + (layers to selectedLayer)
+        redoStack = redoStack.dropLast(1)
+        layers = next.first
+        selectedLayer = next.second
+        markedLayers = emptySet()
+    }
     // Layers ticked in the list for a multi-layer merge (separate from the single edit selection).
     var markedLayers by mutableStateOf<Set<Int>>(emptySet()); private set
 
@@ -163,6 +195,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun loadDesign(text: String) {
         val parsed = parseDesign(text)
         if (parsed.isNullOrEmpty()) { status = "Keine schneidbaren Pfade in der Datei gefunden."; return }
+        pushHistory()
         if (layers.isEmpty()) {
             layers = placeAtHome(parsed)
             selectedLayer = 0
@@ -219,6 +252,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Add a new layer (e.g. a primitive shape) centred on the mat and select it. */
     fun addLayer(name: String, polylines: List<Polyline>) {
         if (polylines.isEmpty()) return
+        pushHistory()
         val layer = Layer(name, polylines, tool, visible = true, centerMm = Pt(mat.widthMm / 2, mat.heightMm / 2))
         layers = layers + layer
         selectedLayer = layers.lastIndex
@@ -227,13 +261,14 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Mirror the selected layer (around its own centre). */
-    fun mirrorSelectedHorizontal() = updateSelected { it.copy(flipX = !it.flipX) }
-    fun mirrorSelectedVertical() = updateSelected { it.copy(flipY = !it.flipY) }
+    fun mirrorSelectedHorizontal() { pushHistory(); updateSelected { it.copy(flipX = !it.flipX) } }
+    fun mirrorSelectedVertical() { pushHistory(); updateSelected { it.copy(flipY = !it.flipY) } }
 
     /** Duplicate the selected layer, offset a little, and select the copy. */
     fun duplicateSelected() {
         val i = selectedLayer
         val src = layers.getOrNull(i) ?: return
+        pushHistory()
         val copy = src.copy(
             name = src.name + " (Kopie)",
             centerMm = Pt(src.centerMm.xMm + 5.0, src.centerMm.yMm + 5.0),
@@ -246,6 +281,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteSelected() {
         val i = selectedLayer
         if (i !in layers.indices) return
+        pushHistory()
         layers = layers.filterIndexed { idx, _ -> idx != i }
         selectedLayer = selectedLayer.coerceIn(0, (layers.size - 1).coerceAtLeast(0))
         markedLayers = emptySet()
@@ -255,6 +291,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Set the selected layer's size in mm (bounding box after scale), keeping its top-left corner fixed. */
     fun setSelectedSizeMm(widthMm: Double, heightMm: Double) {
         val layer = layers.getOrNull(selectedLayer) ?: return
+        pushHistory()
         val b = layerBounds(layer)
         resizeKeepingTopLeft(Placement.scaleFor(b.widthMm, widthMm), Placement.scaleFor(b.heightMm, heightMm), layer.rotationDeg)
     }
@@ -262,6 +299,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Set the selected layer's rotation (degrees), keeping its top-left corner fixed. */
     fun setSelectedRotation(deg: Double) {
         val layer = layers.getOrNull(selectedLayer) ?: return
+        pushHistory()
         resizeKeepingTopLeft(layer.scaleX, layer.scaleY, deg)
     }
 
@@ -286,6 +324,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun alignSelected(hx: Int?, vy: Int?) {
         val corners = placedCorners()
         if (corners.size != 4) return
+        pushHistory()
         val minX = corners.minOf { it.xMm }; val maxX = corners.maxOf { it.xMm }
         val minY = corners.minOf { it.yMm }; val maxY = corners.maxOf { it.yMm }
         val w = maxX - minX; val h = maxY - minY
@@ -344,6 +383,19 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun allMaterials(): List<Material> = (Materials.presets + customMaterials).sortedBy { it.display().lowercase() }
 
+    // Materials used in an actual plot, most recent first (max 5). Only updated after a real plot.
+    var recentMaterialIds by mutableStateOf(settings.recentMaterialIds); private set
+
+    /** Recently plotted materials, most recent first, resolved to their current definitions. */
+    fun recentMaterials(): List<Material> =
+        recentMaterialIds.mapNotNull { id -> allMaterials().firstOrNull { it.id == id } }
+
+    private fun recordMaterialUse(id: String) {
+        val updated = (listOf(id) + recentMaterialIds.filter { it != id }).take(5)
+        recentMaterialIds = updated
+        settings.recentMaterialIds = updated
+    }
+
     fun isCustomMaterial(m: Material): Boolean = m.id.startsWith("custom-")
 
     fun addMaterial(name: String, forceValue: Int): Material {
@@ -394,16 +446,19 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Set the tool for all layers (the bottom quick-select). */
     fun setAllTool(t: Tool) {
+        pushHistory()
         tool = t
         settings.toolSp = t.sp
         layers = layers.map { it.copy(tool = t) }
     }
 
     fun setLayerTool(index: Int, t: Tool) {
+        pushHistory()
         layers = layers.mapIndexed { i, l -> if (i == index) l.copy(tool = t) else l }
     }
 
     fun toggleLayerVisible(index: Int) {
+        pushHistory()
         layers = layers.mapIndexed { i, l -> if (i == index) l.copy(visible = !l.visible) else l }
     }
 
@@ -424,6 +479,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Break every layer into one layer per contour, keeping each where it currently sits. */
     fun splitLayers() {
+        pushHistory()
         var n = 0
         layers = layers.flatMap { layer ->
             bake(layer).polylines.map { pl ->
@@ -438,6 +494,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Merge all layers into one, keeping the current arrangement. */
     fun mergeLayers() {
         if (layers.isEmpty()) return
+        pushHistory()
         val polys = layers.flatMap { bake(it).polylines }
         layers = listOf(Layer("Alle Formen", polys, layers.first().tool, visible = true, centerMm = centerOf(polys.flatMap { it.points })))
         selectedLayer = 0
@@ -453,6 +510,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun mergeMarked() {
         val marks = markedLayers.filter { it in layers.indices }.toSortedSet()
         if (marks.size < 2) return
+        pushHistory()
         val firstTool = layers[marks.first()].tool
         val polys = marks.flatMap { bake(layers[it]).polylines }
         val merged = Layer("Zusammengeführt", polys, firstTool, visible = true, centerMm = centerOf(polys.flatMap { it.points }))
@@ -489,9 +547,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Rotate the selected layer by 90°. */
-    fun rotate90() { rotationDeg = (rotationDeg + 90.0) % 360.0 }
+    fun rotate90() { pushHistory(); rotationDeg = (rotationDeg + 90.0) % 360.0 }
 
     fun resetPlacement() {
+        pushHistory()
         layers = placeAtHome(layers)
         selectedLayer = selectedLayer.coerceIn(0, (layers.size - 1).coerceAtLeast(0))
         camScale = 1f
@@ -506,6 +565,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Reset only the selected layer's size, aspect ratio, rotation, mirroring and position to home. */
     fun resetSelectedPlacement() {
+        pushHistory()
         val i = selectedLayer
         val layer = layers.getOrNull(i) ?: return
         val b = layerBounds(layer)
@@ -564,6 +624,26 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val tly = corners.minOf { it.yMm }
         return "X ${v(tlx)} · Y ${v(tly)}   ${v(size.first)} × ${v(size.second)} ${u.label}"
     }
+
+    /** Bounding box (in mm) over the placed points of [ls], or null if there's nothing to measure. */
+    private fun placedExtent(ls: List<Layer>): Bounds? {
+        val pts = ls.flatMap { l ->
+            val m = layerMatrix(l)
+            l.polylines.flatMap { pl -> pl.points.map { m.apply(it) } }
+        }
+        return Bounds.ofOrNull(pts)
+    }
+
+    /** Overall placed size of [ls] as "W × H unit" (how much material it spans), or null. */
+    fun extentReadout(ls: List<Layer>): String? {
+        val b = placedExtent(ls) ?: return null
+        val u = displayUnit
+        fun v(mm: Double) = String.format(java.util.Locale.GERMAN, "%.1f", u.fromMm(mm))
+        return "${v(b.widthMm)} × ${v(b.heightMm)} ${u.label}"
+    }
+
+    /** Total size of all visible layers, shown bottom-left when the mat itself is selected. */
+    fun overallReadout(): String? = extentReadout(layers.filter { it.visible })?.let { "Gesamt  $it" }
 
     fun connect(dev: BluetoothDevice, silent: Boolean = false) {
         if (connecting || connected) return
@@ -633,6 +713,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Switch the tool of the layers that will be cut (the pre-cut draw/cut toggle). */
     fun setCutTool(t: Tool) {
+        pushHistory()
         tool = t
         settings.toolSp = t.sp
         if (cutSelectedOnly) {
@@ -803,6 +884,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             }
             // Finish: end the file so the machine lifts the tool and returns (stock sends TB66 here).
             withContext(Dispatchers.IO) { Log.d(TAG, "finish TB66 -> ${session.send(PltCommand("TB66;"))}") }
+            recordMaterialUse(material.id)   // remember it under "recently used" now that it actually plotted
             finishCut("Fertig an den Plotter gesendet.")
         } catch (e: CancellationException) {
             cutting = false
@@ -862,5 +944,5 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() { link?.close() }
 
-    private companion object { const val TAG = "Knutcut" }
+    private companion object { const val TAG = "Knutcut"; const val MAX_HISTORY = 40 }
 }

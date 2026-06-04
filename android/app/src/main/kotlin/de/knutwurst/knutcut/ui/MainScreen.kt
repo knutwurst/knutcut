@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -30,6 +31,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.ContentCopy
@@ -63,8 +66,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -112,7 +113,6 @@ fun MainScreen(vm: KnutcutViewModel) {
     var showAdd by remember { mutableStateOf(false) }
     var showCut by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
-    val snackbarHostState = remember { SnackbarHostState() }
 
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         hasBtPerm = hasBluetoothPermission(context)
@@ -127,19 +127,12 @@ fun MainScreen(vm: KnutcutViewModel) {
     fun openFile() = openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "text/plain", "application/octet-stream"))
     fun openDevices() { if (hasBtPerm) showDevices = true else permLauncher.launch(bluetoothPermissions()) }
 
-    // Important messages go to a Snackbar (don't stack/auto-vanish like a Toast); the live cut status
-    // is shown inline in the CuttingBar instead.
     LaunchedEffect(vm.status) {
-        val s = vm.status
-        if (s != null && !vm.cutting) {
-            snackbarHostState.currentSnackbarData?.dismiss()
-            snackbarHostState.showSnackbar(s)
-        }
+        if (!vm.cutting) vm.status?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
     }
     LaunchedEffect(hasBtPerm) { vm.autoConnect() }
 
     Surface(color = MaterialTheme.colorScheme.background) {
-      Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
             // Top bar
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -152,6 +145,12 @@ fun MainScreen(vm: KnutcutViewModel) {
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                IconButton(onClick = { vm.undo() }, enabled = vm.canUndo) {
+                    Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Rückgängig")
+                }
+                IconButton(onClick = { vm.redo() }, enabled = vm.canRedo) {
+                    Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Wiederholen")
                 }
                 Box {
                     IconButton(onClick = { showAdd = true }) {
@@ -186,8 +185,6 @@ fun MainScreen(vm: KnutcutViewModel) {
                 )
             }
         }
-        SnackbarHost(snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding())
-      }
     }
 
     if (showDeleteConfirm) {
@@ -379,6 +376,7 @@ private fun CutSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                 color = if (knifeN > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text("Material: ${vm.material.display()}", style = MaterialTheme.typography.bodySmall)
+            vm.extentReadout(ls)?.let { Text("Größe (benötigtes Material): $it", style = MaterialTheme.typography.bodySmall) }
             if (!withinMat) {
                 Spacer(Modifier.height(8.dp))
                 Text(
@@ -458,7 +456,21 @@ private fun MaterialSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             Text("Material & Druck", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
-            Text("Material", style = MaterialTheme.typography.labelLarge)
+            val recent = vm.recentMaterials()
+            if (recent.isNotEmpty()) {
+                Text("Zuletzt verwendet", style = MaterialTheme.typography.labelLarge)
+                recent.forEach { m ->
+                    val selected = vm.material.id == m.id
+                    Text(
+                        m.display(),
+                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier.fillMaxWidth().clickable { vm.selectMaterial(m) }.padding(vertical = 10.dp),
+                    )
+                }
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            }
+            Text("Alle Materialien", style = MaterialTheme.typography.labelLarge)
             vm.allMaterials().forEach { m ->
                 val selected = vm.material.id == m.id
                 Text(

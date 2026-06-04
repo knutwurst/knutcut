@@ -21,7 +21,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
@@ -74,7 +73,8 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     val handleColor = MaterialTheme.colorScheme.tertiary
     val offMatColor = MaterialTheme.colorScheme.error
     val guideColor = GUIDE_COLOR
-    val matSummary = vm.selectionReadout()?.let { "Arbeitsfläche, ausgewählt: $it" } ?: "Arbeitsfläche, Matte ausgewählt"
+    val readout = vm.selectionReadout() ?: vm.overallReadout()
+    val matSummary = readout?.let { "Arbeitsfläche: $it" } ?: "Arbeitsfläche, Matte ausgewählt"
 
     Box(modifier.semantics { contentDescription = matSummary }) {
       Canvas(
@@ -115,6 +115,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 val startScaleX = vm.scaleX
                 val startScaleY = vm.scaleY
                 var totalDrag = 0f
+                var pushedHistory = false   // snapshot once, on the first real move/resize/rotate
                 // Running, un-snapped centre for the move (so snapping never swallows small drags).
                 var moveCenter = vm.centerMm
 
@@ -136,7 +137,11 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                         event.changes.forEach { it.consume() }
                     } else {
                         val p = pressed[0]
-                        totalDrag += p.positionChange().getDistance()
+                        val moved = p.positionChange().getDistance()
+                        totalDrag += moved
+                        if (!pushedHistory && moved > 0f && (drag is Drag.Move || drag is Drag.Resize || drag is Drag.Rotate)) {
+                            vm.pushHistory(); pushedHistory = true
+                        }
                         ppm = ppmFor(sizePx, vm.mat, vm.camScale)
                         origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
                         val cs = worldToScreen(vm.centerMm, origin, ppm)
@@ -213,8 +218,6 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
         // runs off the mat is drawn in the error colour as a warning.
         for ((tool, pls) in vm.placedLayers()) {
             val toolColor = if (tool == Tool.PEN) penColor else knifeColor
-            // Pen layers drawn dashed, knife layers solid — so the two are told apart without relying on colour.
-            val effect = if (tool == Tool.PEN) PathEffect.dashPathEffect(floatArrayOf(8f, 6f)) else null
             for (pl in pls) {
                 if (pl.points.isEmpty()) continue
                 val col = if (pl.points.any { vm.isOutsideMat(it) }) offMatColor else toolColor
@@ -222,7 +225,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 val f = s(pl.points.first()); path.moveTo(f.x, f.y)
                 for (k in 1 until pl.points.size) { val q = s(pl.points[k]); path.lineTo(q.x, q.y) }
                 if (pl.closed) path.close()
-                drawPath(path, col, style = Stroke(width = 2.5f, pathEffect = effect))
+                drawPath(path, col, style = Stroke(width = 2.5f))
             }
         }
 
@@ -258,8 +261,9 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
         }
       }
 
-      // Tiny size + position readout of the selected layer (bottom-left), to help with alignment.
-      vm.selectionReadout()?.let { readout ->
+      // Bottom-left readout: the selected layer's position + size, or the whole design's total size
+      // when the mat is selected (so you can see how much material it needs).
+      readout?.let { readout ->
           Surface(
               color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
               contentColor = MaterialTheme.colorScheme.onSurface,
