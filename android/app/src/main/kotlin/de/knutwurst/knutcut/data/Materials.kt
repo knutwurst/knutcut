@@ -8,8 +8,9 @@ fun Material.display(): String = nameDe ?: name
 
 /** Material presets from my list in the cutter cloud (pressure = FS force), de-duplicated by name. */
 object Materials {
+    // FS pressure range the machine accepts (the stock app's slider is 10..500).
     const val FORCE_MIN = 10
-    const val FORCE_MAX = 350
+    const val FORCE_MAX = 500
 
     val presets: List<Material> = listOf(
         Material("ffa9a045-e01e-4544-8472-1333e04f36ca", "Gloss photo paper (210g)", 220, "Glanzfotopapier (210 g)"),

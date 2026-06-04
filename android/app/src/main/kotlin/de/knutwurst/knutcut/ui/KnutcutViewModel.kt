@@ -94,7 +94,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var material by mutableStateOf<Material>(Materials.default); private set
     var tool by mutableStateOf(Tool.KNIFE); private set
     var force by mutableStateOf(Materials.default.force); private set
-    var penForce by mutableStateOf(40); private set
+    var penForce by mutableStateOf(15); private set
 
     // Connection.
     var device by mutableStateOf<BluetoothDevice?>(null); private set
