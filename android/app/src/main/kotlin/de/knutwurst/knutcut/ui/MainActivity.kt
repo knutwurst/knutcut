@@ -25,25 +25,26 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        readShared(intent)?.let { vm.loadDesign(it) }
+        // Each shared/opened file is loaded in turn; loadDesign appends after the first.
+        readShared(intent).forEach { vm.loadDesign(it) }
     }
 
-    private fun readShared(intent: Intent?): String? {
-        intent ?: return null
-        @Suppress("DEPRECATION")
-        val uri: Uri? = when (intent.action) {
-            Intent.ACTION_SEND -> intent.getParcelableExtra(Intent.EXTRA_STREAM)
-            Intent.ACTION_VIEW -> intent.data
-            else -> null
+    @Suppress("DEPRECATION")
+    private fun readShared(intent: Intent?): List<String> {
+        intent ?: return emptyList()
+        val out = ArrayList<String>()
+        when (intent.action) {
+            Intent.ACTION_SEND -> {
+                (intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri)?.let { readUri(it)?.let(out::add) }
+                if (out.isEmpty()) intent.getStringExtra(Intent.EXTRA_TEXT)?.let(out::add)
+            }
+            Intent.ACTION_SEND_MULTIPLE ->
+                intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)?.forEach { readUri(it)?.let(out::add) }
+            Intent.ACTION_VIEW -> intent.data?.let { readUri(it)?.let(out::add) }
         }
-        if (uri != null) {
-            runCatching {
-                contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
-            }.getOrNull()?.let { return it }
-        }
-        if (intent.action == Intent.ACTION_SEND) {
-            intent.getStringExtra(Intent.EXTRA_TEXT)?.let { return it }
-        }
-        return null
+        return out
     }
+
+    private fun readUri(uri: Uri): String? =
+        runCatching { contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull()
 }

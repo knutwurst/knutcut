@@ -30,9 +30,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Receive an SVG shared from another app (e.g. Cricut Export). -->
+            <!-- Receive one or several SVGs shared from another app (e.g. Cricut Export). -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="image/svg+xml" />
                 <data android:mimeType="text/xml" />

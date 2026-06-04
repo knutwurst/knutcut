@@ -139,41 +139,58 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         penForce = settings.penForce
     }
 
-    /** Load a shared/opened file, picking the SVG or PLT reader by its content. */
+    /**
+     * Load a shared/opened SVG or PLT file. The first file becomes the design; further files are
+     * appended next to what's already on the mat, so several designs can share one sheet.
+     */
     fun loadDesign(text: String) {
+        val parsed = parseDesign(text)
+        if (parsed.isNullOrEmpty()) { status = "Keine schneidbaren Pfade in der Datei gefunden."; return }
+        if (layers.isEmpty()) {
+            layers = placeAtHome(parsed)
+            selectedLayer = 0
+            camScale = 1f
+            camOffset = Offset.Zero
+        } else {
+            val added = appendPlaced(placeAtHome(parsed))
+            layers = layers + added
+            selectedLayer = layers.size - added.size
+        }
+        markedLayers = emptySet()
+        status = "Design geladen (${parsed.size} Ebene${if (parsed.size == 1) "" else "n"})."
+    }
+
+    /** Parse a file into layers (SVG by content, else PLT). Null/empty if nothing usable. */
+    private fun parseDesign(text: String): List<Layer>? {
         val head = text.trimStart()
-        if (head.startsWith("<") || head.contains("<svg", ignoreCase = true)) loadSvg(text) else loadPlt(text)
-    }
-
-    fun loadPlt(text: String) {
-        try {
-            val polys = PltParser.parse(text)
-            if (polys.isEmpty()) { status = "Keine Pfade in der PLT-Datei gefunden."; return }
-            layers = placeAtHome(listOf(Layer("PLT-Datei", polys, tool, visible = true)))
-            selectedLayer = 0
-            markedLayers = emptySet()
-            camScale = 1f
-            camOffset = Offset.Zero
-            status = "PLT geladen (${polys.size} Pfade)."
+        return try {
+            if (head.startsWith("<") || head.contains("<svg", ignoreCase = true)) {
+                val shapes = SvgParser.parseShapes(text)
+                val out = shapes.map { Layer(it.name, it.polylines, tool, visible = true) }
+                if (out.flatMap { it.polylines }.flatMap { it.points }.isEmpty()) null else out
+            } else {
+                val polys = PltParser.parse(text)
+                if (polys.isEmpty()) null else listOf(Layer("PLT-Datei", polys, tool, visible = true))
+            }
         } catch (e: Exception) {
-            status = "PLT konnte nicht gelesen werden: ${e.message}"
+            status = "Datei konnte nicht gelesen werden: ${e.message}"
+            null
         }
     }
 
-    fun loadSvg(text: String) {
-        try {
-            val shapes = SvgParser.parseShapes(text)
-            val pts = shapes.flatMap { it.polylines }.flatMap { it.points }
-            if (pts.isEmpty()) { status = "Keine schneidbaren Pfade in der SVG gefunden."; return }
-            layers = placeAtHome(shapes.map { Layer(it.name, it.polylines, tool, visible = true) })
-            selectedLayer = 0
-            markedLayers = emptySet()
-            camScale = 1f
-            camOffset = Offset.Zero
-            status = "Design geladen (${layers.size} Ebenen)."
-        } catch (e: Exception) {
-            status = "SVG konnte nicht gelesen werden: ${e.message}"
+    /** Shift a freshly home-placed group so it sits to the right of the existing content (wrapping rows). */
+    private fun appendPlaced(group: List<Layer>): List<Layer> {
+        val gap = 5.0
+        fun placedPoints(ls: List<Layer>) = ls.flatMap { l ->
+            val m = layerMatrix(l); l.polylines.flatMap { pl -> pl.points.map { m.apply(it) } }
         }
+        val eb = Bounds.ofOrNull(placedPoints(layers)) ?: return group
+        val gb = Bounds.ofOrNull(placedPoints(group)) ?: return group
+        val (dx, dy) = if (eb.maxX + gap + gb.widthMm <= mat.widthMm)
+            (eb.maxX + gap - gb.minX) to (-gb.minY)
+        else
+            (-gb.minX) to (eb.maxY + gap - gb.minY)
+        return group.map { it.copy(centerMm = Pt(it.centerMm.xMm + dx, it.centerMm.yMm + dy)) }
     }
 
     fun selectLayer(i: Int) { if (i in layers.indices) selectedLayer = i }

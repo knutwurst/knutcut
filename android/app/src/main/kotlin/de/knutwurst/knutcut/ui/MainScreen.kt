@@ -114,8 +114,8 @@ fun MainScreen(vm: KnutcutViewModel) {
         hasBtPerm = hasBluetoothPermission(context)
         if (hasBtPerm) showDevices = true
     }
-    val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { u ->
+    val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        uris.forEach { u ->
             runCatching { context.contentResolver.openInputStream(u)?.use { it.readBytes().toString(Charsets.UTF_8) } }
                 .getOrNull()?.let { vm.loadDesign(it) }
         }
@@ -264,7 +264,7 @@ private fun EditingBar(
         IconAction("Horizontal spiegeln", Icons.Default.Flip) { vm.mirrorSelectedHorizontal() }
         IconAction("Vertikal spiegeln", Icons.Default.Flip, rotate = 90f) { vm.mirrorSelectedVertical() }
         IconAction("Duplizieren", Icons.Default.ContentCopy) { vm.duplicateSelected() }
-        if (vm.layers.size > 1) IconAction("Löschen", Icons.Default.Delete) { vm.deleteSelected() }
+        IconAction("Löschen", Icons.Default.Delete) { vm.deleteSelected() }
         IconAction("Zurücksetzen", Icons.Default.Refresh) { vm.resetPlacement() }
     }
 
