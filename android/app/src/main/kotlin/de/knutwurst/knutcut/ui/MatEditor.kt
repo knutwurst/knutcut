@@ -28,7 +28,8 @@ import kotlin.math.atan2
 import kotlin.math.min
 
 private sealed interface Drag {
-    data class Resize(val corner: Int) : Drag
+    /** Handle 0-3 = corners TL,TR,BR,BL (uniform scale); 4-7 = sides top,right,bottom,left (one axis). */
+    data class Resize(val handle: Int) : Drag
     object Rotate : Drag
     object Move : Drag
     object PanCamera : Drag
@@ -67,9 +68,10 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 if (ppm <= 0f) return@awaitEachGesture
                 var origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
 
-                val corners = vm.placedCorners().map { worldToScreen(it, origin, ppm) }
+                val handlesScreen = handleWorldPoints(vm.placedCorners()).map { worldToScreen(it, origin, ppm) }
+                val cornersScreen = vm.placedCorners().map { worldToScreen(it, origin, ppm) }
                 val centerScreen = worldToScreen(vm.centerMm, origin, ppm)
-                var drag: Drag = hitTest(down.position, corners, centerScreen)
+                var drag: Drag = hitTest(down.position, handlesScreen, cornersScreen, centerScreen)
 
                 // Missed the selected layer's box/handles? If the touch is inside another layer,
                 // select it and move that one instead of panning the view.
@@ -81,18 +83,17 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 val startRotation = vm.rotationDeg
                 val startAngle = atan2((down.position.y - centerScreen.y).toDouble(), (down.position.x - centerScreen.x).toDouble())
 
-                // Resize anchor: the corner opposite the grabbed one stays fixed in world space.
+                // Resize anchor: the handle opposite the grabbed one stays fixed in world space.
                 val b = vm.bounds
-                val localCorners = if (b != null)
-                    listOf(Pt(b.minX, b.minY), Pt(b.maxX, b.minY), Pt(b.maxX, b.maxY), Pt(b.minX, b.maxY))
-                else emptyList()
+                val localHandles = if (b != null) handleLocalPoints(b) else emptyList()
                 val centerLocal = if (b != null) Pt((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2) else Pt(0.0, 0.0)
                 val rsRot = Math.toRadians(vm.rotationDeg)
-                val resizeCorner = (drag as? Drag.Resize)?.corner ?: -1
-                val worldCorners = vm.placedCorners()
-                val anchorLocal = if (resizeCorner >= 0) localCorners[(resizeCorner + 2) % 4] else Pt(0.0, 0.0)
-                val draggedLocal = if (resizeCorner >= 0) localCorners[resizeCorner] else Pt(0.0, 0.0)
-                val anchorWorld = if (resizeCorner >= 0 && worldCorners.size == 4) worldCorners[(resizeCorner + 2) % 4] else Pt(0.0, 0.0)
+                val resizeHandle = (drag as? Drag.Resize)?.handle ?: -1
+                val anchorIdx = if (resizeHandle >= 0) anchorOf(resizeHandle) else -1
+                val worldHandles = handleWorldPoints(vm.placedCorners())
+                val anchorLocal = if (anchorIdx >= 0) localHandles[anchorIdx] else Pt(0.0, 0.0)
+                val draggedLocal = if (resizeHandle >= 0) localHandles[resizeHandle] else Pt(0.0, 0.0)
+                val anchorWorld = if (anchorIdx >= 0 && worldHandles.size == 8) worldHandles[anchorIdx] else Pt(0.0, 0.0)
 
                 while (true) {
                     val event = awaitPointerEvent()
@@ -131,10 +132,19 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                                 val uy = dxw * sn + dyw * cn
                                 val ldx = draggedLocal.xMm - anchorLocal.xMm
                                 val ldy = draggedLocal.yMm - anchorLocal.yMm
-                                val sx = if (kotlin.math.abs(ldx) > 1e-6) (ux / ldx).coerceAtLeast(0.02) else vm.scaleX
-                                val sy = if (kotlin.math.abs(ldy) > 1e-6) (uy / ldy).coerceAtLeast(0.02) else vm.scaleY
+                                var sx = vm.scaleX; var sy = vm.scaleY
+                                when {
+                                    d.handle < 4 -> { // corner: uniform scale (keep aspect ratio)
+                                        val f = (Math.hypot(ux, uy) / Math.hypot(ldx, ldy)).coerceAtLeast(0.02)
+                                        sx = f; sy = f
+                                    }
+                                    d.handle == 5 || d.handle == 7 -> // right/left: width only
+                                        if (kotlin.math.abs(ldx) > 1e-6) sx = (ux / ldx).coerceAtLeast(0.02)
+                                    else -> // top/bottom: height only
+                                        if (kotlin.math.abs(ldy) > 1e-6) sy = (uy / ldy).coerceAtLeast(0.02)
+                                }
                                 vm.scaleX = sx; vm.scaleY = sy
-                                // move the centre so the anchor corner stays put
+                                // move the centre so the anchor handle stays put
                                 val ax = (centerLocal.xMm - anchorLocal.xMm) * sx
                                 val ay = (centerLocal.yMm - anchorLocal.yMm) * sy
                                 val cp = Math.cos(rsRot); val sp = Math.sin(rsRot)
@@ -190,7 +200,12 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 close()
             }
             drawPath(box, handleColor, style = Stroke(width = 1.5f))
+            // corner handles (square) and side-midpoint handles (square, slightly smaller)
             corners.forEach { drawRect(handleColor, topLeft = Offset(it.x - 7f, it.y - 7f), size = Size(14f, 14f)) }
+            for (i in 0 until 4) {
+                val m = (corners[i] + corners[(i + 1) % 4]) / 2f
+                drawRect(handleColor, topLeft = Offset(m.x - 6f, m.y - 6f), size = Size(12f, 12f))
+            }
             val rot = rotateHandlePos(corners, s(vm.centerMm))
             val topMid = (corners[0] + corners[1]) / 2f
             drawLine(handleColor, topMid, rot, strokeWidth = 1.5f)
@@ -269,14 +284,35 @@ private fun rotateHandlePos(corners: List<Offset>, center: Offset): Offset {
     return topMid + unit * ROTATE_ARM_PX
 }
 
-private fun hitTest(p: Offset, corners: List<Offset>, center: Offset): Drag {
-    if (corners.size == 4) {
-        corners.forEachIndexed { i, c -> if ((c - p).getDistance() < HANDLE_HIT_PX) return Drag.Resize(i) }
+private fun hitTest(p: Offset, handles: List<Offset>, corners: List<Offset>, center: Offset): Drag {
+    if (corners.size == 4 && handles.size == 8) {
+        // Test all 8 handles; corners (0-3) win ties over sides (4-7) since they're checked first.
+        handles.forEachIndexed { i, h -> if ((h - p).getDistance() < HANDLE_HIT_PX) return Drag.Resize(i) }
         if ((rotateHandlePos(corners, center) - p).getDistance() < HANDLE_HIT_PX) return Drag.Rotate
         if (inQuad(p, corners)) return Drag.Move
     }
     return Drag.PanCamera
 }
+
+/** Local handle points for a layer's bounds: 0-3 corners (TL,TR,BR,BL), 4-7 side midpoints (T,R,B,L). */
+private fun handleLocalPoints(b: de.knutwurst.knutcut.svgcore.Bounds): List<Pt> = listOf(
+    Pt(b.minX, b.minY), Pt(b.maxX, b.minY), Pt(b.maxX, b.maxY), Pt(b.minX, b.maxY),
+    Pt((b.minX + b.maxX) / 2, b.minY), Pt(b.maxX, (b.minY + b.maxY) / 2),
+    Pt((b.minX + b.maxX) / 2, b.maxY), Pt(b.minX, (b.minY + b.maxY) / 2),
+)
+
+/** World handle points from the 4 placed corners: 0-3 corners, 4-7 side midpoints (T,R,B,L). */
+private fun handleWorldPoints(corners: List<Pt>): List<Pt> {
+    if (corners.size != 4) return emptyList()
+    fun mid(a: Pt, b: Pt) = Pt((a.xMm + b.xMm) / 2, (a.yMm + b.yMm) / 2)
+    return listOf(
+        corners[0], corners[1], corners[2], corners[3],
+        mid(corners[0], corners[1]), mid(corners[1], corners[2]), mid(corners[2], corners[3]), mid(corners[3], corners[0]),
+    )
+}
+
+/** The handle opposite [handle]: corners across the diagonal, sides across to the opposite edge. */
+private fun anchorOf(handle: Int): Int = if (handle < 4) (handle + 2) % 4 else 4 + ((handle - 4 + 2) % 4)
 
 private fun inQuad(p: Offset, q: List<Offset>): Boolean {
     var sign = 0

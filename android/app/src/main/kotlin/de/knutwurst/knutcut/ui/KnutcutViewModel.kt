@@ -234,19 +234,35 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         markedLayers = emptySet()
     }
 
-    /** Set the selected layer's size in mm (its bounding box after scale). */
+    /** Set the selected layer's size in mm (bounding box after scale), keeping its top-left corner fixed. */
     fun setSelectedSizeMm(widthMm: Double, heightMm: Double) {
-        val b = bounds ?: return
-        updateSelected {
-            it.copy(
-                scaleX = Placement.scaleFor(b.widthMm, widthMm),
-                scaleY = Placement.scaleFor(b.heightMm, heightMm),
-            )
-        }
+        val layer = layers.getOrNull(selectedLayer) ?: return
+        val b = layerBounds(layer)
+        resizeKeepingTopLeft(Placement.scaleFor(b.widthMm, widthMm), Placement.scaleFor(b.heightMm, heightMm), layer.rotationDeg)
     }
 
-    /** Set the selected layer's rotation to an absolute angle in degrees. */
-    fun setSelectedRotation(deg: Double) = updateSelected { it.copy(rotationDeg = ((deg % 360) + 360) % 360) }
+    /** Set the selected layer's rotation (degrees), keeping its top-left corner fixed. */
+    fun setSelectedRotation(deg: Double) {
+        val layer = layers.getOrNull(selectedLayer) ?: return
+        resizeKeepingTopLeft(layer.scaleX, layer.scaleY, deg)
+    }
+
+    /** Apply a new scale/rotation to the selected layer while its top-left corner stays where it was. */
+    private fun resizeKeepingTopLeft(newSx: Double, newSy: Double, newRot: Double) {
+        val layer = layers.getOrNull(selectedLayer) ?: return
+        val b = layerBounds(layer)
+        val lc = Pt((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2)
+        val tlLocal = Pt(b.minX, b.minY)
+        val oldTopLeft = layerMatrix(layer).apply(tlLocal)
+        val fx = if (layer.flipX) -1.0 else 1.0
+        val fy = if (layer.flipY) -1.0 else 1.0
+        val rotScale = Matrix.rotate(newRot) * Matrix.scale(newSx * fx, newSy * fy)
+        val off = rotScale.apply(tlLocal.xMm - lc.xMm, tlLocal.yMm - lc.yMm)
+        val newCenter = Pt(oldTopLeft.xMm - off.xMm, oldTopLeft.yMm - off.yMm)
+        updateSelected {
+            it.copy(scaleX = newSx, scaleY = newSy, rotationDeg = ((newRot % 360) + 360) % 360, centerMm = newCenter)
+        }
+    }
 
     /** Align the selected layer on the mat per axis (-1 = left/top, 0 = centre, 1 = right/bottom; null = leave). */
     fun alignSelected(hx: Int?, vy: Int?) {
