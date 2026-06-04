@@ -12,7 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,33 +26,31 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.ui.text.input.KeyboardType
-import kotlin.math.roundToInt
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import de.knutwurst.knutcut.svgcore.Shapes
-import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -65,8 +63,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import de.knutwurst.knutcut.BuildConfig
@@ -77,6 +78,7 @@ import de.knutwurst.knutcut.data.Materials
 import de.knutwurst.knutcut.data.Mats
 import de.knutwurst.knutcut.data.ThemeMode
 import de.knutwurst.knutcut.data.Tool
+import de.knutwurst.knutcut.svgcore.Shapes
 import java.util.Locale
 
 @Composable
@@ -87,40 +89,36 @@ fun MainScreen(vm: KnutcutViewModel) {
     var showDevices by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showLayers by remember { mutableStateOf(false) }
+    var showMaterial by remember { mutableStateOf(false) }
     var showTransform by remember { mutableStateOf(false) }
-    var showShapes by remember { mutableStateOf(false) }
+    var showAdd by remember { mutableStateOf(false) }
 
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         hasBtPerm = hasBluetoothPermission(context)
         if (hasBtPerm) showDevices = true
     }
-
     val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { u ->
             runCatching { context.contentResolver.openInputStream(u)?.use { it.readBytes().toString(Charsets.UTF_8) } }
                 .getOrNull()?.let { vm.loadDesign(it) }
         }
     }
+    fun openFile() = openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "text/plain", "application/octet-stream"))
+    fun openDevices() { if (hasBtPerm) showDevices = true else permLauncher.launch(bluetoothPermissions()) }
 
     LaunchedEffect(vm.status) {
-        // During a cut the status is shown persistently in the UI; don't also flash toasts for it.
         if (!vm.cutting) vm.status?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
     }
-
-    // Reconnect to the last plotter on launch (once Bluetooth permission is available).
     LaunchedEffect(hasBtPerm) { vm.autoConnect() }
 
-    fun openDevices() {
-        if (hasBtPerm) showDevices = true else permLauncher.launch(bluetoothPermissions())
-    }
-
     Surface(color = MaterialTheme.colorScheme.background) {
-        Column(Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp)) {
+        Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
+            // Top bar
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Image(painterResource(R.drawable.logo), contentDescription = null, modifier = Modifier.size(38.dp))
+                Image(painterResource(R.drawable.logo), contentDescription = null, modifier = Modifier.size(34.dp))
                 Spacer(Modifier.width(8.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Knutcut", style = MaterialTheme.typography.headlineSmall)
+                Column(Modifier.weight(1f)) {
+                    Text("Knutcut", style = MaterialTheme.typography.titleLarge)
                     Text(
                         "v$version · Knutwurst",
                         style = MaterialTheme.typography.labelSmall,
@@ -128,26 +126,12 @@ fun MainScreen(vm: KnutcutViewModel) {
                     )
                 }
                 Box {
-                    TextButton(onClick = { showShapes = true }) { Text("Form") }
-                    DropdownMenu(expanded = showShapes, onDismissRequest = { showShapes = false }) {
-                        val shapes = listOf(
-                            "Quadrat" to Shapes.rect(40.0, 40.0),
-                            "Rechteck" to Shapes.rect(60.0, 40.0),
-                            "Kreis" to Shapes.circle(40.0),
-                            "Dreieck" to Shapes.regularPolygon(3, 40.0),
-                            "Fünfeck" to Shapes.regularPolygon(5, 40.0),
-                            "Sechseck" to Shapes.regularPolygon(6, 40.0),
-                            "Stern" to Shapes.star(5, 40.0),
-                        )
-                        shapes.forEach { (name, poly) ->
-                            DropdownMenuItem(text = { Text(name) }, onClick = {
-                                vm.addLayer(name, listOf(poly)); showShapes = false
-                            })
-                        }
+                    IconButton(onClick = { showAdd = true }) {
+                        Icon(Icons.Default.Add, contentDescription = "Hinzufügen")
                     }
-                }
-                TextButton(onClick = { openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "text/plain", "application/octet-stream")) }) {
-                    Text("Öffnen")
+                    AddMenu(expanded = showAdd, onDismiss = { showAdd = false }, onOpenFile = { showAdd = false; openFile() }) {
+                        vm.addLayer(it.first, listOf(it.second)); showAdd = false
+                    }
                 }
                 IconButton(onClick = { showSettings = true }) {
                     Icon(Icons.Default.Settings, contentDescription = "Einstellungen")
@@ -157,342 +141,321 @@ fun MainScreen(vm: KnutcutViewModel) {
             MatEditor(
                 vm,
                 Modifier.fillMaxWidth().weight(1f).padding(vertical = 8.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)),
+                    .clip(RoundedCornerShape(14.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp)),
             )
 
-            PlacementBar(vm, onLayers = { showLayers = true }, onEditSize = { showTransform = true })
-            Spacer(Modifier.height(4.dp))
-            MaterialBar(vm)
-            Spacer(Modifier.height(8.dp))
-
-            if (vm.cutting) {
-                Text(
-                    vm.status ?: "",
-                    style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
+            when {
+                vm.cutting -> CuttingBar(vm)
+                !vm.hasDesign -> EmptyState(onOpen = { openFile() }, onAddShape = { showAdd = true })
+                else -> EditingBar(
+                    vm,
+                    onSize = { showTransform = true },
+                    onLayers = { showLayers = true },
+                    onMaterial = { showMaterial = true },
+                    onConnectOrCut = { if (vm.connected) vm.cut() else openDevices() },
                 )
-                Spacer(Modifier.height(6.dp))
-                if (vm.progress > 0f) {
-                    LinearProgressIndicator(progress = { vm.progress }, modifier = Modifier.fillMaxWidth())
-                } else {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                Spacer(Modifier.height(6.dp))
-                OutlinedButton(onClick = { vm.cancelCut() }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                    Text("Abbrechen")
-                }
-            } else {
-                if (vm.layers.size > 1) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = vm.cutSelectedOnly, onCheckedChange = { vm.changeCutSelectedOnly(it) })
-                        Text("Nur ausgewählte Ebene schneiden", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    Spacer(Modifier.height(4.dp))
-                }
-                Button(
-                    onClick = { if (vm.connected) vm.cut() else openDevices() },
-                    enabled = vm.hasDesign && !vm.cutting,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                ) {
-                    Text(
-                        when {
-                            !vm.connected -> "Plotter verbinden"
-                            vm.layers.any { it.visible && it.tool == Tool.KNIFE } -> "Schneiden"
-                            else -> "Zeichnen"
-                        }
-                    )
-                }
             }
         }
     }
 
     if (showDevices) {
-        DeviceDialog(
-            vm = vm,
-            hasPerm = hasBtPerm,
-            onRequestPerm = { permLauncher.launch(bluetoothPermissions()) },
-            onDismiss = { showDevices = false },
-        )
+        DeviceDialog(vm, hasBtPerm, onRequestPerm = { permLauncher.launch(bluetoothPermissions()) }, onDismiss = { showDevices = false })
     }
+    if (showSettings) SettingsSheet(vm, version, onConnect = { showSettings = false; openDevices() }, onDismiss = { showSettings = false })
+    if (showMaterial) MaterialSheet(vm, onDismiss = { showMaterial = false })
+    if (showLayers) LayersSheet(vm, onDismiss = { showLayers = false })
+    if (showTransform && vm.hasDesign) TransformDialog(vm, onDismiss = { showTransform = false })
+}
 
-    if (showSettings) {
-        AlertDialog(
-            onDismissRequest = { showSettings = false },
-            confirmButton = { TextButton(onClick = { showSettings = false }) { Text("Schließen") } },
-            title = { Text("Einstellungen") },
-            text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    Text("Plotter", style = MaterialTheme.typography.labelLarge)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        when {
-                            vm.connecting -> "Verbinde…"
-                            vm.connected -> "Verbunden: ${vm.device?.name ?: ""}"
-                            else -> "Nicht verbunden"
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { showSettings = false; openDevices() }) {
-                            Text(if (vm.connected) "Anderer Plotter" else "Verbinden")
-                        }
-                        if (vm.connected) OutlinedButton(onClick = { vm.disconnect() }) { Text("Trennen") }
-                    }
-
-                    Spacer(Modifier.height(18.dp))
-                    Text("Matte", style = MaterialTheme.typography.labelLarge)
-                    Spacer(Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Mats.all.forEach { m ->
-                            FilterChip(selected = vm.mat == m, onClick = { vm.selectMat(m) }, label = { Text(m.name) })
-                        }
-                    }
-
-                    Spacer(Modifier.height(18.dp))
-                    Text("Einheit", style = MaterialTheme.typography.labelLarge)
-                    Spacer(Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        DisplayUnit.entries.forEach { u ->
-                            FilterChip(
-                                selected = vm.displayUnit == u,
-                                onClick = { vm.changeDisplayUnit(u) },
-                                label = { Text(u.label) },
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.height(18.dp))
-                    Text("Erscheinungsbild", style = MaterialTheme.typography.labelLarge)
-                    Spacer(Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(
-                            ThemeMode.SYSTEM to "System",
-                            ThemeMode.LIGHT to "Hell",
-                            ThemeMode.DARK to "Dunkel",
-                        ).forEach { (m, lbl) ->
-                            FilterChip(selected = vm.themeMode == m, onClick = { vm.selectTheme(m) }, label = { Text(lbl) })
-                        }
-                    }
-
-                    Spacer(Modifier.height(18.dp))
-                    Text("Schneiden", style = MaterialTheme.typography.labelLarge)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Schleppmesser-Ausgleich", style = MaterialTheme.typography.bodyMedium)
-                            Text(
-                                "Rundet scharfe Ecken minimal ab, damit das Schleppmesser sauber einschwenkt.",
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                        Switch(checked = vm.dragKnifeComp, onCheckedChange = { vm.changeDragKnifeComp(it) })
-                    }
-                    if (vm.dragKnifeComp) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "Klingenversatz (Einheiten, 40 = 1 mm)",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Stepper("", vm.bladeOffset, 0, 40) { vm.changeBladeOffset(it) }
-                        }
-                    }
-
-                    Spacer(Modifier.height(12.dp))
-                    Text("Knutcut v$version · Knutwurst", style = MaterialTheme.typography.bodySmall)
-                }
-            },
-        )
-    }
-
-    if (showTransform && vm.hasDesign) {
-        val b = vm.bounds
-        val unit = vm.displayUnit
-        fun fmt(mm: Double) = String.format(Locale.GERMAN, "%.2f", unit.fromMm(mm))
-        var w by remember { mutableStateOf(fmt((b?.widthMm ?: 0.0) * vm.scaleX)) }
-        var h by remember { mutableStateOf(fmt((b?.heightMm ?: 0.0) * vm.scaleY)) }
-        var ang by remember { mutableStateOf(vm.rotationDeg.roundToInt().toString()) }
-        AlertDialog(
-            onDismissRequest = { showTransform = false },
-            title = { Text("Größe & Winkel") },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = w, onValueChange = { w = it }, singleLine = true,
-                        label = { Text("Breite (${unit.label})") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = h, onValueChange = { h = it }, singleLine = true,
-                        label = { Text("Höhe (${unit.label})") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = ang, onValueChange = { ang = it }, singleLine = true,
-                        label = { Text("Winkel (°)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val ww = w.replace(',', '.').toDoubleOrNull()
-                    val hh = h.replace(',', '.').toDoubleOrNull()
-                    val aa = ang.replace(',', '.').toDoubleOrNull()
-                    if (ww != null && hh != null && ww > 0 && hh > 0) {
-                        vm.setSelectedSizeMm(unit.toMm(ww), unit.toMm(hh))
-                    }
-                    if (aa != null) vm.setSelectedRotation(aa)
-                    showTransform = false
-                }) { Text("Übernehmen") }
-            },
-            dismissButton = { TextButton(onClick = { showTransform = false }) { Text("Abbrechen") } },
-        )
-    }
-
-    if (showLayers) {
-        AlertDialog(
-            onDismissRequest = { showLayers = false },
-            confirmButton = { TextButton(onClick = { showLayers = false }) { Text("Schließen") } },
-            title = { Text("${vm.layers.size} Ebenen") },
-            text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    OutlinedButton(onClick = { vm.splitLayers() }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Zerlegen", maxLines = 1)
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    OutlinedButton(onClick = { vm.mergeLayers() }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Zusammenführen", maxLines = 1)
-                    }
-                    if (vm.hasDesign) {
-                        Spacer(Modifier.height(10.dp))
-                        Text("Ausgewählte Ebene", style = MaterialTheme.typography.labelLarge)
-                        Row(
-                            Modifier.horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            TextButton(onClick = { vm.mirrorSelectedHorizontal() }) { Text("↔ Spiegeln") }
-                            TextButton(onClick = { vm.mirrorSelectedVertical() }) { Text("↕ Spiegeln") }
-                            TextButton(onClick = { vm.duplicateSelected() }) { Text("Duplizieren") }
-                            TextButton(
-                                onClick = { vm.deleteSelected() },
-                                enabled = vm.layers.size > 1,
-                            ) { Text("Löschen") }
-                        }
-                        Row(
-                            Modifier.horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text("Ausrichten:", style = MaterialTheme.typography.bodySmall)
-                            TextButton(onClick = { vm.alignSelected(0, 0) }) { Text("Mitte") }
-                            TextButton(onClick = { vm.alignSelected(-1, 0) }) { Text("Links") }
-                            TextButton(onClick = { vm.alignSelected(1, 0) }) { Text("Rechts") }
-                            TextButton(onClick = { vm.alignSelected(0, -1) }) { Text("Oben") }
-                            TextButton(onClick = { vm.alignSelected(0, 1) }) { Text("Unten") }
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    if (vm.layers.size > 1) {
-                        Text(
-                            "Ebene antippen zum Auswählen, dann auf der Matte verschieben.",
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(bottom = 4.dp),
-                        )
-                    }
-                    vm.layers.forEachIndexed { i, layer ->
-                        val selected = vm.selectedLayer == i
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { vm.toggleLayerVisible(i) }) {
-                                Icon(
-                                    if (layer.visible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = "Sichtbar",
-                                )
-                            }
-                            Text(
-                                layer.name,
-                                maxLines = 1,
-                                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { vm.selectLayer(i); showLayers = false },
-                            )
-                            FilterChip(selected = layer.tool == Tool.PEN, onClick = { vm.setLayerTool(i, Tool.PEN) }, label = { Text("Stift") })
-                            Spacer(Modifier.width(6.dp))
-                            FilterChip(selected = layer.tool == Tool.KNIFE, onClick = { vm.setLayerTool(i, Tool.KNIFE) }, label = { Text("Messer") })
-                        }
-                    }
-                }
-            },
-        )
+/** Add menu: open a file or drop in a primitive shape. */
+@Composable
+private fun AddMenu(expanded: Boolean, onDismiss: () -> Unit, onOpenFile: () -> Unit, onShape: (Pair<String, de.knutwurst.knutcut.svgcore.Polyline>) -> Unit) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(text = { Text("SVG / PLT öffnen…") }, onClick = onOpenFile)
+        HorizontalDivider()
+        listOf(
+            "Quadrat" to Shapes.rect(40.0, 40.0),
+            "Rechteck" to Shapes.rect(60.0, 40.0),
+            "Kreis" to Shapes.circle(40.0),
+            "Dreieck" to Shapes.regularPolygon(3, 40.0),
+            "Fünfeck" to Shapes.regularPolygon(5, 40.0),
+            "Sechseck" to Shapes.regularPolygon(6, 40.0),
+            "Stern" to Shapes.star(5, 40.0),
+        ).forEach { shape -> DropdownMenuItem(text = { Text(shape.first) }, onClick = { onShape(shape) }) }
     }
 }
 
 @Composable
-private fun PlacementBar(vm: KnutcutViewModel, onLayers: () -> Unit, onEditSize: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        val size = vm.designSizeMm()
-        val label = if (size == null) "Kein Design – teile eine SVG zu Knutcut"
-        else "${vm.formatLen(size.first)} × ${vm.formatLen(size.second)}"
+private fun EmptyState(onOpen: () -> Unit, onAddShape: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("Kein Design", style = MaterialTheme.typography.titleMedium)
         Text(
-            label,
+            "Öffne eine SVG- oder PLT-Datei (oder teile sie aus einer anderen App) oder füge eine Form hinzu.",
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier
-                .weight(1f)
-                .then(if (vm.hasDesign) Modifier.clickable { onEditSize() } else Modifier),
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(vertical = 6.dp),
         )
-        TextButton(onClick = onLayers, enabled = vm.hasDesign) { Text("Ebenen (${vm.layers.size})") }
-        TextButton(onClick = { vm.rotate90() }, enabled = vm.hasDesign) { Text("Drehen 90°") }
-        TextButton(onClick = { vm.resetPlacement() }, enabled = vm.hasDesign) { Text("Zurücksetzen") }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onOpen) { Text("Datei öffnen") }
+            OutlinedButton(onClick = onAddShape) { Text("Form hinzufügen") }
+        }
     }
 }
 
 @Composable
-private fun MaterialBar(vm: KnutcutViewModel) {
-    var expanded by remember { mutableStateOf(false) }
-    var manage by remember { mutableStateOf(false) }
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.fillMaxWidth()) {
-            OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
-                Text(vm.material.name, maxLines = 1)
-            }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                vm.allMaterials().forEach { m ->
-                    DropdownMenuItem(text = { Text(m.name) }, onClick = { vm.selectMaterial(m); expanded = false })
-                }
-                HorizontalDivider()
-                DropdownMenuItem(text = { Text("Materialien verwalten…") }, onClick = { expanded = false; manage = true })
-            }
+private fun CuttingBar(vm: KnutcutViewModel) {
+    Text(vm.status ?: "", style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+    Spacer(Modifier.height(6.dp))
+    if (vm.progress > 0f) LinearProgressIndicator(progress = { vm.progress }, modifier = Modifier.fillMaxWidth())
+    else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+    Spacer(Modifier.height(6.dp))
+    OutlinedButton(onClick = { vm.cancelCut() }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Abbrechen") }
+}
+
+/** The contextual bar shown while editing: actions on the selected layer, then material + cut. */
+@Composable
+private fun EditingBar(
+    vm: KnutcutViewModel,
+    onSize: () -> Unit,
+    onLayers: () -> Unit,
+    onMaterial: () -> Unit,
+    onConnectOrCut: () -> Unit,
+) {
+    Row(
+        Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AssistChip(onClick = onSize, label = { Text("Größe & Winkel") })
+        AssistChip(onClick = { vm.rotate90() }, label = { Text("Drehen 90°") })
+        AssistChip(onClick = { vm.mirrorSelectedHorizontal() }, label = { Text("↔ Spiegeln") })
+        AssistChip(onClick = { vm.mirrorSelectedVertical() }, label = { Text("↕ Spiegeln") })
+        AssistChip(onClick = { vm.duplicateSelected() }, label = { Text("Duplizieren") })
+        if (vm.layers.size > 1) AssistChip(onClick = { vm.deleteSelected() }, label = { Text("Löschen") })
+        AssistChip(onClick = { vm.resetPlacement() }, label = { Text("Zurücksetzen") })
+    }
+    Spacer(Modifier.height(8.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(onClick = onLayers, modifier = Modifier.weight(1f)) {
+            Text("Ebenen (${vm.layers.size})", maxLines = 1)
         }
-        if (manage) MaterialManageDialog(vm, onDismiss = { manage = false })
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Column(Modifier.weight(1f)) {
-                Text("Werkzeug", style = MaterialTheme.typography.labelSmall)
-                // Order matches the plotter: pen holder left, knife holder right.
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(Tool.PEN, Tool.KNIFE).forEach { t ->
-                        FilterChip(
-                            selected = vm.tool == t,
-                            onClick = { vm.setAllTool(t) },
-                            label = { Text(if (t == Tool.KNIFE) "Messer" else "Stift") },
-                        )
-                    }
-                }
-            }
-            val penSelected = vm.tool == Tool.PEN
-            Stepper(
-                if (penSelected) "Druck (Stift)" else "Druck (Messer)",
-                if (penSelected) vm.penForce else vm.force,
-                Materials.FORCE_MIN,
-                Materials.FORCE_MAX,
-            ) { if (penSelected) vm.changePenForce(it) else vm.changeForce(it) }
+        OutlinedButton(onClick = onMaterial, modifier = Modifier.weight(1f)) {
+            Text(vm.material.name, maxLines = 1)
         }
     }
+    if (vm.layers.size > 1) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = vm.cutSelectedOnly, onCheckedChange = { vm.changeCutSelectedOnly(it) })
+            Text("Nur ausgewählte Ebene schneiden", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+    Button(onClick = onConnectOrCut, enabled = vm.hasDesign && !vm.cutting, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+        Text(
+            when {
+                !vm.connected -> "Plotter verbinden"
+                vm.layers.any { it.visible && it.tool == Tool.KNIFE } -> "Schneiden"
+                else -> "Zeichnen"
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
+            Text("Ebenen (${vm.layers.size})", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { vm.splitLayers() }, modifier = Modifier.weight(1f)) { Text("Zerlegen", maxLines = 1) }
+                OutlinedButton(onClick = { vm.mergeLayers() }, modifier = Modifier.weight(1f)) { Text("Zusammenführen", maxLines = 1) }
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("Ausgewählte Ebene ausrichten", style = MaterialTheme.typography.labelLarge)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                AssistChip(onClick = { vm.alignSelected(0, 0) }, label = { Text("Mitte") })
+                AssistChip(onClick = { vm.alignSelected(-1, 0) }, label = { Text("Links") })
+                AssistChip(onClick = { vm.alignSelected(1, 0) }, label = { Text("Rechts") })
+                AssistChip(onClick = { vm.alignSelected(0, -1) }, label = { Text("Oben") })
+                AssistChip(onClick = { vm.alignSelected(0, 1) }, label = { Text("Unten") })
+            }
+            Spacer(Modifier.height(10.dp))
+            if (vm.layers.size > 1) {
+                Text("Antippen wählt die Ebene; auf der Matte verschieben.", style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(4.dp))
+            }
+            vm.layers.forEachIndexed { i, layer ->
+                val selected = vm.selectedLayer == i
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { vm.toggleLayerVisible(i) }) {
+                        Icon(
+                            if (layer.visible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = "Sichtbar",
+                        )
+                    }
+                    Text(
+                        layer.name,
+                        maxLines = 1,
+                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier.weight(1f).clickable { vm.selectLayer(i) },
+                    )
+                    FilterChip(selected = layer.tool == Tool.PEN, onClick = { vm.setLayerTool(i, Tool.PEN) }, label = { Text("Stift") })
+                    Spacer(Modifier.width(6.dp))
+                    FilterChip(selected = layer.tool == Tool.KNIFE, onClick = { vm.setLayerTool(i, Tool.KNIFE) }, label = { Text("Messer") })
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MaterialSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
+    var manage by remember { mutableStateOf(false) }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
+            Text("Material & Druck", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            Text("Material", style = MaterialTheme.typography.labelLarge)
+            vm.allMaterials().forEach { m ->
+                val selected = vm.material.id == m.id
+                Text(
+                    m.name,
+                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier.fillMaxWidth().clickable { vm.selectMaterial(m) }.padding(vertical = 10.dp),
+                )
+            }
+            TextButton(onClick = { manage = true }) { Text("Materialien verwalten…") }
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            Text("Werkzeug", style = MaterialTheme.typography.labelLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Order matches the plotter: pen holder left, knife holder right.
+                listOf(Tool.PEN, Tool.KNIFE).forEach { t ->
+                    FilterChip(
+                        selected = vm.tool == t,
+                        onClick = { vm.setAllTool(t) },
+                        label = { Text(if (t == Tool.KNIFE) "Messer" else "Stift") },
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            val penSelected = vm.tool == Tool.PEN
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (penSelected) "Druck (Stift)" else "Druck (Messer)", Modifier.weight(1f))
+                Stepper("", if (penSelected) vm.penForce else vm.force, Materials.FORCE_MIN, Materials.FORCE_MAX) {
+                    if (penSelected) vm.changePenForce(it) else vm.changeForce(it)
+                }
+            }
+        }
+    }
+    if (manage) MaterialManageDialog(vm, onDismiss = { manage = false })
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
+            Text("Einstellungen", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(10.dp))
+            Text("Plotter", style = MaterialTheme.typography.labelLarge)
+            Text(
+                when {
+                    vm.connecting -> "Verbinde…"
+                    vm.connected -> "Verbunden: ${vm.device?.name ?: ""}"
+                    else -> "Nicht verbunden"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onConnect) { Text(if (vm.connected) "Anderer Plotter" else "Verbinden") }
+                if (vm.connected) OutlinedButton(onClick = { vm.disconnect() }) { Text("Trennen") }
+            }
+
+            Spacer(Modifier.height(18.dp))
+            Text("Matte", style = MaterialTheme.typography.labelLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Mats.all.forEach { m -> FilterChip(selected = vm.mat == m, onClick = { vm.selectMat(m) }, label = { Text(m.name) }) }
+            }
+
+            Spacer(Modifier.height(18.dp))
+            Text("Einheit", style = MaterialTheme.typography.labelLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DisplayUnit.entries.forEach { u -> FilterChip(selected = vm.displayUnit == u, onClick = { vm.changeDisplayUnit(u) }, label = { Text(u.label) }) }
+            }
+
+            Spacer(Modifier.height(18.dp))
+            Text("Erscheinungsbild", style = MaterialTheme.typography.labelLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(ThemeMode.SYSTEM to "System", ThemeMode.LIGHT to "Hell", ThemeMode.DARK to "Dunkel").forEach { (m, lbl) ->
+                    FilterChip(selected = vm.themeMode == m, onClick = { vm.selectTheme(m) }, label = { Text(lbl) })
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+            Text("Schneiden", style = MaterialTheme.typography.labelLarge)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Schleppmesser-Ausgleich", style = MaterialTheme.typography.bodyMedium)
+                    Text("Rundet scharfe Ecken minimal ab, damit das Schleppmesser sauber einschwenkt.", style = MaterialTheme.typography.bodySmall)
+                }
+                Switch(checked = vm.dragKnifeComp, onCheckedChange = { vm.changeDragKnifeComp(it) })
+            }
+            if (vm.dragKnifeComp) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Klingenversatz (Einheiten, 40 = 1 mm)", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Stepper("", vm.bladeOffset, 0, 40) { vm.changeBladeOffset(it) }
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+            Text("Knutcut v$version · Knutwurst", style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun TransformDialog(vm: KnutcutViewModel, onDismiss: () -> Unit) {
+    val b = vm.bounds
+    val unit = vm.displayUnit
+    fun fmt(mm: Double) = String.format(Locale.GERMAN, "%.2f", unit.fromMm(mm))
+    var w by remember { mutableStateOf(fmt((b?.widthMm ?: 0.0) * vm.scaleX)) }
+    var h by remember { mutableStateOf(fmt((b?.heightMm ?: 0.0) * vm.scaleY)) }
+    var ang by remember { mutableStateOf(vm.rotationDeg.toInt().toString()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Größe & Winkel") },
+        text = {
+            Column {
+                OutlinedTextField(w, { w = it }, singleLine = true, label = { Text("Breite (${unit.label})") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(h, { h = it }, singleLine = true, label = { Text("Höhe (${unit.label})") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(ang, { ang = it }, singleLine = true, label = { Text("Winkel (°)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val ww = w.replace(',', '.').toDoubleOrNull()
+                val hh = h.replace(',', '.').toDoubleOrNull()
+                val aa = ang.replace(',', '.').toDoubleOrNull()
+                if (ww != null && hh != null && ww > 0 && hh > 0) vm.setSelectedSizeMm(unit.toMm(ww), unit.toMm(hh))
+                if (aa != null) vm.setSelectedRotation(aa)
+                onDismiss()
+            }) { Text("Übernehmen") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
+    )
 }
 
 @Composable
@@ -520,10 +483,7 @@ private fun MaterialManageDialog(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                 }
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Text(if (editId == null) "Neues Material" else "Material bearbeiten", style = MaterialTheme.typography.labelLarge)
-                OutlinedTextField(
-                    value = name, onValueChange = { name = it }, singleLine = true,
-                    label = { Text("Name") }, modifier = Modifier.fillMaxWidth(),
-                )
+                OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Messer-Druck", Modifier.weight(1f))
@@ -531,17 +491,12 @@ private fun MaterialManageDialog(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                 }
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        enabled = name.isNotBlank(),
-                        onClick = {
-                            val id = editId
-                            if (id == null) vm.addMaterial(name, force) else vm.updateMaterial(id, name, force)
-                            editId = null; name = ""; force = 180
-                        },
-                    ) { Text(if (editId == null) "Hinzufügen" else "Speichern") }
-                    if (editId != null) {
-                        OutlinedButton(onClick = { editId = null; name = ""; force = 180 }) { Text("Neu") }
-                    }
+                    Button(enabled = name.isNotBlank(), onClick = {
+                        val id = editId
+                        if (id == null) vm.addMaterial(name, force) else vm.updateMaterial(id, name, force)
+                        editId = null; name = ""; force = 180
+                    }) { Text(if (editId == null) "Hinzufügen" else "Speichern") }
+                    if (editId != null) OutlinedButton(onClick = { editId = null; name = ""; force = 180 }) { Text("Neu") }
                 }
             }
         },
@@ -551,7 +506,7 @@ private fun MaterialManageDialog(vm: KnutcutViewModel, onDismiss: () -> Unit) {
 @Composable
 private fun Stepper(label: String, value: Int, min: Int, max: Int, onChange: (Int) -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, style = MaterialTheme.typography.labelSmall)
+        if (label.isNotEmpty()) Text(label, style = MaterialTheme.typography.labelSmall)
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { onChange((value - 1).coerceIn(min, max)) }) { Text("−") }
             Text("$value", modifier = Modifier.widthIn(min = 28.dp), textAlign = TextAlign.Center)
