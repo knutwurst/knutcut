@@ -12,7 +12,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -27,7 +26,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -35,13 +33,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AspectRatio
-import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flip
+import androidx.compose.material.icons.filled.FormatAlignCenter
+import androidx.compose.material.icons.filled.FormatAlignLeft
+import androidx.compose.material.icons.filled.FormatAlignRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.VerticalAlignBottom
+import androidx.compose.material.icons.filled.VerticalAlignCenter
+import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -105,6 +108,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     var showMaterial by remember { mutableStateOf(false) }
     var showTransform by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
+    var showCut by remember { mutableStateOf(false) }
 
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         hasBtPerm = hasBluetoothPermission(context)
@@ -166,7 +170,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                     onSize = { showTransform = true },
                     onLayers = { showLayers = true },
                     onMaterial = { showMaterial = true },
-                    onConnectOrCut = { if (vm.connected) vm.cut() else openDevices() },
+                    onConnectOrCut = { if (vm.connected) showCut = true else openDevices() },
                 )
             }
         }
@@ -179,6 +183,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     if (showMaterial) MaterialSheet(vm, onDismiss = { showMaterial = false })
     if (showLayers) LayersSheet(vm, onDismiss = { showLayers = false })
     if (showTransform && vm.hasDesign) TransformDialog(vm, onDismiss = { showTransform = false })
+    if (showCut && vm.hasDesign) CutSheet(vm, onDismiss = { showCut = false })
 }
 
 /** Add menu: open a file or drop in a primitive shape. */
@@ -248,7 +253,12 @@ private fun EditingBar(
     onMaterial: () -> Unit,
     onConnectOrCut: () -> Unit,
 ) {
-    val actions: @Composable () -> Unit = {
+    // One toolbar row, spread across the full width (wraps to a new row if it can't fit).
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         IconAction("Größe & Winkel", Icons.Default.AspectRatio, onClick = onSize)
         IconAction("Drehen 90°", Icons.Default.RotateRight) { vm.rotate90() }
         IconAction("Horizontal spiegeln", Icons.Default.Flip) { vm.mirrorSelectedHorizontal() }
@@ -257,33 +267,13 @@ private fun EditingBar(
         if (vm.layers.size > 1) IconAction("Löschen", Icons.Default.Delete) { vm.deleteSelected() }
         IconAction("Zurücksetzen", Icons.Default.Refresh) { vm.resetPlacement() }
     }
-    if (vm.actionBarWrap) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { actions() }
-    } else {
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) { actions() }
-    }
 
     Spacer(Modifier.height(8.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         OutlinedButton(onClick = onLayers, modifier = Modifier.weight(1f)) { Text("Ebenen (${vm.layers.size})", maxLines = 1) }
         OutlinedButton(onClick = onMaterial, modifier = Modifier.weight(1f)) { Text(vm.material.display(), maxLines = 1) }
     }
-    if (vm.layers.size > 1) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = vm.cutSelectedOnly, onCheckedChange = { vm.changeCutSelectedOnly(it) })
-            Text("Nur ausgewählte Ebene schneiden", style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-    // Safety net: a quick "what will happen" line right above the start button.
-    Spacer(Modifier.height(6.dp))
-    Text(
-        "Bereit: ${vm.cutPlanSummary()}",
-        style = MaterialTheme.typography.bodyMedium,
-        textAlign = TextAlign.Center,
-        color = if (vm.cutUsesKnife()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    Spacer(Modifier.height(4.dp))
+    Spacer(Modifier.height(8.dp))
     Button(onClick = onConnectOrCut, enabled = vm.hasDesign && !vm.cutting, modifier = Modifier.fillMaxWidth().height(52.dp)) {
         Text(
             when {
@@ -295,18 +285,52 @@ private fun EditingBar(
     }
 }
 
-/** A 3×3 anchor grid for aligning the selected layer on the mat — the cell's position is its meaning. */
+/** Alignment as two rows of standard align icons (Figma/Office style). */
 @Composable
-private fun AlignmentGrid(onAlign: (Int, Int) -> Unit) {
+private fun AlignmentControls(vm: KnutcutViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        for (row in -1..1) {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                for (col in -1..1) {
-                    OutlinedIconButton(onClick = { onAlign(col, row) }, modifier = Modifier.size(44.dp)) {
-                        Icon(Icons.Default.Circle, contentDescription = "Ausrichten", modifier = Modifier.size(8.dp))
-                    }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Horizontal", style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(72.dp))
+            OutlinedIconButton(onClick = { vm.alignHorizontal(-1) }) { Icon(Icons.Default.FormatAlignLeft, "Links") }
+            OutlinedIconButton(onClick = { vm.alignHorizontal(0) }) { Icon(Icons.Default.FormatAlignCenter, "Mitte") }
+            OutlinedIconButton(onClick = { vm.alignHorizontal(1) }) { Icon(Icons.Default.FormatAlignRight, "Rechts") }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Vertikal", style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(72.dp))
+            OutlinedIconButton(onClick = { vm.alignVertical(-1) }) { Icon(Icons.Default.VerticalAlignTop, "Oben") }
+            OutlinedIconButton(onClick = { vm.alignVertical(0) }) { Icon(Icons.Default.VerticalAlignCenter, "Mitte") }
+            OutlinedIconButton(onClick = { vm.alignVertical(1) }) { Icon(Icons.Default.VerticalAlignBottom, "Unten") }
+        }
+    }
+}
+
+/** Pre-cut step: confirm what will run (and, with several layers, all vs. only the selected one). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CutSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
+            Text("Bereit zum Plotten", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            if (vm.layers.size > 1) {
+                Text("Umfang", style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = !vm.cutSelectedOnly, onClick = { vm.changeCutSelectedOnly(false) }, label = { Text("Alle Ebenen") })
+                    FilterChip(selected = vm.cutSelectedOnly, onClick = { vm.changeCutSelectedOnly(true) }, label = { Text("Nur ausgewählte") })
                 }
+                Spacer(Modifier.height(10.dp))
             }
+            Text(
+                vm.cutPlanSummary(),
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (vm.cutUsesKnife()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text("Material: ${vm.material.display()}", style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(14.dp))
+            Button(
+                onClick = { onDismiss(); vm.cut() },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+            ) { Text(if (vm.cutUsesKnife()) "Schneiden starten" else "Zeichnen starten") }
         }
     }
 }
@@ -318,22 +342,29 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             Text("Ebenen (${vm.layers.size})", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
+            val marked = vm.markedLayers.count { it in vm.layers.indices }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { vm.splitLayers() }, modifier = Modifier.weight(1f)) { Text("Zerlegen", maxLines = 1) }
-                OutlinedButton(onClick = { vm.mergeLayers() }, modifier = Modifier.weight(1f)) { Text("Zusammenführen", maxLines = 1) }
+                OutlinedButton(
+                    onClick = { if (marked >= 2) vm.mergeMarked() else vm.mergeLayers() },
+                    modifier = Modifier.weight(1f),
+                ) { Text(if (marked >= 2) "$marked zusammenführen" else "Alle zusammenführen", maxLines = 1) }
             }
             Spacer(Modifier.height(10.dp))
             Text("Auf der Matte ausrichten", style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.height(4.dp))
-            AlignmentGrid { hx, vy -> vm.alignSelected(hx, vy) }
-            Spacer(Modifier.height(10.dp))
+            AlignmentControls(vm)
+            Spacer(Modifier.height(12.dp))
             if (vm.layers.size > 1) {
-                Text("Antippen wählt die Ebene; auf der Matte verschieben.", style = MaterialTheme.typography.bodySmall)
+                Text("Tippen = bearbeiten. Haken = für „Zusammenführen“ markieren.", style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(4.dp))
             }
             vm.layers.forEachIndexed { i, layer ->
                 val selected = vm.selectedLayer == i
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (vm.layers.size > 1) {
+                        Checkbox(checked = i in vm.markedLayers, onCheckedChange = { vm.toggleMarked(i) })
+                    }
                     IconButton(onClick = { vm.toggleLayerVisible(i) }) {
                         Icon(
                             if (layer.visible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
@@ -391,7 +422,7 @@ private fun MaterialSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             val penSelected = vm.tool == Tool.PEN
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(if (penSelected) "Druck (Stift)" else "Druck (Messer)", Modifier.weight(1f))
-                Stepper("", if (penSelected) vm.penForce else vm.force, Materials.FORCE_MIN, Materials.FORCE_MAX) {
+                EditableStepper(if (penSelected) vm.penForce else vm.force, Materials.FORCE_MIN, Materials.FORCE_MAX, step = 5) {
                     if (penSelected) vm.changePenForce(it) else vm.changeForce(it)
                 }
             }
@@ -435,16 +466,6 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
             }
 
             Spacer(Modifier.height(18.dp))
-            Text("Bedienung", style = MaterialTheme.typography.labelLarge)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Aktionsleiste umbrechen", style = MaterialTheme.typography.bodyMedium)
-                    Text("Aus: in einer Zeile scrollen. An: auf mehrere Zeilen umbrechen.", style = MaterialTheme.typography.bodySmall)
-                }
-                Switch(checked = vm.actionBarWrap, onCheckedChange = { vm.changeActionBarWrap(it) })
-            }
-
-            Spacer(Modifier.height(18.dp))
             Text("Erscheinungsbild", style = MaterialTheme.typography.labelLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(ThemeMode.SYSTEM to "System", ThemeMode.LIGHT to "Hell", ThemeMode.DARK to "Dunkel").forEach { (m, lbl) ->
@@ -453,7 +474,10 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
             }
 
             Spacer(Modifier.height(18.dp))
-            Text("Schneiden", style = MaterialTheme.typography.labelLarge)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Schneiden", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                TextButton(onClick = { vm.resetCutSettings() }) { Text("Auf Standard") }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Schleppmesser-Ausgleich", style = MaterialTheme.typography.bodyMedium)
@@ -463,8 +487,8 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
             }
             if (vm.dragKnifeComp) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Klingenversatz (Einheiten, 40 = 1 mm)", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    Stepper("", vm.bladeOffset, 0, 40) { vm.changeBladeOffset(it) }
+                    Text("Klingenversatz (Einh., Standard 13)", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    EditableStepper(vm.bladeOffset, 0, 40, step = 1) { vm.changeBladeOffset(it) }
                 }
             }
 
@@ -537,7 +561,7 @@ private fun MaterialManageDialog(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Messer-Druck", Modifier.weight(1f))
-                    Stepper("", force, Materials.FORCE_MIN, Materials.FORCE_MAX) { force = it }
+                    EditableStepper(force, Materials.FORCE_MIN, Materials.FORCE_MAX, step = 5) { force = it }
                 }
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -553,15 +577,26 @@ private fun MaterialManageDialog(vm: KnutcutViewModel, onDismiss: () -> Unit) {
     )
 }
 
+/** A number control you can type into directly, with − / + buttons for fine steps. */
 @Composable
-private fun Stepper(label: String, value: Int, min: Int, max: Int, onChange: (Int) -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        if (label.isNotEmpty()) Text(label, style = MaterialTheme.typography.labelSmall)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { onChange((value - 1).coerceIn(min, max)) }) { Text("−") }
-            Text("$value", modifier = Modifier.widthIn(min = 28.dp), textAlign = TextAlign.Center)
-            TextButton(onClick = { onChange((value + 1).coerceIn(min, max)) }) { Text("+") }
-        }
+private fun EditableStepper(value: Int, min: Int, max: Int, step: Int = 1, onChange: (Int) -> Unit) {
+    var text by remember { mutableStateOf(value.toString()) }
+    LaunchedEffect(value) { if (text.toIntOrNull() != value) text = value.toString() }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedButton(onClick = { onChange((value - step).coerceIn(min, max)) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), modifier = Modifier.size(40.dp)) { Text("−") }
+        OutlinedTextField(
+            value = text,
+            onValueChange = { t ->
+                val digits = t.filter { it.isDigit() }
+                text = digits
+                digits.toIntOrNull()?.let { onChange(it.coerceIn(min, max)) }
+            },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center),
+            modifier = Modifier.width(72.dp).padding(horizontal = 4.dp),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        )
+        OutlinedButton(onClick = { onChange((value + step).coerceIn(min, max)) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), modifier = Modifier.size(40.dp)) { Text("+") }
     }
 }
 

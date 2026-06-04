@@ -42,11 +42,6 @@ class Settings(context: Context) {
         get() = runCatching { DisplayUnit.valueOf(p.getString("displayUnit", DisplayUnit.MM.name)!!) }.getOrDefault(DisplayUnit.MM)
         set(v) = p.edit().putString("displayUnit", v.name).apply()
 
-    /** Wrap the editing action bar onto several rows instead of scrolling it in one row. */
-    var actionBarWrap: Boolean
-        get() = p.getBoolean("actionBarWrap", false)
-        set(v) = p.edit().putBoolean("actionBarWrap", v).apply()
-
     /** Drag-knife corner/closure compensation (the stock app's pltFixUtils). On by default. */
     var dragKnifeComp: Boolean
         get() = p.getBoolean("dragKnifeComp", true)

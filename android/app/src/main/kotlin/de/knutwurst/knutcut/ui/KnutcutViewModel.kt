@@ -60,6 +60,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     // Loaded design as layers (one per SVG shape), each with its own placement.
     var layers by mutableStateOf<List<Layer>>(emptyList()); private set
     var selectedLayer by mutableStateOf(0); private set
+    // Layers ticked in the list for a multi-layer merge (separate from the single edit selection).
+    var markedLayers by mutableStateOf<Set<Int>>(emptySet()); private set
 
     // Work area.
     var model by mutableStateOf<PlotterModel>(Devices.default); private set
@@ -109,7 +111,6 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var themeMode by mutableStateOf(settings.themeMode); private set
 
     var displayUnit by mutableStateOf(settings.displayUnit); private set
-    var actionBarWrap by mutableStateOf(settings.actionBarWrap); private set
 
     var dragKnifeComp by mutableStateOf(settings.dragKnifeComp); private set
     var bladeOffset by mutableStateOf(settings.bladeOffset); private set
@@ -119,8 +120,6 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun selectTheme(m: ThemeMode) { settings.themeMode = m; themeMode = m }
 
     fun changeDisplayUnit(u: DisplayUnit) { settings.displayUnit = u; displayUnit = u }
-
-    fun changeActionBarWrap(v: Boolean) { settings.actionBarWrap = v; actionBarWrap = v }
 
     /** Format a millimetre length in the chosen display unit, e.g. "4.0 cm". */
     fun formatLen(mm: Double): String =
@@ -152,6 +151,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             if (polys.isEmpty()) { status = "Keine Pfade in der PLT-Datei gefunden."; return }
             layers = placeAtHome(listOf(Layer("PLT-Datei", polys, tool, visible = true)))
             selectedLayer = 0
+            markedLayers = emptySet()
             camScale = 1f
             camOffset = Offset.Zero
             status = "PLT geladen (${polys.size} Pfade)."
@@ -167,6 +167,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             if (pts.isEmpty()) { status = "Keine schneidbaren Pfade in der SVG gefunden."; return }
             layers = placeAtHome(shapes.map { Layer(it.name, it.polylines, tool, visible = true) })
             selectedLayer = 0
+            markedLayers = emptySet()
             camScale = 1f
             camOffset = Offset.Zero
             status = "Design geladen (${layers.size} Ebenen)."
@@ -183,6 +184,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val layer = Layer(name, polylines, tool, visible = true, centerMm = Pt(mat.widthMm / 2, mat.heightMm / 2))
         layers = layers + layer
         selectedLayer = layers.lastIndex
+        markedLayers = emptySet()
         status = "$name hinzugefügt."
     }
 
@@ -208,6 +210,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         if (i !in layers.indices) return
         layers = layers.filterIndexed { idx, _ -> idx != i }
         selectedLayer = selectedLayer.coerceIn(0, (layers.size - 1).coerceAtLeast(0))
+        markedLayers = emptySet()
     }
 
     /** Set the selected layer's size in mm (its bounding box after scale). */
@@ -224,17 +227,21 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Set the selected layer's rotation to an absolute angle in degrees. */
     fun setSelectedRotation(deg: Double) = updateSelected { it.copy(rotationDeg = ((deg % 360) + 360) % 360) }
 
-    /** Align the selected layer on the mat. [hx]/[vy]: -1 = left/top, 0 = centre, 1 = right/bottom. */
-    fun alignSelected(hx: Int, vy: Int) {
+    /** Align the selected layer on the mat per axis (-1 = left/top, 0 = centre, 1 = right/bottom; null = leave). */
+    fun alignSelected(hx: Int?, vy: Int?) {
         val corners = placedCorners()
         if (corners.size != 4) return
         val minX = corners.minOf { it.xMm }; val maxX = corners.maxOf { it.xMm }
         val minY = corners.minOf { it.yMm }; val maxY = corners.maxOf { it.yMm }
         val w = maxX - minX; val h = maxY - minY
-        val tx = when { hx < 0 -> 0.0; hx > 0 -> mat.widthMm - w; else -> (mat.widthMm - w) / 2 }
-        val ty = when { vy < 0 -> 0.0; vy > 0 -> mat.heightMm - h; else -> (mat.heightMm - h) / 2 }
-        centerMm = Pt(centerMm.xMm + (tx - minX), centerMm.yMm + (ty - minY))
+        var dx = 0.0; var dy = 0.0
+        if (hx != null) { val tx = when { hx < 0 -> 0.0; hx > 0 -> mat.widthMm - w; else -> (mat.widthMm - w) / 2 }; dx = tx - minX }
+        if (vy != null) { val ty = when { vy < 0 -> 0.0; vy > 0 -> mat.heightMm - h; else -> (mat.heightMm - h) / 2 }; dy = ty - minY }
+        centerMm = Pt(centerMm.xMm + dx, centerMm.yMm + dy)
     }
+
+    fun alignHorizontal(hx: Int) = alignSelected(hx, null)
+    fun alignVertical(vy: Int) = alignSelected(null, vy)
 
     private fun updateSelected(f: (Layer) -> Layer) {
         val i = selectedLayer
@@ -342,6 +349,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         selectedLayer = 0
+        markedLayers = emptySet()
     }
 
     /** Merge all layers into one, keeping the current arrangement. */
@@ -350,6 +358,34 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val polys = layers.flatMap { bake(it).polylines }
         layers = listOf(Layer("Alle Formen", polys, layers.first().tool, visible = true, centerMm = centerOf(polys.flatMap { it.points })))
         selectedLayer = 0
+        markedLayers = emptySet()
+    }
+
+    // --- Multi-select (in the layers list) ---
+    fun toggleMarked(i: Int) { markedLayers = if (i in markedLayers) markedLayers - i else markedLayers + i }
+    fun clearMarks() { markedLayers = emptySet() }
+
+    /** Merge the marked layers into one (keeping arrangement), placed where the first marked layer was. */
+    fun mergeMarked() {
+        val marks = markedLayers.filter { it in layers.indices }.toSortedSet()
+        if (marks.size < 2) return
+        val firstTool = layers[marks.first()].tool
+        val polys = marks.flatMap { bake(layers[it]).polylines }
+        val merged = Layer("Zusammengeführt", polys, firstTool, visible = true, centerMm = centerOf(polys.flatMap { it.points }))
+        val out = ArrayList<Layer>()
+        var inserted = false
+        layers.forEachIndexed { idx, l ->
+            if (idx in marks) { if (!inserted) { out.add(merged); inserted = true } } else out.add(l)
+        }
+        layers = out
+        selectedLayer = out.indexOf(merged).coerceAtLeast(0)
+        markedLayers = emptySet()
+    }
+
+    /** Reset the cutting settings (compensation + blade offset) to their defaults. */
+    fun resetCutSettings() {
+        changeDragKnifeComp(true)
+        changeBladeOffset(DragKnife.DEFAULT_OFFSET.toInt())
     }
 
     fun changeForce(v: Int) { force = v; settings.force = v }
