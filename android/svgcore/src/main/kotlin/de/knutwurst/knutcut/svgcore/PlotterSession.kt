@@ -30,27 +30,50 @@ class PlotterSession(private val link: PlotterLink, private var cseq: Int = 0) {
     }
 }
 
+/**
+ * A parsed plotter response line. The device replies with a flat JSON object; the fields we care
+ * about are pulled out here so the rest of the app reasons about a structured value instead of
+ * scattered string matching. Absent fields are null. (`state`: number as-is, true→1, false→0.)
+ */
+data class PlotterResponse(
+    val type: String?,
+    val success: Boolean?,
+    val state: Int?,
+    val cseq: Int?,
+    val raw: String,
+) {
+    /** A crc rejection or an explicit failure — the send loop should retry. */
+    val rejected: Boolean get() = type == "crc" || success == false
+
+    companion object {
+        private fun str(line: String, k: String) =
+            Regex("\"$k\"\\s*:\\s*\"([^\"]*)\"").find(line)?.groupValues?.get(1)
+        private fun int(line: String, k: String) =
+            Regex("\"$k\"\\s*:\\s*(-?[0-9]+)").find(line)?.groupValues?.get(1)?.toIntOrNull()
+
+        fun parse(line: String): PlotterResponse {
+            val success = Regex("\"success\"\\s*:\\s*(true|false)").find(line)?.groupValues?.get(1)?.toBooleanStrictOrNull()
+            val state = Regex("\"state\"\\s*:\\s*(true|false|-?[0-9]+)").find(line)?.groupValues?.get(1)?.let {
+                when (it) { "true" -> 1; "false" -> 0; else -> it.toIntOrNull() }
+            }
+            return PlotterResponse(str(line, "type"), success, state, int(line, "cseq"), line)
+        }
+    }
+}
+
 /** A response counts as accepted when it is present, not a crc rejection, and not `success:false`. */
 fun responseOk(line: String?): Boolean {
     if (line == null) return false
-    if (line.contains("\"type\":\"crc\"") || (line.contains("\"crc\"") && line.contains("error"))) return false
-    if (Regex("\"success\"\\s*:\\s*false").containsMatchIn(line)) return false
-    return true
+    // legacy crc shape too: a bare {"crc": ...} carrying "error"
+    if (line.contains("\"crc\"") && line.contains("error")) return false
+    return !PlotterResponse.parse(line).rejected
 }
 
 /**
  * The numeric `state` from a query response: a number as-is, `true`→1, `false`→0, or null if absent.
  * queryMaterial uses 3 = loaded/fed-in, 1 = at the sensor; queryStartKey uses true/false.
  */
-fun responseState(line: String?): Int? {
-    if (line == null) return null
-    val m = Regex("\"state\"\\s*:\\s*(true|false|-?[0-9]+)").find(line) ?: return null
-    return when (m.groupValues[1]) {
-        "true" -> 1
-        "false" -> 0
-        else -> m.groupValues[1].toIntOrNull()
-    }
-}
+fun responseState(line: String?): Int? = line?.let { PlotterResponse.parse(it).state }
 
 /** True if a query response carries a truthy `state` (e.g. the start key has been pressed). */
 fun responseStateReady(line: String?): Boolean = (responseState(line) ?: 0) > 0

@@ -19,6 +19,9 @@ class SppPlotterLink(private val socket: BluetoothSocket) : PlotterLink, AutoClo
     private val lines = LinkedBlockingQueue<String>()
     @Volatile private var running = true
 
+    /** Invoked once if the reader stops unexpectedly (remote drop / read error), not on close(). */
+    @Volatile var onClosed: (() -> Unit)? = null
+
     private val reader = Thread {
         val buf = ByteArray(2048)
         val framer = LineFramer()
@@ -30,6 +33,9 @@ class SppPlotterLink(private val socket: BluetoothSocket) : PlotterLink, AutoClo
             }
         } catch (_: Exception) {
             // socket closed or read error; readLine will time out
+        } finally {
+            // If we're still "running", the link died on us (not via close()) — tell the app.
+            if (running) onClosed?.invoke()
         }
     }.apply { isDaemon = true; start() }
 

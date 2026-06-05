@@ -762,6 +762,16 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 link = l
                 device = dev
                 connected = true
+                // Reflect an unexpected connection drop in the app state instead of staying "connected"
+                // until the next command fails.
+                l.onClosed = {
+                    viewModelScope.launch {
+                        if (link === l) {
+                            connected = false
+                            if (!cutting) status = "Verbindung zum Plotter verloren."
+                        }
+                    }
+                }
                 // The model (and thus the load/start gates) is the user's pick, not guessed from the
                 // generic BT name — so we keep [model] as selected.
                 settings.deviceAddress = dev.address
@@ -946,10 +956,17 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             val widthUnits = (mat.widthMm * UNITS_PER_MM).toInt()
             val lengthUnits = ((mat.heightMm + originOffsetMm) * UNITS_PER_MM).toInt()
             Log.d(TAG, "mat=${mat.name} ${mat.widthMm}x${mat.heightMm}mm setScale=JS$widthUnits,$lengthUnits designSizeMm=${designSizeMm()}")
-            withContext(Dispatchers.IO) {
-                Log.d(TAG, "setmat -> ${session.send(PltCommand("setmat:${material.id};"))}")
-                Log.d(TAG, "setPressure -> ${session.send(PltCommand("SP${primaryTool.sp};FS${forceFor(primaryTool)};"))}")
-                Log.d(TAG, "setScale -> ${session.send(PltCommand("JS$widthUnits,$lengthUnits;"))}")
+            // setmat may be rejected for a custom material id (non-fatal), but pressure and the work-area
+            // scale MUST be acknowledged — otherwise the machine isn't in position mode and streaming the
+            // path would cut into the air. Abort instead.
+            val setmatResp = withContext(Dispatchers.IO) { session.send(PltCommand("setmat:${material.id};")) }
+            Log.d(TAG, "setmat -> $setmatResp")
+            val pressureResp = withContext(Dispatchers.IO) { session.send(PltCommand("SP${primaryTool.sp};FS${forceFor(primaryTool)};")) }
+            Log.d(TAG, "setPressure -> $pressureResp")
+            val scaleResp = withContext(Dispatchers.IO) { session.send(PltCommand("JS$widthUnits,$lengthUnits;")) }
+            Log.d(TAG, "setScale -> $scaleResp")
+            if (pressureResp == null || scaleResp == null) {
+                finishCut("Plotter hat die Vorbereitung nicht bestätigt – abgebrochen."); return
             }
 
             // Load gate (machines with a paper key): wait until the media is fed in (queryMaterial
@@ -1012,6 +1029,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             throw e
         } catch (e: Exception) {
             finishCut("Fehler: ${e.message}")
+        } finally {
+            // One place that always tidies up, however the cut ended (success, error, cancel).
+            cutJob = null
+            cutting = false
         }
     }
 
