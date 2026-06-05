@@ -5,17 +5,37 @@ import android.content.Context
 /** Theme override: follow Android, or force light/dark. */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
+private const val KEY_MATERIALS_JSON = "customMaterialsJson"
+
 /** Persists the user's choices (material, tool, force, mat, last device, theme) across app restarts. */
 class Settings(context: Context) {
     private val p = context.getSharedPreferences("knutcut", Context.MODE_PRIVATE)
+    // The paired-device address lives in its own prefs file so it can be excluded from cloud backup
+    // (it's specific to this phone + plotter pairing and pointless to restore elsewhere).
+    private val devicePrefs = context.getSharedPreferences("knutcut_device", Context.MODE_PRIVATE)
+
+    init {
+        // One-time migrations from older storage formats.
+        if (p.contains("deviceAddress")) {
+            devicePrefs.edit().putString("deviceAddress", p.getString("deviceAddress", null)).apply()
+            p.edit().remove("deviceAddress").apply()
+        }
+        if (!p.contains(KEY_MATERIALS_JSON) && p.contains("customMaterials")) {
+            val legacy = (p.getString("customMaterials", "") ?: "").split(REC).filter { it.isNotBlank() }.mapNotNull {
+                val f = it.split(FIELD)
+                if (f.size == 3) Material(f[0], f[1], f[2].toIntOrNull() ?: 100) else null
+            }
+            p.edit().putString(KEY_MATERIALS_JSON, materialsToJson(legacy)).remove("customMaterials").apply()
+        }
+    }
 
     var themeMode: ThemeMode
         get() = runCatching { ThemeMode.valueOf(p.getString("theme", ThemeMode.SYSTEM.name)!!) }.getOrDefault(ThemeMode.SYSTEM)
         set(v) = p.edit().putString("theme", v.name).apply()
 
     var deviceAddress: String?
-        get() = p.getString("deviceAddress", null)
-        set(v) = p.edit().putString("deviceAddress", v).apply()
+        get() = devicePrefs.getString("deviceAddress", null)
+        set(v) = devicePrefs.edit().putString("deviceAddress", v).apply()
 
     /** The plotter model the user selected (decides the load/start gates and the name shown). */
     var modelId: Int
@@ -77,16 +97,28 @@ class Settings(context: Context) {
         get() = p.getInt("bladeOffset", 13)
         set(v) = p.edit().putInt("bladeOffset", v).apply()
 
-    /** User-defined materials, stored as id/name/force records using control-char separators. */
+    /** User-defined materials, stored as JSON (migrated once from the old control-char format). */
     var customMaterials: List<Material>
-        get() = (p.getString("customMaterials", "") ?: "").split(REC).filter { it.isNotBlank() }.mapNotNull {
-            val f = it.split(FIELD)
-            if (f.size == 3) Material(f[0], f[1], f[2].toIntOrNull() ?: 100) else null
-        }
-        set(v) = p.edit().putString(
-            "customMaterials",
-            v.joinToString(REC) { "${it.id}$FIELD${it.name}$FIELD${it.force}" },
-        ).apply()
+        get() = materialsFromJson(p.getString(KEY_MATERIALS_JSON, null))
+        set(v) = p.edit().putString(KEY_MATERIALS_JSON, materialsToJson(v)).apply()
+
+    private fun materialsToJson(list: List<Material>): String {
+        val arr = org.json.JSONArray()
+        list.forEach { arr.put(org.json.JSONObject().put("id", it.id).put("name", it.name).put("force", it.force)) }
+        return arr.toString()
+    }
+
+    private fun materialsFromJson(s: String?): List<Material> {
+        if (s.isNullOrBlank()) return emptyList()
+        return runCatching {
+            val arr = org.json.JSONArray(s)
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                val id = o.optString("id")
+                if (id.isBlank()) null else Material(id, o.optString("name"), o.optInt("force", 100))
+            }
+        }.getOrDefault(emptyList())
+    }
 
     private companion object {
         const val REC = "\u001e"

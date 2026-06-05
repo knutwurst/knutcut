@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- The paired-device address is specific to this phone/plotter; don't carry it to another device. -->
+    <exclude domain="sharedpref" path="knutcut_device.xml" />
+</full-backup-content>
