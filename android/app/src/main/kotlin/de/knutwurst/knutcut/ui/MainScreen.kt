@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.FormatAlignCenter
 import androidx.compose.material.icons.filled.FormatAlignLeft
 import androidx.compose.material.icons.filled.FormatAlignRight
+import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material.icons.filled.Settings
@@ -117,6 +118,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     var showAdd by remember { mutableStateOf(false) }
     var showCut by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showNewConfirm by remember { mutableStateOf(false) }
     var showText by remember { mutableStateOf(false) }
     val fontRepo = remember(context) { FontRepository(context) }
 
@@ -151,6 +153,11 @@ fun MainScreen(vm: KnutcutViewModel) {
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                if (vm.hasDesign) {
+                    IconButton(onClick = { showNewConfirm = true }, enabled = !vm.cutting) {
+                        Icon(Icons.Default.NoteAdd, contentDescription = "Neu")
+                    }
                 }
                 IconButton(onClick = { vm.undo() }, enabled = vm.canUndo && !vm.cutting) {
                     Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Rückgängig")
@@ -204,6 +211,15 @@ fun MainScreen(vm: KnutcutViewModel) {
             text = { Text("Die ausgewählte Ebene wird entfernt.") },
             confirmButton = { TextButton(onClick = { vm.deleteSelected(); showDeleteConfirm = false }) { Text("Löschen") } },
             dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Abbrechen") } },
+        )
+    }
+    if (showNewConfirm) {
+        AlertDialog(
+            onDismissRequest = { showNewConfirm = false },
+            title = { Text("Neu anfangen?") },
+            text = { Text("Alle Ebenen werden entfernt. Das lässt sich mit Rückgängig wieder herstellen.") },
+            confirmButton = { TextButton(onClick = { vm.clearAll(); showNewConfirm = false }) { Text("Alles löschen") } },
+            dismissButton = { TextButton(onClick = { showNewConfirm = false }) { Text("Abbrechen") } },
         )
     }
     if (showDevices) {
@@ -472,6 +488,7 @@ private fun CutSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
+    var allowRotate by remember { mutableStateOf(true) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             Text("Ebenen (${vm.layers.size})", style = MaterialTheme.typography.titleMedium)
@@ -483,6 +500,16 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                     onClick = { if (marked >= 2) vm.mergeMarked() else vm.mergeLayers() },
                     modifier = Modifier.weight(1f),
                 ) { Text(if (marked >= 2) "$marked zusammenführen" else "Alle zusammenführen", maxLines = 1) }
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("Material sparen", style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.height(4.dp))
+            Button(onClick = { vm.autoArrange(allowRotate) }, modifier = Modifier.fillMaxWidth()) {
+                Text("Automatisch anordnen")
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = allowRotate, onCheckedChange = { allowRotate = it })
+                Text("90°-Drehung erlauben (packt enger)", style = MaterialTheme.typography.bodyMedium)
             }
             Spacer(Modifier.height(10.dp))
             Text("Auf der Matte ausrichten", style = MaterialTheme.typography.labelLarge)

@@ -32,6 +32,7 @@ import de.knutwurst.knutcut.svgcore.History
 import de.knutwurst.knutcut.svgcore.HpglEncoder
 import de.knutwurst.knutcut.svgcore.Matrix
 import de.knutwurst.knutcut.svgcore.mmToUnits
+import de.knutwurst.knutcut.svgcore.Nest
 import de.knutwurst.knutcut.svgcore.PltCommand
 import de.knutwurst.knutcut.svgcore.PltParser
 import de.knutwurst.knutcut.svgcore.Placement
@@ -252,6 +253,42 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Clear the layer selection and any marks — the mat itself becomes the active selection. */
     fun deselectLayers() { selectedLayer = -1; markedLayers = emptySet() }
+
+    /** Start over: remove every layer and reset the view (undoable). Keeps device/material settings. */
+    fun clearAll() {
+        if (layers.isEmpty()) return
+        pushHistory()
+        layers = emptyList()
+        selectedLayer = -1
+        markedLayers = emptySet()
+        pruneBoundsCache()
+        camScale = 1f
+        camOffset = Offset.Zero
+        status = "Neu – Matte geleert."
+    }
+
+    /**
+     * Auto-arrange every layer to save material: pack the pieces' bounding boxes into rows from the
+     * top-left, with a gap, no overlaps. With [allow90] a piece may be turned 90° to fit better. This
+     * normalises each layer's rotation to 0°/90° (it's a reflow), keeping size, scale and mirroring.
+     */
+    fun autoArrange(allow90: Boolean) {
+        if (layers.isEmpty()) return
+        pushHistory()
+        val gap = 5.0
+        val boxes = layers.mapIndexed { i, l ->
+            val b = layerBounds(l)
+            Nest.Box(i, b.widthMm * l.scaleX, b.heightMm * l.scaleY)
+        }
+        val placed = Nest.pack(boxes, mat.widthMm, gap, allow90).associateBy { it.id }
+        layers = layers.mapIndexed { i, l ->
+            val p = placed[i] ?: return@mapIndexed l
+            // placed bbox is centred on centerMm, so its top-left = centerMm - (w/2, h/2)
+            l.copy(rotationDeg = if (p.rotated) 90.0 else 0.0, centerMm = Pt(p.x + p.w / 2, p.y + p.h / 2))
+        }
+        selectedLayer = -1
+        status = "Angeordnet (${layers.size} Ebenen)."
+    }
 
     /** Add a new layer (e.g. a primitive shape or text) centred on the mat and select it. */
     fun addLayer(name: String, polylines: List<Polyline>, layerTool: Tool = tool) {
