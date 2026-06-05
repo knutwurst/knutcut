@@ -46,9 +46,12 @@ private sealed interface Drag {
     object Camera : Drag
 }
 
-private const val HANDLE_HIT_PX = 34f
-private const val ROTATE_ARM_PX = 44f
-private const val TAP_SLOP_PX = 12f
+private const val HANDLE_HIT_PX = 34f   // touch radius for grabbing a handle
+private const val ROTATE_ARM_PX = 44f   // length of the rotate handle's arm
+private const val TAP_SLOP_PX = 12f     // movement below this counts as a tap, not a drag
+private const val CORNER_PX = 14f       // drawn size of a corner handle
+private const val SIDE_PX = 12f         // drawn size of a side-midpoint handle
+private const val ROTATE_DOT_PX = 8f    // drawn radius of the rotate handle dot
 // Smart-guide line colour: a high-contrast magenta that reads on both light and dark mats.
 private val GUIDE_COLOR = Color(0xFFFF4081)
 
@@ -239,15 +242,15 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
             }
             drawPath(box, handleColor, style = Stroke(width = 1.5f))
             // corner handles (square) and side-midpoint handles (square, slightly smaller)
-            corners.forEach { drawRect(handleColor, topLeft = Offset(it.x - 7f, it.y - 7f), size = Size(14f, 14f)) }
+            corners.forEach { drawRect(handleColor, topLeft = Offset(it.x - CORNER_PX / 2, it.y - CORNER_PX / 2), size = Size(CORNER_PX, CORNER_PX)) }
             for (i in 0 until 4) {
                 val m = (corners[i] + corners[(i + 1) % 4]) / 2f
-                drawRect(handleColor, topLeft = Offset(m.x - 6f, m.y - 6f), size = Size(12f, 12f))
+                drawRect(handleColor, topLeft = Offset(m.x - SIDE_PX / 2, m.y - SIDE_PX / 2), size = Size(SIDE_PX, SIDE_PX))
             }
             val rot = rotateHandlePos(corners, s(vm.centerMm))
             val topMid = (corners[0] + corners[1]) / 2f
             drawLine(handleColor, topMid, rot, strokeWidth = 1.5f)
-            drawCircle(handleColor, radius = 8f, center = rot)
+            drawCircle(handleColor, radius = ROTATE_DOT_PX, center = rot)
         }
 
         // smart alignment guides (centre snapping) while dragging

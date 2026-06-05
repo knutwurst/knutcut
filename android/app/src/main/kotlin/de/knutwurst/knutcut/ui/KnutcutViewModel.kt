@@ -5,8 +5,8 @@ import android.app.Application
 import android.bluetooth.BluetoothDevice
 import android.content.ContentResolver
 import android.content.Context
-import android.net.Uri
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.compose.runtime.getValue
@@ -284,7 +284,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Shift a freshly home-placed group so it sits to the right of the existing content (wrapping rows). */
     private fun appendPlaced(group: List<Layer>): List<Layer> {
-        val gap = 5.0
+        val gap = MAT_GAP_MM
         fun placedPoints(ls: List<Layer>) = ls.flatMap { l ->
             val m = layerMatrix(l); l.polylines.flatMap { pl -> pl.points.map { m.apply(it) } }
         }
@@ -323,7 +323,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun autoArrange(allow90: Boolean) {
         if (layers.isEmpty()) return
         pushHistory()
-        val gap = 5.0
+        val gap = MAT_GAP_MM
         val boxes = layers.mapIndexed { i, l ->
             val b = layerBounds(l)
             Nest.Box(i, b.widthMm * l.scaleX, b.heightMm * l.scaleY)
@@ -1005,7 +1005,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
             // Stream as one continuous pltFile sequence (index 0..total-1, 30 commands per chunk),
             // exactly like the stock sendFile.
-            val fileMsgs = Protocol.pathFile(plt, 30)
+            val fileMsgs = Protocol.pathFile(plt, PLT_CHUNK)
             Log.d(TAG, "sendFile: ${plt.size} cmds in ${fileMsgs.size} chunks")
             fileMsgs.forEachIndexed { i, m ->
                 val resp = withContext(Dispatchers.IO) { session.send(m) }
@@ -1046,7 +1046,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      * Smart-series load gate: wait until the material is fed in (queryMaterial state 3), not just
      * sitting at the sensor (state 1, which only means "detected").
      */
-    private suspend fun pollMaterialLoaded(session: PlotterSession, attempts: Int = 240, intervalMs: Long = 700): Boolean {
+    private suspend fun pollMaterialLoaded(session: PlotterSession, attempts: Int = MATERIAL_POLL_ATTEMPTS, intervalMs: Long = MATERIAL_POLL_MS): Boolean {
         repeat(attempts) {
             val resp = withContext(Dispatchers.IO) { session.send(Query("queryMaterial")) }
             when (responseState(resp)) {
@@ -1059,7 +1059,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return false
     }
 
-    private suspend fun pollState(session: PlotterSession, query: Query, attempts: Int = 150, intervalMs: Long = 800): Boolean {
+    private suspend fun pollState(session: PlotterSession, query: Query, attempts: Int = START_POLL_ATTEMPTS, intervalMs: Long = START_POLL_MS): Boolean {
         repeat(attempts) {
             val resp = withContext(Dispatchers.IO) { session.send(query) }
             Log.d(TAG, "${query.action} -> $resp")
@@ -1081,5 +1081,15 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() { link?.close() }
 
-    private companion object { const val TAG = "Knutcut"; const val MAX_HISTORY = 40; const val MAX_IMPORT_MB = 16 }
+    private companion object {
+        const val TAG = "Knutcut"
+        const val MAX_HISTORY = 40          // undo/redo depth
+        const val MAX_IMPORT_MB = 16        // per-file import cap
+        const val PLT_CHUNK = 30            // commands per pltFile chunk (the stock sendFile value)
+        const val MAT_GAP_MM = 5.0          // gap between pieces when appending / auto-arranging
+        const val MATERIAL_POLL_ATTEMPTS = 240
+        const val MATERIAL_POLL_MS = 700L   // load-gate polling: ~168 s total
+        const val START_POLL_ATTEMPTS = 150
+        const val START_POLL_MS = 800L      // start-gate polling: ~120 s total
+    }
 }
