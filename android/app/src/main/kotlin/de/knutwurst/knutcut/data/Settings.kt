@@ -17,6 +17,11 @@ class Settings(context: Context) {
         get() = p.getString("deviceAddress", null)
         set(v) = p.edit().putString("deviceAddress", v).apply()
 
+    /** The plotter model the user selected (decides the load/start gates and the name shown). */
+    var modelId: Int
+        get() = p.getInt("modelId", 1)
+        set(v) = p.edit().putInt("modelId", v).apply()
+
     var materialId: String?
         get() = p.getString("materialId", null)
         set(v) = p.edit().putString("materialId", v).apply()

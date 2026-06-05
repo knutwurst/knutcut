@@ -1,0 +1,12 @@
+Hershey vector fonts (.jhf)
+
+The Hershey Fonts were originally created by Dr. A. V. Hershey while working at
+the U.S. National Bureau of Standards. The .jhf vector format and this data were
+prepared and distributed by James Hurt. The fonts are in the public domain; the
+following acknowledgement accompanies their use:
+
+    This distribution includes the Hershey Fonts.
+    Created by Dr. A. V. Hershey (U.S. National Bureau of Standards),
+    vector format by James Hurt.
+
+Used here only to draw single-stroke text with a pen.

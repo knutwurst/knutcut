@@ -35,6 +35,7 @@ import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flip
@@ -49,6 +50,7 @@ import androidx.compose.material.icons.filled.VerticalAlignCenter
 import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -71,8 +73,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -113,6 +117,8 @@ fun MainScreen(vm: KnutcutViewModel) {
     var showAdd by remember { mutableStateOf(false) }
     var showCut by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showText by remember { mutableStateOf(false) }
+    val fontRepo = remember(context) { FontRepository(context) }
 
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         hasBtPerm = hasBluetoothPermission(context)
@@ -146,19 +152,23 @@ fun MainScreen(vm: KnutcutViewModel) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = { vm.undo() }, enabled = vm.canUndo) {
+                IconButton(onClick = { vm.undo() }, enabled = vm.canUndo && !vm.cutting) {
                     Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Rückgängig")
                 }
-                IconButton(onClick = { vm.redo() }, enabled = vm.canRedo) {
+                IconButton(onClick = { vm.redo() }, enabled = vm.canRedo && !vm.cutting) {
                     Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Wiederholen")
                 }
                 Box {
                     IconButton(onClick = { showAdd = true }) {
                         Icon(Icons.Default.Add, contentDescription = "Hinzufügen")
                     }
-                    AddMenu(expanded = showAdd, onDismiss = { showAdd = false }, onOpenFile = { showAdd = false; openFile() }) {
-                        vm.addLayer(it.first, listOf(it.second)); showAdd = false
-                    }
+                    AddMenu(
+                        expanded = showAdd,
+                        onDismiss = { showAdd = false },
+                        onOpenFile = { showAdd = false; openFile() },
+                        onText = { showAdd = false; showText = true },
+                        onShape = { vm.addLayer(it.first, listOf(it.second)); showAdd = false },
+                    )
                 }
                 IconButton(onClick = { showSettings = true }) {
                     Icon(Icons.Default.Settings, contentDescription = "Einstellungen")
@@ -204,13 +214,76 @@ fun MainScreen(vm: KnutcutViewModel) {
     if (showLayers) LayersSheet(vm, onDismiss = { showLayers = false })
     if (showTransform && vm.hasDesign) TransformDialog(vm, onDismiss = { showTransform = false })
     if (showCut && vm.hasDesign) CutSheet(vm, onDismiss = { showCut = false })
+    if (showText) TextDialog(vm, fontRepo, onDismiss = { showText = false })
 }
 
-/** Add menu: open a file or drop in a primitive shape. */
+/** Add a text layer: type the text, pick a font (outline or single-stroke), choose a height. */
 @Composable
-private fun AddMenu(expanded: Boolean, onDismiss: () -> Unit, onOpenFile: () -> Unit, onShape: (Pair<String, de.knutwurst.knutcut.svgcore.Polyline>) -> Unit) {
+private fun TextDialog(vm: KnutcutViewModel, fonts: FontRepository, onDismiss: () -> Unit) {
+    val options = fonts.options
+    var text by remember { mutableStateOf("") }
+    var fontIndex by remember { mutableStateOf(0) }
+    var height by remember { mutableStateOf(25) }
+    var fontMenu by remember { mutableStateOf(false) }
+    val chosen = options.getOrNull(fontIndex)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Text hinzufügen") },
+        text = {
+            Column {
+                OutlinedTextField(text, { text = it }, label = { Text("Text") }, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                Box {
+                    OutlinedButton(onClick = { fontMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text(chosen?.let { it.label + if (it.stroke) " · Einlinie" else "" } ?: "Schrift wählen", maxLines = 1)
+                    }
+                    DropdownMenu(expanded = fontMenu, onDismissRequest = { fontMenu = false }) {
+                        options.forEachIndexed { i, o ->
+                            DropdownMenuItem(
+                                text = { Text(o.label + if (o.stroke) "  (Einlinie · Stift)" else "") },
+                                onClick = { fontIndex = i; fontMenu = false },
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    if (chosen?.stroke == true) "Einlinien-Schrift: ideal für den Stift."
+                    else "Umriss-Schrift: zum Schneiden oder als gezeichneter Umriss.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Höhe (mm)", Modifier.weight(1f))
+                    EditableStepper(height, 3, 300, step = 1) { height = it }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = text.isNotBlank() && chosen != null,
+                onClick = {
+                    val opt = chosen ?: return@TextButton
+                    val polys = opt.render(text, height.toDouble())
+                    if (polys.isNotEmpty()) {
+                        val name = "Text: " + text.replace("\n", " ").trim().take(16)
+                        vm.addLayer(name, polys, if (opt.stroke) Tool.PEN else vm.tool)
+                    }
+                    onDismiss()
+                },
+            ) { Text("Hinzufügen") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
+    )
+}
+
+/** Add menu: open a file, add text, or drop in a primitive shape. */
+@Composable
+private fun AddMenu(expanded: Boolean, onDismiss: () -> Unit, onOpenFile: () -> Unit, onText: () -> Unit, onShape: (Pair<String, de.knutwurst.knutcut.svgcore.Polyline>) -> Unit) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
         DropdownMenuItem(text = { Text("SVG / PLT öffnen…") }, onClick = onOpenFile)
+        DropdownMenuItem(text = { Text("Text…") }, onClick = onText)
         HorizontalDivider()
         listOf(
             "Quadrat" to Shapes.rect(40.0, 40.0),
@@ -517,8 +590,9 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
             Text(
                 when {
                     vm.connecting -> "Verbinde…"
-                    vm.connected -> "Verbunden: ${vm.device?.name ?: ""}"
-                    else -> "Nicht verbunden"
+                    vm.connectedToPlotter -> "Verbunden: ${vm.model.displayName}"
+                    vm.connected -> "Verbunden: ${vm.device?.name ?: "?"} (kein unterstützter Plotter)"
+                    else -> "Nicht verbunden · Modell: ${vm.model.displayName}"
                 },
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -709,47 +783,129 @@ private fun EditableStepper(value: Int, min: Int, max: Int, step: Int = 1, onCha
 @Composable
 private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: () -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    var showAll by remember { mutableStateOf(false) }
-    val all = remember(hasPerm) {
+    var scanning by remember { mutableStateOf(false) }
+    var showOther by remember { mutableStateOf(false) }
+    var confirmOther by remember { mutableStateOf<android.bluetooth.BluetoothDevice?>(null) }
+    val found = remember { mutableStateMapOf<String, android.bluetooth.BluetoothDevice>() }
+    val allBonded = remember(hasPerm) {
         if (hasPerm) de.knutwurst.knutcut.transport.BluetoothPlotter.bondedDevices(context) else emptyList()
     }
-    val shown = if (showAll) all else all.filter { Devices.looksLikePlotter(it.name) }
+    // Compatible plotters (BT name contains "VEVOR"/"Smart"), like the stock app — these are the default.
+    val bonded = allBonded.filter { Devices.isCompatible(it.name) }
+    val others = allBonded.filterNot { Devices.isCompatible(it.name) }
+    val devices = (bonded + found.values).distinctBy { it.address }
+
+    // Classic discovery while [scanning]; auto-stops after 30s. Stops + unregisters on dispose.
+    DisposableEffect(scanning, hasPerm) {
+        val handle = if (scanning && hasPerm) {
+            runCatching {
+                de.knutwurst.knutcut.transport.BluetoothPlotter.discover(context) { dev ->
+                    if (Devices.isCompatible(dev.name)) found[dev.address] = dev
+                }
+            }.getOrNull()
+        } else null
+        onDispose { handle?.close() }
+    }
+    LaunchedEffect(scanning) { if (scanning) { kotlinx.coroutines.delay(30_000); scanning = false } }
+
+    fun stopAndDismiss() { scanning = false; onDismiss() }
+
     AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Schließen") } },
+        onDismissRequest = { stopAndDismiss() },
+        confirmButton = { TextButton(onClick = { stopAndDismiss() }) { Text("Schließen") } },
         title = { Text("Plotter verbinden") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                when {
-                    !hasPerm -> {
-                        Text("Knutcut braucht die Bluetooth-Berechtigung, um den Plotter zu finden.")
-                        Spacer(Modifier.height(8.dp))
-                        Button(onClick = onRequestPerm) { Text("Berechtigung erteilen") }
+                if (!hasPerm) {
+                    Text("Knutcut braucht die Bluetooth-Berechtigung, um den Plotter zu finden.")
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = onRequestPerm) { Text("Berechtigung erteilen") }
+                } else {
+                    Text("Dein Modell", style = MaterialTheme.typography.labelLarge)
+                    Devices.models.forEach { m ->
+                        val sel = vm.model.modelId == m.modelId
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().clickable { vm.selectModel(m) }.padding(vertical = 8.dp),
+                        ) {
+                            Icon(painterResource(R.drawable.ic_plotter), contentDescription = null, modifier = Modifier.size(24.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                m.displayName,
+                                modifier = Modifier.weight(1f),
+                                color = if (sel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
+                            )
+                            if (sel) Icon(Icons.Default.Check, contentDescription = "Gewählt", tint = MaterialTheme.colorScheme.primary)
+                        }
                     }
-                    shown.isEmpty() -> Text(
-                        if (all.isEmpty()) "Kein gekoppeltes Gerät gefunden. Koppele den Plotter zuerst in den Android-Bluetooth-Einstellungen."
-                        else "Kein Plotter gefunden. Falls dein Plotter anders heißt, aktiviere „Alle Geräte anzeigen“."
-                    )
-                    else -> shown.forEach { d ->
-                        TextButton(onClick = { vm.connect(d); onDismiss() }, modifier = Modifier.fillMaxWidth()) {
-                            Text(d.name ?: d.address, modifier = Modifier.fillMaxWidth())
+
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Geräte", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { found.clear(); scanning = !scanning }) { Text(if (scanning) "Stopp" else "Suchen") }
+                    }
+                    if (devices.isEmpty()) {
+                        Text(
+                            if (scanning) "Suche nach Plottern in der Nähe…"
+                            else "Kein kompatibler Plotter. Tippe „Suchen“ oder koppele ihn in den Bluetooth-Einstellungen.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    } else {
+                        devices.forEach { d ->
+                            TextButton(onClick = { scanning = false; vm.connect(d); onDismiss() }, modifier = Modifier.fillMaxWidth()) {
+                                Icon(painterResource(R.drawable.ic_plotter), contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(d.name ?: d.address, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                    if (scanning) {
+                        Spacer(Modifier.height(6.dp))
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+
+                    // Explicit escape hatch: connect to a non-plotter (e.g. for testing), with a warning.
+                    if (others.isNotEmpty()) {
+                        TextButton(onClick = { showOther = !showOther }) {
+                            Text(if (showOther) "Andere Geräte ausblenden" else "Andere Geräte anzeigen")
+                        }
+                        if (showOther) {
+                            Text(
+                                "Keine unterstützten Plotter – nur verbinden, wenn du weißt, was du tust.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            others.forEach { d ->
+                                TextButton(onClick = { confirmOther = d }, modifier = Modifier.fillMaxWidth()) {
+                                    Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(d.name ?: d.address, modifier = Modifier.weight(1f))
+                                }
+                            }
                         }
                     }
                 }
-                if (hasPerm) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Switch(checked = showAll, onCheckedChange = { showAll = it })
-                        Spacer(Modifier.width(8.dp))
-                        Text("Alle Geräte anzeigen")
-                    }
-                }
-                HorizontalDivider()
+
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 TextButton(onClick = { context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }) {
                     Text("Bluetooth-Einstellungen öffnen")
                 }
             }
         },
     )
+
+    confirmOther?.let { d ->
+        AlertDialog(
+            onDismissRequest = { confirmOther = null },
+            title = { Text("Kein unterstützter Plotter") },
+            text = { Text("„${d.name ?: d.address}“ ist kein unterstützter VEVOR-Plotter. Die Plotter-Funktionen können fehlschlagen. Trotzdem verbinden?") },
+            confirmButton = {
+                TextButton(onClick = { confirmOther = null; scanning = false; vm.connect(d); onDismiss() }) { Text("Trotzdem verbinden") }
+            },
+            dismissButton = { TextButton(onClick = { confirmOther = null }) { Text("Abbrechen") } },
+        )
+    }
 }
 
 /** App version read at runtime from the installed package (the manifest's versionName), like CricutExport. */

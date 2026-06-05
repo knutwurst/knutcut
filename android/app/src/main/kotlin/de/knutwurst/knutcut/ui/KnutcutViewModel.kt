@@ -28,6 +28,7 @@ import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Bounds
 import de.knutwurst.knutcut.svgcore.DragKnife
 import de.knutwurst.knutcut.svgcore.Handshake
+import de.knutwurst.knutcut.svgcore.History
 import de.knutwurst.knutcut.svgcore.HpglEncoder
 import de.knutwurst.knutcut.svgcore.Matrix
 import de.knutwurst.knutcut.svgcore.mmToUnits
@@ -63,37 +64,33 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var layers by mutableStateOf<List<Layer>>(emptyList()); private set
     var selectedLayer by mutableStateOf(0); private set
 
-    // Undo/redo of the layer arrangement (placement + selection). Captured before each edit.
-    private var undoStack by mutableStateOf<List<Pair<List<Layer>, Int>>>(emptyList())
-    private var redoStack by mutableStateOf<List<Pair<List<Layer>, Int>>>(emptyList())
-    val canUndo: Boolean get() = undoStack.isNotEmpty()
-    val canRedo: Boolean get() = redoStack.isNotEmpty()
+    // Undo/redo of the layer arrangement (placement, selection and the default tool), captured before
+    // each edit. De-duped by the layers reference so nested calls don't pile up.
+    private data class EditState(val layers: List<Layer>, val selectedLayer: Int, val tool: Tool)
+    private val history = History<EditState>(MAX_HISTORY) { a, b -> a.layers === b.layers }
+    var canUndo by mutableStateOf(false); private set
+    var canRedo by mutableStateOf(false); private set
 
-    /** Snapshot the current arrangement before a mutating edit. De-duped by reference so nested calls
-     *  (and no-op edits) don't pile up; the editor calls this once at the start of a drag gesture. */
+    /** Snapshot the current arrangement before a mutating edit (the editor calls this once per drag). */
     fun pushHistory() {
-        if (undoStack.lastOrNull()?.first === layers) return
-        undoStack = (undoStack + (layers to selectedLayer)).takeLast(MAX_HISTORY)
-        redoStack = emptyList()
+        history.push(EditState(layers, selectedLayer, tool))
+        syncHistory()
     }
 
-    fun undo() {
-        val prev = undoStack.lastOrNull() ?: return
-        redoStack = redoStack + (layers to selectedLayer)
-        undoStack = undoStack.dropLast(1)
-        layers = prev.first
-        selectedLayer = prev.second
+    fun undo() = applyEdit(history.undo(EditState(layers, selectedLayer, tool)))
+    fun redo() = applyEdit(history.redo(EditState(layers, selectedLayer, tool)))
+
+    private fun applyEdit(s: EditState?) {
+        if (s == null) return
+        layers = s.layers
+        selectedLayer = s.selectedLayer
+        tool = s.tool
+        settings.toolSp = s.tool.sp
         markedLayers = emptySet()
+        syncHistory()
     }
 
-    fun redo() {
-        val next = redoStack.lastOrNull() ?: return
-        undoStack = undoStack + (layers to selectedLayer)
-        redoStack = redoStack.dropLast(1)
-        layers = next.first
-        selectedLayer = next.second
-        markedLayers = emptySet()
-    }
+    private fun syncHistory() { canUndo = history.canUndo; canRedo = history.canRedo }
     // Layers ticked in the list for a multi-layer merge (separate from the single edit selection).
     var markedLayers by mutableStateOf<Set<Int>>(emptySet()); private set
 
@@ -164,6 +161,12 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun changeDisplayUnit(u: DisplayUnit) { settings.displayUnit = u; displayUnit = u }
 
+    /** Pick the plotter model (decides the load/start gates and the name shown). Persisted. */
+    fun selectModel(m: PlotterModel) { model = m; settings.modelId = m.modelId }
+
+    /** True when the connected device is actually a supported plotter (vs. an explicitly-chosen other device). */
+    val connectedToPlotter: Boolean get() = connected && Devices.isCompatible(device?.name)
+
     fun changeOriginOffset(mm: Int) { originOffsetMm = mm.coerceIn(0, 100); settings.originOffsetMm = originOffsetMm }
 
     fun changeSnap(mm: Float) { snapMm = mm; settings.snapMm = mm }
@@ -183,6 +186,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             Materials.presets.firstOrNull { it.id == id }?.let { material = it; force = it.force }
         }
         Mats.byName(settings.matName)?.let { mat = it }
+        model = Devices.byId(settings.modelId)
         tool = Tool.entries.firstOrNull { it.sp == settings.toolSp } ?: Tool.KNIFE
         if (settings.force > 0) force = settings.force
         penForce = settings.penForce
@@ -249,11 +253,11 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Clear the layer selection and any marks — the mat itself becomes the active selection. */
     fun deselectLayers() { selectedLayer = -1; markedLayers = emptySet() }
 
-    /** Add a new layer (e.g. a primitive shape) centred on the mat and select it. */
-    fun addLayer(name: String, polylines: List<Polyline>) {
+    /** Add a new layer (e.g. a primitive shape or text) centred on the mat and select it. */
+    fun addLayer(name: String, polylines: List<Polyline>, layerTool: Tool = tool) {
         if (polylines.isEmpty()) return
         pushHistory()
-        val layer = Layer(name, polylines, tool, visible = true, centerMm = Pt(mat.widthMm / 2, mat.heightMm / 2))
+        val layer = Layer(name, polylines, layerTool, visible = true, centerMm = Pt(mat.widthMm / 2, mat.heightMm / 2))
         layers = layers + layer
         selectedLayer = layers.lastIndex
         markedLayers = emptySet()
@@ -387,8 +391,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var recentMaterialIds by mutableStateOf(settings.recentMaterialIds); private set
 
     /** Recently plotted materials, most recent first, resolved to their current definitions. */
-    fun recentMaterials(): List<Material> =
-        recentMaterialIds.mapNotNull { id -> allMaterials().firstOrNull { it.id == id } }
+    fun recentMaterials(): List<Material> {
+        val all = allMaterials()
+        return recentMaterialIds.mapNotNull { id -> all.firstOrNull { it.id == id } }
+    }
 
     private fun recordMaterialUse(id: String) {
         val updated = (listOf(id) + recentMaterialIds.filter { it != id }).take(5)
@@ -446,6 +452,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Set the tool for all layers (the bottom quick-select). */
     fun setAllTool(t: Tool) {
+        if (tool == t && layers.all { it.tool == t }) return
         pushHistory()
         tool = t
         settings.toolSp = t.sp
@@ -453,6 +460,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setLayerTool(index: Int, t: Tool) {
+        if (layers.getOrNull(index)?.tool == t) return
         pushHistory()
         layers = layers.mapIndexed { i, l -> if (i == index) l.copy(tool = t) else l }
     }
@@ -642,8 +650,21 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return "${v(b.widthMm)} × ${v(b.heightMm)} ${u.label}"
     }
 
+    // Memoise the overall readout: it's read on every editor recomposition (incl. camera pan/zoom)
+    // while the mat is selected, but only changes when the layers or the display unit change.
+    private var overallLayers: List<Layer>? = null
+    private var overallUnit: DisplayUnit? = null
+    private var overallText: String? = null
+
     /** Total size of all visible layers, shown bottom-left when the mat itself is selected. */
-    fun overallReadout(): String? = extentReadout(layers.filter { it.visible })?.let { "Gesamt  $it" }
+    fun overallReadout(): String? {
+        if (overallLayers !== layers || overallUnit != displayUnit) {
+            overallLayers = layers
+            overallUnit = displayUnit
+            overallText = extentReadout(layers.filter { it.visible })?.let { "Gesamt  $it" }
+        }
+        return overallText
+    }
 
     fun connect(dev: BluetoothDevice, silent: Boolean = false) {
         if (connecting || connected) return
@@ -656,9 +677,15 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 link = l
                 device = dev
                 connected = true
-                Devices.matchByName(dev.name)?.let { model = it }
+                // The model (and thus the load/start gates) is the user's pick, not guessed from the
+                // generic BT name — so we keep [model] as selected.
                 settings.deviceAddress = dev.address
-                status = "Verbunden mit ${dev.name}."
+                // Don't toast on the silent auto-reconnect at launch; the Settings sheet already shows
+                // the connected state. Only confirm when the user connected on purpose — and name the
+                // actual device, since it may be an explicitly-chosen non-plotter.
+                if (!silent) status =
+                    if (Devices.isCompatible(dev.name)) "Verbunden mit ${model.displayName}."
+                    else "Verbunden mit ${dev.name} (kein unterstützter Plotter)."
             } catch (e: Exception) {
                 connected = false
                 if (!silent) status = "Verbindung fehlgeschlagen: ${e.message}"
@@ -675,6 +702,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val ctx = getApplication<Application>()
         if (!hasConnectPermission(ctx) || !BluetoothPlotter.isEnabled(ctx)) return
         val dev = runCatching { BluetoothPlotter.adapter(ctx)?.getRemoteDevice(addr) }.getOrNull() ?: return
+        // Only ever silently reconnect to a compatible plotter — never to some other paired device
+        // (e.g. a laptop) that was connected explicitly once.
+        if (!Devices.isCompatible(dev.name)) return
         connect(dev, silent = true)
     }
 
@@ -713,6 +743,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Switch the tool of the layers that will be cut (the pre-cut draw/cut toggle). */
     fun setCutTool(t: Tool) {
+        if (tool == t && cutLayers().all { it.tool == t }) return
         pushHistory()
         tool = t
         settings.toolSp = t.sp
