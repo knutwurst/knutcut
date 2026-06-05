@@ -243,34 +243,38 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun loadDesign(text: String) {
         val parsed = parseDesign(text)
-        if (parsed.isNullOrEmpty()) { status = "Keine schneidbaren Pfade in der Datei gefunden."; return }
+        if (parsed == null || parsed.layers.isEmpty()) { status = "Keine schneidbaren Pfade in der Datei gefunden."; return }
         pushHistory()
         if (layers.isEmpty()) {
-            layers = placeAtHome(parsed)
+            layers = placeAtHome(parsed.layers)
             selectedLayer = 0
             camScale = 1f
             camOffset = Offset.Zero
         } else {
-            val added = appendPlaced(placeAtHome(parsed))
+            val added = appendPlaced(placeAtHome(parsed.layers))
             layers = layers + added
             selectedLayer = layers.size - added.size
         }
         markedLayers = emptySet()
         pruneBoundsCache()
-        status = "Design geladen (${parsed.size} Ebene${if (parsed.size == 1) "" else "n"})."
+        val n = parsed.layers.size
+        val skip = if (parsed.skipped > 0) " · ${parsed.skipped} unlesbare Teile übersprungen" else ""
+        status = "Design geladen ($n Ebene${if (n == 1) "" else "n"})$skip."
     }
 
-    /** Parse a file into layers (SVG by content, else PLT). Null/empty if nothing usable. */
-    private fun parseDesign(text: String): List<Layer>? {
+    private class ParsedDesign(val layers: List<Layer>, val skipped: Int)
+
+    /** Parse a file into layers (SVG by content, else PLT). Null if nothing usable / unreadable. */
+    private fun parseDesign(text: String): ParsedDesign? {
         val head = text.trimStart()
         return try {
             if (head.startsWith("<") || head.contains("<svg", ignoreCase = true)) {
-                val shapes = SvgParser.parseShapes(text)
-                val out = shapes.map { Layer(it.name, it.polylines, tool, visible = true) }
-                if (out.flatMap { it.polylines }.flatMap { it.points }.isEmpty()) null else out
+                val result = SvgParser.parseShapesResult(text)
+                val out = result.shapes.map { Layer(it.name, it.polylines, tool, visible = true) }
+                if (out.flatMap { it.polylines }.flatMap { it.points }.isEmpty()) null else ParsedDesign(out, result.skipped)
             } else {
                 val polys = PltParser.parse(text)
-                if (polys.isEmpty()) null else listOf(Layer("PLT-Datei", polys, tool, visible = true))
+                if (polys.isEmpty()) null else ParsedDesign(listOf(Layer("PLT-Datei", polys, tool, visible = true)), 0)
             }
         } catch (e: Exception) {
             status = "Datei konnte nicht gelesen werden: ${e.message}"

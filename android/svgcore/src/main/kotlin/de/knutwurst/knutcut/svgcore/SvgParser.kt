@@ -15,27 +15,41 @@ import javax.xml.parsers.DocumentBuilderFactory
 object SvgParser {
     private const val MM_PER_INCH = 25.4
     private const val DEFAULT_DPI = 96.0
+    private const val MAX_SVG_CHARS = 20_000_000
 
     private data class ViewBox(val minX: Double, val minY: Double, val w: Double, val h: Double)
+
+    /** Parsed shapes plus a count of elements that were skipped because they couldn't be read. */
+    data class Result(val shapes: List<SvgShape>, val skipped: Int)
 
     /** Flat list of all polylines in the document (every shape merged). */
     fun parse(svg: String, toleranceMm: Double = PathFlattener.DEFAULT_TOLERANCE_MM): List<Polyline> =
         parseShapes(svg, toleranceMm).flatMap { it.polylines }
 
     /** One [SvgShape] per drawable element (path/rect/…), in document order. */
-    fun parseShapes(svg: String, toleranceMm: Double = PathFlattener.DEFAULT_TOLERANCE_MM): List<SvgShape> {
-        val root = buildDoc(svg).documentElement ?: return emptyList()
+    fun parseShapes(svg: String, toleranceMm: Double = PathFlattener.DEFAULT_TOLERANCE_MM): List<SvgShape> =
+        parseShapesResult(svg, toleranceMm).shapes
+
+    /** Like [parseShapes] but also reports how many malformed elements were skipped. */
+    fun parseShapesResult(svg: String, toleranceMm: Double = PathFlattener.DEFAULT_TOLERANCE_MM): Result {
+        val root = buildDoc(svg).documentElement ?: return Result(emptyList(), 0)
         val shapes = ArrayList<SvgShape>()
-        walk(root, rootUnitMatrix(root), shapes, toleranceMm, intArrayOf(0))
-        return shapes
+        val skipped = intArrayOf(0)
+        walk(root, rootUnitMatrix(root), shapes, toleranceMm, intArrayOf(0), skipped)
+        return Result(shapes, skipped[0])
     }
 
     private fun buildDoc(svg: String): Document {
+        require(svg.length <= MAX_SVG_CHARS) { "SVG too large" }
         val dbf = DocumentBuilderFactory.newInstance()
         dbf.isNamespaceAware = true
+        // XML hardening: no DOCTYPE/DTD, no external or expanded entities, no XInclude.
+        runCatching { dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
         runCatching { dbf.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false) }
         runCatching { dbf.setFeature("http://xml.org/sax/features/external-general-entities", false) }
         runCatching { dbf.setFeature("http://xml.org/sax/features/external-parameter-entities", false) }
+        runCatching { dbf.isXIncludeAware = false }
+        runCatching { dbf.isExpandEntityReferences = false }
         val db = dbf.newDocumentBuilder()
         db.setEntityResolver { _, _ -> InputSource(StringReader("")) }
         return db.parse(InputSource(StringReader(svg)))
@@ -55,11 +69,14 @@ object SvgParser {
         return Matrix.scale(s, s)
     }
 
-    private fun walk(el: Element, parent: Matrix, shapes: MutableList<SvgShape>, tol: Double, count: IntArray) {
-        val m = parent * Matrix.parse(el.getAttribute("transform"))
-        val subs = shapeToSubPaths(el)
+    private fun walk(el: Element, parent: Matrix, shapes: MutableList<SvgShape>, tol: Double, count: IntArray, skipped: IntArray) {
+        // A malformed transform/geometry on one element must not abort the whole import — skip it and
+        // count it. A bad transform falls back to the parent matrix so the element can still be drawn.
+        val m = runCatching { parent * Matrix.parse(el.getAttribute("transform")) }.getOrElse { skipped[0]++; parent }
+        val subs = runCatching { shapeToSubPaths(el) }.getOrElse { skipped[0]++; null }
         if (subs != null) {
-            val polys = subs.map { flatten(it, m, tol) }.filter { it.points.size >= 2 }
+            val polys = runCatching { subs.map { flatten(it, m, tol) }.filter { it.points.size >= 2 } }
+                .getOrElse { skipped[0]++; emptyList() }
             if (polys.isNotEmpty()) {
                 count[0]++
                 val id = el.getAttribute("id")
@@ -69,7 +86,7 @@ object SvgParser {
         }
         var child = el.firstChild
         while (child != null) {
-            if (child.nodeType == Node.ELEMENT_NODE) walk(child as Element, m, shapes, tol, count)
+            if (child.nodeType == Node.ELEMENT_NODE) walk(child as Element, m, shapes, tol, count, skipped)
             child = child.nextSibling
         }
     }
@@ -104,7 +121,7 @@ object SvgParser {
     }
 
     private fun pointsSubPath(points: String, closed: Boolean): List<SubPath> {
-        val nums = points.trim().split(Regex("[\\s,]+")).filter { it.isNotEmpty() }.map { it.toDouble() }
+        val nums = points.trim().split(Regex("[\\s,]+")).filter { it.isNotEmpty() }.mapNotNull { it.toDoubleOrNull() }
         if (nums.size < 4) return emptyList()
         val start = Pt(nums[0], nums[1])
         val segs = ArrayList<Seg>()

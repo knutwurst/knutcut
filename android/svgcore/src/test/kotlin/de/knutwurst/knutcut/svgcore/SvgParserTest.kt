@@ -77,4 +77,17 @@ class SvgParserTest {
         assertEquals(10.0, polys[0].points.last().xMm, 1e-6)
         assertEquals(0.0, polys[0].points.last().yMm, 1e-6)
     }
+
+    @Test
+    fun skipsMalformedElementsAndReportsCount() {
+        // A good rect, plus a path with a malformed transform (too few matrix args). The bad transform
+        // is counted as skipped; both elements still survive (the transform falls back to the parent).
+        val svg = """<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="40mm" viewBox="0 0 40 40">
+            <rect x="0" y="0" width="40" height="40"/>
+            <path d="M0,0 L10,0 L10,10" transform="matrix(1,2,3)"/>
+            </svg>"""
+        val result = SvgParser.parseShapesResult(svg)
+        assertEquals(2, result.shapes.size)
+        assertEquals(1, result.skipped)
+    }
 }
