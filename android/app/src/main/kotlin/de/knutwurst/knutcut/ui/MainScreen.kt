@@ -31,7 +31,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.FormatAlignLeft
+import androidx.compose.material.icons.automirrored.filled.FormatAlignRight
+import androidx.compose.material.icons.automirrored.filled.NoteAdd
 import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AspectRatio
@@ -40,11 +44,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.FormatAlignCenter
-import androidx.compose.material.icons.filled.FormatAlignLeft
-import androidx.compose.material.icons.filled.FormatAlignRight
-import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VerticalAlignBottom
 import androidx.compose.material.icons.filled.VerticalAlignCenter
@@ -153,7 +153,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                 }
                 if (vm.hasDesign) {
                     IconButton(onClick = { showNewConfirm = true }, enabled = !vm.cutting) {
-                        Icon(Icons.Default.NoteAdd, contentDescription = "Neu")
+                        Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = "Neu")
                     }
                 }
                 IconButton(onClick = { vm.undo() }, enabled = vm.canUndo && !vm.cutting) {
@@ -370,7 +370,7 @@ private fun EditingBar(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         IconAction("Größe & Winkel", Icons.Default.AspectRatio, enabled = perLayer, onClick = onSize)
-        IconAction("Drehen 90°", Icons.Default.RotateRight, enabled = perLayer) { vm.rotate90() }
+        IconAction("Drehen 90°", Icons.AutoMirrored.Filled.RotateRight, enabled = perLayer) { vm.rotate90() }
         IconAction("Horizontal spiegeln", Icons.Default.Flip, enabled = perLayer) { vm.mirrorSelectedHorizontal() }
         IconAction("Vertikal spiegeln", Icons.Default.Flip, rotate = 90f, enabled = perLayer) { vm.mirrorSelectedVertical() }
         IconAction("Duplizieren", Icons.Default.ContentCopy, enabled = perLayer) { vm.duplicateSelected() }
@@ -403,9 +403,9 @@ private fun AlignmentControls(vm: KnutcutViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Horizontal", style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(72.dp))
-            OutlinedIconButton(onClick = { vm.alignHorizontal(-1) }) { Icon(Icons.Default.FormatAlignLeft, "Links") }
+            OutlinedIconButton(onClick = { vm.alignHorizontal(-1) }) { Icon(Icons.AutoMirrored.Filled.FormatAlignLeft, "Links") }
             OutlinedIconButton(onClick = { vm.alignHorizontal(0) }) { Icon(Icons.Default.FormatAlignCenter, "Mitte") }
-            OutlinedIconButton(onClick = { vm.alignHorizontal(1) }) { Icon(Icons.Default.FormatAlignRight, "Rechts") }
+            OutlinedIconButton(onClick = { vm.alignHorizontal(1) }) { Icon(Icons.AutoMirrored.Filled.FormatAlignRight, "Rechts") }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Vertikal", style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(72.dp))
