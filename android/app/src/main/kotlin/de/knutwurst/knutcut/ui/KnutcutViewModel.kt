@@ -68,9 +68,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var selectedLayer by mutableStateOf(0); private set
 
     // Undo/redo of the layer arrangement (placement, selection and the default tool), captured before
-    // each edit. De-duped by the layers reference so nested calls don't pile up.
+    // each edit. De-duped by structural equality (robust to lists being re-created with the same
+    // content) so nested calls and no-op edits don't add steps.
     private data class EditState(val layers: List<Layer>, val selectedLayer: Int, val tool: Tool)
-    private val history = History<EditState>(MAX_HISTORY) { a, b -> a.layers === b.layers }
+    private val history = History<EditState>(MAX_HISTORY) { a, b -> a == b }
     var canUndo by mutableStateOf(false); private set
     var canRedo by mutableStateOf(false); private set
 
@@ -658,9 +659,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Reset only the selected layer's size, aspect ratio, rotation, mirroring and position to home. */
     fun resetSelectedPlacement() {
-        pushHistory()
         val i = selectedLayer
         val layer = layers.getOrNull(i) ?: return
+        pushHistory()
         val b = layerBounds(layer)
         layers = layers.mapIndexed { idx, l ->
             if (idx == i) l.copy(
