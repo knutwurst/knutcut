@@ -3,7 +3,9 @@ package de.knutwurst.knutcut.ui
 import android.Manifest
 import android.app.Application
 import android.bluetooth.BluetoothDevice
+import android.content.ContentResolver
 import android.content.Context
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
@@ -191,6 +193,48 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         tool = Tool.entries.firstOrNull { it.sp == settings.toolSp } ?: Tool.KNIFE
         if (settings.force > 0) force = settings.force
         penForce = settings.penForce
+    }
+
+    private sealed interface ImportText {
+        data class Ok(val content: String) : ImportText
+        object TooBig : ImportText
+        object Failed : ImportText
+    }
+
+    /**
+     * Import shared/opened files: read each off the UI thread with a size cap, then load it. A file
+     * that's too big or unreadable is skipped with its own status message instead of blocking the UI.
+     */
+    fun importUris(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            val resolver = getApplication<Application>().contentResolver
+            for (uri in uris) {
+                when (val r = withContext(Dispatchers.IO) { readTextLimited(resolver, uri) }) {
+                    is ImportText.Ok -> loadDesign(r.content)
+                    ImportText.TooBig -> status = "Datei zu groß (max. $MAX_IMPORT_MB MB) – übersprungen."
+                    ImportText.Failed -> status = "Datei konnte nicht gelesen werden – übersprungen."
+                }
+            }
+        }
+    }
+
+    private fun readTextLimited(resolver: ContentResolver, uri: Uri): ImportText = try {
+        resolver.openInputStream(uri)?.use { input ->
+            val out = java.io.ByteArrayOutputStream()
+            val buf = ByteArray(64 * 1024)
+            var total = 0L
+            while (true) {
+                val n = input.read(buf)
+                if (n < 0) break
+                total += n
+                if (total > MAX_IMPORT_MB * 1024L * 1024L) return ImportText.TooBig
+                out.write(buf, 0, n)
+            }
+            ImportText.Ok(out.toString("UTF-8"))
+        } ?: ImportText.Failed
+    } catch (e: Exception) {
+        ImportText.Failed
     }
 
     /**
@@ -1012,5 +1056,5 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() { link?.close() }
 
-    private companion object { const val TAG = "Knutcut"; const val MAX_HISTORY = 40 }
+    private companion object { const val TAG = "Knutcut"; const val MAX_HISTORY = 40; const val MAX_IMPORT_MB = 16 }
 }

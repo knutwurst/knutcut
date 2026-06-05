@@ -24,27 +24,21 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
     }
 
-    private fun handleIntent(intent: Intent?) {
-        // Each shared/opened file is loaded in turn; loadDesign appends after the first.
-        readShared(intent).forEach { vm.loadDesign(it) }
-    }
-
     @Suppress("DEPRECATION")
-    private fun readShared(intent: Intent?): List<String> {
-        intent ?: return emptyList()
-        val out = ArrayList<String>()
+    private fun handleIntent(intent: Intent?) {
+        intent ?: return
+        val uris = ArrayList<Uri>()
         when (intent.action) {
             Intent.ACTION_SEND -> {
-                (intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri)?.let { readUri(it)?.let(out::add) }
-                if (out.isEmpty()) intent.getStringExtra(Intent.EXTRA_TEXT)?.let(out::add)
+                (intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri)?.let(uris::add)
+                // A plain shared SVG string (no stream) is already in memory — load it directly.
+                if (uris.isEmpty()) { intent.getStringExtra(Intent.EXTRA_TEXT)?.let { vm.loadDesign(it) }; return }
             }
             Intent.ACTION_SEND_MULTIPLE ->
-                intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)?.forEach { readUri(it)?.let(out::add) }
-            Intent.ACTION_VIEW -> intent.data?.let { readUri(it)?.let(out::add) }
+                intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)?.let(uris::addAll)
+            Intent.ACTION_VIEW -> intent.data?.let(uris::add)
         }
-        return out
+        // Reads happen off the UI thread inside importUris (with a size cap).
+        vm.importUris(uris)
     }
-
-    private fun readUri(uri: Uri): String? =
-        runCatching { contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull()
 }
