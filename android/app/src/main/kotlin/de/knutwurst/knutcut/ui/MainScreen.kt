@@ -244,7 +244,7 @@ private fun TextDialog(vm: KnutcutViewModel, fonts: FontRepository, onDismiss: (
         title = { Text("Text hinzufügen") },
         text = {
             Column {
-                OutlinedTextField(text, { text = it }, label = { Text("Text") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(text, { if (it.length <= MAX_TEXT_CHARS) text = it }, label = { Text("Text") }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 Box {
                     OutlinedButton(onClick = { fontMenu = true }, modifier = Modifier.fillMaxWidth()) {
@@ -278,10 +278,11 @@ private fun TextDialog(vm: KnutcutViewModel, fonts: FontRepository, onDismiss: (
                 enabled = text.isNotBlank() && chosen != null,
                 onClick = {
                     val opt = chosen ?: return@TextButton
-                    val polys = opt.render(text, height.toDouble())
-                    if (polys.isNotEmpty()) {
+                    val result = opt.render(text, height.toDouble())
+                    if (result.polylines.isNotEmpty()) {
                         val name = "Text: " + text.replace("\n", " ").trim().take(16)
-                        vm.addLayer(name, polys, if (opt.stroke) Tool.PEN else vm.tool)
+                        vm.addLayer(name, result.polylines, if (opt.stroke) Tool.PEN else vm.tool)
+                        if (result.simplified) vm.status = "Text hinzugefügt – sehr lang/komplex und daher vereinfacht."
                     }
                     onDismiss()
                 },

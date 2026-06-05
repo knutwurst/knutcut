@@ -11,13 +11,24 @@ import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Pt
 import kotlin.math.max
 
+const val MAX_TEXT_CHARS = 400
+private const val MAX_POINTS = 8000   // total sampled points budget for outline text
+private const val REF_SIZE = 256f
+
+/** Result of vectorising text: the polylines plus whether it had to be simplified/truncated. */
+data class TextResult(val polylines: List<Polyline>, val simplified: Boolean)
+
 /** A selectable font for the text tool. [stroke] = single-line (pen) versus an outline (cut or draw). */
 class FontOption(
     val label: String,
     val stroke: Boolean,
-    private val renderer: (text: String, heightMm: Double) -> List<Polyline>,
+    private val renderer: (text: String, heightMm: Double) -> TextResult,
 ) {
-    fun render(text: String, heightMm: Double): List<Polyline> = renderer(text, heightMm)
+    fun render(text: String, heightMm: Double): TextResult {
+        val truncated = text.length > MAX_TEXT_CHARS
+        val r = renderer(text.take(MAX_TEXT_CHARS), heightMm)
+        return if (truncated) r.copy(simplified = true) else r
+    }
 }
 
 /** The available fonts: system outline fonts, bundled outline fonts, and Hershey single-stroke fonts. */
@@ -45,14 +56,12 @@ class FontRepository(context: Context) {
 
     private fun MutableList<FontOption>.bundledStroke(label: String, asset: String) {
         runCatching { HersheyFont.parse(assets.open(asset).bufferedReader().use { it.readText() }) }
-            .getOrNull()?.let { font -> add(FontOption(label, stroke = true) { t, h -> font.render(t, h) }) }
+            .getOrNull()?.let { font -> add(FontOption(label, stroke = true) { t, h -> TextResult(font.render(t, h), simplified = false) }) }
     }
 }
 
-private const val REF_SIZE = 256f
-
 /** Text as filled-glyph outline polylines (closed contours), scaled so a capital is about [heightMm] tall. */
-private fun outlineText(typeface: Typeface, text: String, heightMm: Double): List<Polyline> {
+private fun outlineText(typeface: Typeface, text: String, heightMm: Double): TextResult {
     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         this.typeface = typeface
         textSize = REF_SIZE
@@ -67,9 +76,19 @@ private fun outlineText(typeface: Typeface, text: String, heightMm: Double): Lis
         paint.getTextPath(line, 0, line.length, 0f, i * spacing, p)
         full.addPath(p)
     }
+
+    // Pick a sampling step that keeps the total point count within MAX_POINTS, so a long string or a
+    // very ornate font can't blow up into hundreds of thousands of points. Coarser than the ideal step
+    // means we simplified.
+    val fineStep = max(1f, REF_SIZE / 120f)
+    var totalLen = 0f
+    val lengths = PathMeasure(full, false)
+    do { totalLen += lengths.length } while (lengths.nextContour())
+    val step = max(fineStep, totalLen / MAX_POINTS)
+    val simplified = step > fineStep * 1.001f
+
     val out = ArrayList<Polyline>()
     val pm = PathMeasure(full, false)
-    val step = max(1f, REF_SIZE / 120f)
     do {
         val len = pm.length
         if (len <= 0f) continue
@@ -85,5 +104,5 @@ private fun outlineText(typeface: Typeface, text: String, heightMm: Double): Lis
         pts.add(Pt(pos[0] * scale, pos[1] * scale))
         if (pts.size >= 2) out.add(Polyline(pts, closed = true))
     } while (pm.nextContour())
-    return out
+    return TextResult(out, simplified)
 }
