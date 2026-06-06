@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -86,6 +88,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -514,6 +517,10 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                     modifier = Modifier.weight(1f),
                 ) { Text(if (marked >= 2) "$marked zusammenführen" else "Alle zusammenführen", maxLines = 1) }
             }
+            Spacer(Modifier.height(4.dp))
+            OutlinedButton(onClick = { vm.mergeByColor() }, modifier = Modifier.fillMaxWidth()) {
+                Text("Nach Farben gruppieren", maxLines = 1)
+            }
             Spacer(Modifier.height(10.dp))
             Text("Material sparen", style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.height(4.dp))
@@ -535,6 +542,8 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             }
             vm.layers.forEachIndexed { i, layer ->
                 val selected = vm.selectedLayer == i
+                // Representative colour: per-layer colorArgb, or the first non-null polyline colour.
+                val layerColor = layer.colorArgb ?: layer.colorList().firstOrNull { it != null }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (vm.layers.size > 1) {
                         Checkbox(checked = i in vm.markedLayers, onCheckedChange = { vm.toggleMarked(i) })
@@ -544,6 +553,16 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                             if (layer.visible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                             contentDescription = "Sichtbar",
                         )
+                    }
+                    if (layerColor != null) {
+                        Box(
+                            Modifier
+                                .size(14.dp)
+                                .clip(CircleShape)
+                                .background(Color(layerColor))
+                                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                        )
+                        Spacer(Modifier.width(6.dp))
                     }
                     Text(
                         layer.name,

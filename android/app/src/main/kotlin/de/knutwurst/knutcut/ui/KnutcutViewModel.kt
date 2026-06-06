@@ -652,6 +652,34 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         pruneBoundsCache()
     }
 
+    /**
+     * Split all layers to individual polylines, then re-merge them grouped by colour.
+     * Each unique colour becomes one layer; polylines without a colour form a separate layer.
+     * Layer names use the hex colour value for easy identification.
+     */
+    fun mergeByColor() {
+        if (layers.isEmpty()) return
+        pushHistory()
+        val firstTool = layers.first().tool
+        // Flatten to (polyline, colour) pairs, baking transforms so positions are preserved.
+        val flat = layers.flatMap { layer ->
+            val b = bake(layer)
+            val cols = b.colorList()
+            b.polylines.mapIndexed { i, pl -> pl to cols.getOrNull(i) }
+        }
+        // Group by colour key in document order.
+        val byColor = LinkedHashMap<Int?, MutableList<Polyline>>()
+        flat.forEach { (pl, c) -> byColor.getOrPut(c) { mutableListOf() }.add(pl) }
+        layers = byColor.map { (c, polys) ->
+            val name = if (c != null) "#%06X".format(c and 0xFFFFFF) else "Ohne Farbe"
+            Layer(name, polys, firstTool, visible = true,
+                centerMm = centerOf(polys.flatMap { it.points }), colorArgb = c)
+        }
+        selectedLayer = 0
+        markedLayers = emptySet()
+        pruneBoundsCache()
+    }
+
     // --- Multi-select (in the layers list) ---
     fun toggleMarked(i: Int) { markedLayers = if (i in markedLayers) markedLayers - i else markedLayers + i }
     fun clearMarks() { markedLayers = emptySet() }
