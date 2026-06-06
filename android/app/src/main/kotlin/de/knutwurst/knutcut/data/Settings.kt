@@ -37,7 +37,7 @@ class Settings(context: Context) {
         set(v) = p.edit().putString("theme", v.name).apply()
 
     var colorMode: ColorMode
-        get() = runCatching { ColorMode.valueOf(p.getString("colorMode", ColorMode.OUTLINE.name)!!) }.getOrDefault(ColorMode.OUTLINE)
+        get() = runCatching { ColorMode.valueOf(p.getString("colorMode", ColorMode.COLOR.name)!!) }.getOrDefault(ColorMode.COLOR)
         set(v) = p.edit().putString("colorMode", v.name).apply()
 
     var deviceAddress: String?
