@@ -699,6 +699,17 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                 DisplayUnit.entries.forEach { u -> FilterChip(selected = vm.displayUnit == u, onClick = { vm.changeDisplayUnit(u) }, label = { Text(u.label) }) }
             }
 
+            if (vm.model.family == de.knutwurst.knutcut.data.PlotterFamily.BLE_SILHOUETTE) {
+                Spacer(Modifier.height(18.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Silhouette-Geschwindigkeit", style = MaterialTheme.typography.bodyMedium)
+                        Text("1–${vm.silhouetteSpeedMax} (höher = schneller, weniger genau).", style = MaterialTheme.typography.bodySmall)
+                    }
+                    EditableStepper(vm.silhouetteSpeed, 1, vm.silhouetteSpeedMax, step = 1) { vm.changeSilhouetteSpeed(it) }
+                }
+            }
+
             Spacer(Modifier.height(18.dp))
             Text("Farben", style = MaterialTheme.typography.labelLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

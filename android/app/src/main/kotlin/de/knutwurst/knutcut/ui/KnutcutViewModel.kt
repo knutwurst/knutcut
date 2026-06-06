@@ -161,6 +161,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     var displayUnit by mutableStateOf(settings.displayUnit); private set
     var originOffsetMm by mutableStateOf(settings.originOffsetMm); private set
+    var silhouetteSpeed by mutableStateOf(settings.silhouetteSpeed); private set
     var snapMm by mutableStateOf(settings.snapMm); private set
     var alignGuides by mutableStateOf(settings.alignGuides); private set
     // Transient guide lines shown while a drag is snapped to another layer's (or the mat's) centre.
@@ -190,6 +191,14 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     val connectedToSilhouette: Boolean get() = connected && link?.transport == LinkTransport.BLE
 
     fun changeOriginOffset(mm: Int) { originOffsetMm = mm.coerceIn(0, 100); settings.originOffsetMm = originOffsetMm }
+
+    /** Max GPGL speed for the selected Silhouette family (Cameo4-line allows 30, others 10). */
+    val silhouetteSpeedMax: Int get() =
+        if (model.silhouetteDevice?.family == SilhouetteFamily.CAMEO4_LINE) 30 else 10
+
+    fun changeSilhouetteSpeed(v: Int) {
+        silhouetteSpeed = v.coerceIn(1, silhouetteSpeedMax); settings.silhouetteSpeed = silhouetteSpeed
+    }
 
     fun changeSnap(mm: Float) { snapMm = mm; settings.snapMm = mm }
 
@@ -1111,13 +1120,13 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         if (maxX > silDev.widthMm || maxY > silDev.lengthMm) {
             finishCut("Design größer als ${model.displayName} (${silDev.widthMm.toInt()}×${silDev.lengthMm.toInt()} mm)."); return
         }
-        // Cameo4-line devices run faster; legacy/Cameo3 cap at 10.
-        val speed = if (silDev.family == SilhouetteFamily.CAMEO4_LINE) 15 else 10
-        val settings = GpglCutSettings(speed = speed, pressure = silhouettePressure(forceFor(Tool.KNIFE)))
+        // User-chosen speed, clamped to what this family allows (GpglProtocol clamps again defensively).
+        val speed = silhouetteSpeed.coerceIn(1, silhouetteSpeedMax)
+        val cutSettings = GpglCutSettings(speed = speed, pressure = silhouettePressure(forceFor(Tool.KNIFE)))
         status = "Schneiden (Silhouette)…"
         try {
             val ok = withContext(Dispatchers.IO) {
-                GpglSession(l).cut(silDev, settings, polylines, shouldContinue = { isActive }) { p -> progress = p }
+                GpglSession(l).cut(silDev, cutSettings, polylines, shouldContinue = { isActive }) { p -> progress = p }
             }
             finishCut(if (ok) "Fertig an Silhouette gesendet." else "Silhouette hat nicht geantwortet – abgebrochen.")
         } catch (e: CancellationException) {

@@ -80,6 +80,11 @@ class Settings(context: Context) {
         get() = p.getInt("originOffsetMm", 0)
         set(v) = p.edit().putInt("originOffsetMm", v).apply()
 
+    /** Silhouette cut speed (GPGL "!" command); clamped per family at cut time. */
+    var silhouetteSpeed: Int
+        get() = p.getInt("silhouetteSpeed", 10)
+        set(v) = p.edit().putInt("silhouetteSpeed", v).apply()
+
     var displayUnit: DisplayUnit
         get() = runCatching { DisplayUnit.valueOf(p.getString("displayUnit", DisplayUnit.MM.name)!!) }.getOrDefault(DisplayUnit.MM)
         set(v) = p.edit().putString("displayUnit", v.name).apply()
