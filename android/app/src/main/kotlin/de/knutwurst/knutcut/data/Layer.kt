@@ -21,4 +21,10 @@ data class Layer(
     val flipY: Boolean = false,
     /** Original SVG colour (packed ARGB), or null when the element carried no colour information. */
     val colorArgb: Int? = null,
-)
+    /** Per-polyline colour (packed ARGB) for merged layers that hold shapes of different colours,
+     *  aligned 1:1 with [polylines]. Null means every polyline uses [colorArgb]. */
+    val polylineColors: List<Int?>? = null,
+) {
+    /** Colour of each polyline, expanding the single [colorArgb] when no per-polyline list is set. */
+    fun colorList(): List<Int?> = polylineColors ?: List(polylines.size) { colorArgb }
+}

@@ -217,23 +217,52 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         object Failed : ImportText
     }
 
+    /** A shared/opened import waiting for the user's "replace or add" choice while a design is already loaded. */
+    sealed class PendingImport {
+        data class Files(val uris: List<Uri>) : PendingImport()
+        data class Content(val text: String) : PendingImport()
+    }
+
+    // Set when an import arrives with a design already on the mat; the UI shows the replace/add dialog.
+    var pendingImport by mutableStateOf<PendingImport?>(null); private set
+
     /**
      * Import shared/opened files: read each off the UI thread with a size cap, then load it. A file
      * that's too big or unreadable is skipped with its own status message instead of blocking the UI.
+     * With a design already on the mat the choice (replace or add) is deferred to the import dialog.
      */
     fun importUris(uris: List<Uri>) {
         if (uris.isEmpty()) return
+        if (hasDesign) { pendingImport = PendingImport.Files(uris); return }
+        readAndLoad(uris, replace = false)
+    }
+
+    private fun readAndLoad(uris: List<Uri>, replace: Boolean) {
         viewModelScope.launch {
             val resolver = getApplication<Application>().contentResolver
+            var replaceNext = replace
             for (uri in uris) {
                 when (val r = withContext(Dispatchers.IO) { readTextLimited(resolver, uri) }) {
-                    is ImportText.Ok -> loadDesign(r.content)
+                    is ImportText.Ok -> if (loadDesignContent(r.content, replaceNext)) replaceNext = false
                     ImportText.TooBig -> status = "Datei zu groß (max. $MAX_IMPORT_MB MB) – übersprungen."
                     ImportText.Failed -> status = "Datei konnte nicht gelesen werden – übersprungen."
                 }
             }
         }
     }
+
+    /** Resolve the pending import once the user picked replace or add. */
+    fun resolveImport(replace: Boolean) {
+        val p = pendingImport ?: return
+        pendingImport = null
+        when (p) {
+            is PendingImport.Files -> readAndLoad(p.uris, replace)
+            is PendingImport.Content -> loadDesignContent(p.text, replace)
+        }
+    }
+
+    /** Dismiss the import dialog without loading anything. */
+    fun cancelImport() { pendingImport = null }
 
     private fun readTextLimited(resolver: ContentResolver, uri: Uri): ImportText = try {
         resolver.openInputStream(uri)?.use { input ->
@@ -254,14 +283,20 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Load a shared/opened SVG or PLT file. The first file becomes the design; further files are
-     * appended next to what's already on the mat, so several designs can share one sheet.
+     * Load a shared/opened SVG or PLT file. With nothing on the mat it becomes the design; with a
+     * design already loaded the choice (replace or add) is deferred to the import dialog.
      */
     fun loadDesign(text: String) {
+        if (hasDesign) { pendingImport = PendingImport.Content(text); return }
+        loadDesignContent(text, replace = false)
+    }
+
+    /** Parse and place a single file. Returns true when something was loaded. */
+    private fun loadDesignContent(text: String, replace: Boolean): Boolean {
         val parsed = parseDesign(text)
-        if (parsed == null || parsed.layers.isEmpty()) { status = "Keine schneidbaren Pfade in der Datei gefunden."; return }
+        if (parsed == null || parsed.layers.isEmpty()) { status = "Keine schneidbaren Pfade in der Datei gefunden."; return false }
         pushHistory()
-        if (layers.isEmpty()) {
+        if (replace || layers.isEmpty()) {
             layers = placeAtHome(parsed.layers)
             selectedLayer = 0
             camScale = 1f
@@ -276,6 +311,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val n = parsed.layers.size
         val skip = if (parsed.skipped > 0) " · ${parsed.skipped} unlesbare Teile übersprungen" else ""
         status = "Design geladen ($n Ebene${if (n == 1) "" else "n"})$skip."
+        return true
     }
 
     private class ParsedDesign(val layers: List<Layer>, val skipped: Int)
@@ -591,8 +627,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         pushHistory()
         var n = 0
         layers = layers.flatMap { layer ->
-            bake(layer).polylines.map { pl ->
-                Layer("Form ${++n}", listOf(pl), layer.tool, layer.visible, centerMm = centerOf(pl.points))
+            val b = bake(layer)
+            val cols = b.colorList()
+            b.polylines.mapIndexed { i, pl ->
+                Layer("Form ${++n}", listOf(pl), layer.tool, layer.visible, centerMm = centerOf(pl.points), colorArgb = cols.getOrNull(i))
             }
         }
         selectedLayer = 0
@@ -600,12 +638,15 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         pruneBoundsCache()
     }
 
-    /** Merge all layers into one, keeping the current arrangement. */
+    /** Merge all layers into one, keeping the current arrangement and each shape's colour. */
     fun mergeLayers() {
         if (layers.isEmpty()) return
         pushHistory()
-        val polys = layers.flatMap { bake(it).polylines }
-        layers = listOf(Layer("Alle Formen", polys, layers.first().tool, visible = true, centerMm = centerOf(polys.flatMap { it.points })))
+        val baked = layers.map { bake(it) }
+        val polys = baked.flatMap { it.polylines }
+        val cols = baked.flatMap { it.colorList() }
+        layers = listOf(Layer("Alle Formen", polys, layers.first().tool, visible = true,
+            centerMm = centerOf(polys.flatMap { it.points }), colorArgb = layers.first().colorArgb, polylineColors = cols))
         selectedLayer = 0
         markedLayers = emptySet()
         pruneBoundsCache()
@@ -621,8 +662,12 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         if (marks.size < 2) return
         pushHistory()
         val firstTool = layers[marks.first()].tool
-        val polys = marks.flatMap { bake(layers[it]).polylines }
-        val merged = Layer("Zusammengeführt", polys, firstTool, visible = true, centerMm = centerOf(polys.flatMap { it.points }))
+        val firstColor = layers[marks.first()].colorArgb
+        val bakedMarks = marks.map { bake(layers[it]) }
+        val polys = bakedMarks.flatMap { it.polylines }
+        val cols = bakedMarks.flatMap { it.colorList() }
+        val merged = Layer("Zusammengeführt", polys, firstTool, visible = true,
+            centerMm = centerOf(polys.flatMap { it.points }), colorArgb = firstColor, polylineColors = cols)
         val out = ArrayList<Layer>()
         var inserted = false
         layers.forEachIndexed { idx, l ->
@@ -876,14 +921,14 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             layer.tool to layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
         }
 
-    /** One entry from [placedLayers]: the layer's tool, original SVG colour, and placed polylines. */
-    data class PlacedLayer(val tool: Tool, val colorArgb: Int?, val polylines: List<Polyline>)
+    /** One entry from [placedLayers]: the tool, the placed polylines, and each polyline's SVG colour. */
+    data class PlacedLayer(val tool: Tool, val polylines: List<Polyline>, val colors: List<Int?>)
 
     /** Visible layers placed on the mat (mm, y-down) — for drawing in the editor. */
     fun placedLayers(): List<PlacedLayer> =
         layers.filter { it.visible }.map { layer ->
             val m = layerMatrix(layer)
-            PlacedLayer(layer.tool, layer.colorArgb, layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) })
+            PlacedLayer(layer.tool, layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }, layer.colorList())
         }
 
     /** The layers a cut will send: just the selected one when [cutSelectedOnly], else all visible. */

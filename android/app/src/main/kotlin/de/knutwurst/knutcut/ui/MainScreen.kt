@@ -220,6 +220,20 @@ fun MainScreen(vm: KnutcutViewModel) {
             dismissButton = { TextButton(onClick = { showNewConfirm = false }) { Text("Abbrechen") } },
         )
     }
+    if (vm.pendingImport != null) {
+        AlertDialog(
+            onDismissRequest = { vm.cancelImport() },
+            title = { Text("Design laden") },
+            text = { Text("Es ist schon ein Design auf der Arbeitsfläche. Soll es ersetzt oder das neue Design hinzugefügt werden?") },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { vm.resolveImport(replace = true) }) { Text("Ersetzen") }
+                    TextButton(onClick = { vm.resolveImport(replace = false) }) { Text("Hinzufügen") }
+                }
+            },
+            dismissButton = { TextButton(onClick = { vm.cancelImport() }) { Text("Abbrechen") } },
+        )
+    }
     if (showDevices) {
         DeviceDialog(vm, hasBtPerm, onRequestPerm = { permLauncher.launch(bluetoothPermissions()) }, onDismiss = { showDevices = false })
     }

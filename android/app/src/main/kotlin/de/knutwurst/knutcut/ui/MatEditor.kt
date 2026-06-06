@@ -21,8 +21,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import de.knutwurst.knutcut.data.ColorMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
@@ -66,17 +68,12 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     var sizePx by remember { mutableStateOf(IntSize.Zero) }
 
     // Derive the grid/ruler tones from the theme so they stay visible on both light and dark.
-    // In COLOR mode the mat becomes an opaque white sheet so the original SVG colours read correctly
-    // regardless of the app theme (a black design would otherwise vanish on a dark mat); the grid and
-    // border ink is taken from that white background instead of the theme.
     val colorMode = vm.colorMode == ColorMode.COLOR
     val onSurface = MaterialTheme.colorScheme.onSurface
-    val matInk = if (colorMode) Color.Black else onSurface
-    val gridMinor = matInk.copy(alpha = 0.16f)
-    val gridMajor = matInk.copy(alpha = 0.38f)
-    val matColor = matInk.copy(alpha = 0.55f)
-    val matFill = if (colorMode) Color.White else onSurface.copy(alpha = 0.05f)
-    // Rulers sit in the margin outside the mat, so they keep following the theme.
+    val gridMinor = onSurface.copy(alpha = 0.16f)
+    val gridMajor = onSurface.copy(alpha = 0.38f)
+    val matColor = onSurface.copy(alpha = 0.55f)
+    val matFill = onSurface.copy(alpha = 0.05f)
     val rulerColor = onSurface.copy(alpha = 0.7f).toArgb()
     val knifeColor = MaterialTheme.colorScheme.primary
     val penColor = MaterialTheme.colorScheme.secondary
@@ -215,8 +212,6 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
         val origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
         fun s(p: Pt) = worldToScreen(p, origin, ppm)
 
-        // Fill the mat first, then the grid on top, then the border. In COLOR mode the fill is an
-        // opaque white sheet, so the grid has to be drawn over it to stay visible.
         val tl = s(Pt(0.0, 0.0)); val br = s(Pt(vm.mat.widthMm, vm.mat.heightMm))
         drawRect(matFill, topLeft = tl, size = Size(br.x - tl.x, br.y - tl.y))
         drawGrid(vm.mat, origin, ppm, gridMinor, gridMajor)
@@ -224,21 +219,41 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
 
         drawRulers(vm.mat, origin, ppm, rulerColor)
 
-        // design — knife layers in the primary colour, pen layers in the secondary; anything that
-        // runs off the mat is drawn in the error colour as a warning.
-        // In COLOR mode each layer uses its own SVG fill colour (falling back to the tool colour).
-        for ((tool, colorArgb, pls) in vm.placedLayers()) {
+        // design — in OUTLINE mode knife layers use the primary colour, pen layers the secondary.
+        // In COLOR mode each path is filled with its SVG colour and outlined in the theme's onSurface
+        // colour (white in dark mode, near-black in light mode), so it stays readable on any background.
+        // Same-colour paths are grouped into a single even-odd path so holes within a shape are kept.
+        // Anything off the mat is always drawn in the error colour regardless of mode.
+        for ((tool, pls, cols) in vm.placedLayers()) {
             val toolColor = if (tool == Tool.PEN) penColor else knifeColor
-            val baseColor = if (vm.colorMode == ColorMode.COLOR && colorArgb != null)
-                Color(colorArgb) else toolColor
-            for (pl in pls) {
-                if (pl.points.isEmpty()) continue
-                val col = if (pl.points.any { vm.isOutsideMat(it) }) offMatColor else baseColor
-                val path = Path()
-                val f = s(pl.points.first()); path.moveTo(f.x, f.y)
-                for (k in 1 until pl.points.size) { val q = s(pl.points[k]); path.lineTo(q.x, q.y) }
-                if (pl.closed) path.close()
-                drawPath(path, col, style = Stroke(width = 2.5f))
+            val paths = pls.map { pl ->
+                Path().apply {
+                    if (pl.points.isEmpty()) return@apply
+                    val f = s(pl.points.first()); moveTo(f.x, f.y)
+                    for (k in 1 until pl.points.size) { val q = s(pl.points[k]); lineTo(q.x, q.y) }
+                    if (pl.closed) close()
+                }
+            }
+            if (colorMode) {
+                // Fill in document order, grouping only CONTIGUOUS same-colour runs into one EvenOdd
+                // path. A run is one original shape, so EvenOdd carves its real holes; separate shapes
+                // stay separate fills layered front-to-back (painter's order). Grouping across the
+                // whole layer instead would let a nested same-colour shape cancel another via EvenOdd.
+                var i = 0
+                while (i < pls.size) {
+                    val c = cols.getOrNull(i)
+                    val group = Path().apply { fillType = PathFillType.EvenOdd }
+                    while (i < pls.size && cols.getOrNull(i) == c) { group.addPath(paths[i]); i++ }
+                    if (c != null) drawPath(group, Color(c), style = Fill)
+                }
+            }
+            // Outlines on top — theme onSurface in COLOR mode guarantees contrast on both dark and
+            // light backgrounds; tool colour in OUTLINE mode.
+            val outlineColor = if (colorMode) onSurface else toolColor
+            pls.forEachIndexed { idx, pl ->
+                if (pl.points.isEmpty()) return@forEachIndexed
+                val stroke = if (pl.points.any { vm.isOutsideMat(it) }) offMatColor else outlineColor
+                drawPath(paths[idx], stroke, style = Stroke(width = 2.5f))
             }
         }
 
