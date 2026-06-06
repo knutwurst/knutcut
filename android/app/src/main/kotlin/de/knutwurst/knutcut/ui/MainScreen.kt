@@ -860,7 +860,7 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
     }
     // Compatible plotters (BT name contains "VEVOR"/"Smart"), like the stock app — these are the default.
     val bonded = allBonded.filter { Devices.isCompatible(it.name) }
-    val others = allBonded.filterNot { Devices.isCompatible(it.name) && !Devices.isCompatibleLe(it.name) }
+    val others = allBonded.filterNot { Devices.isCompatible(it.name) || Devices.isCompatibleLe(it.name) }
     val devices = (bonded + found.values).distinctBy { it.address }
 
     // Classic discovery while [scanning]; auto-stops after 30s. Stops + unregisters on dispose.

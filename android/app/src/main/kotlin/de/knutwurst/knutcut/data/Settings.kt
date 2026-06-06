@@ -44,6 +44,11 @@ class Settings(context: Context) {
         get() = devicePrefs.getString("deviceAddress", null)
         set(v) = devicePrefs.edit().putString("deviceAddress", v).apply()
 
+    /** Transport of the last connected device ("SPP"/"BLE"), so auto-reconnect picks the right path. */
+    var deviceTransport: String?
+        get() = devicePrefs.getString("deviceTransport", null)
+        set(v) = devicePrefs.edit().putString("deviceTransport", v).apply()
+
     /** The plotter model the user selected (decides the load/start gates and the name shown). */
     var modelId: Int
         get() = p.getInt("modelId", 1)

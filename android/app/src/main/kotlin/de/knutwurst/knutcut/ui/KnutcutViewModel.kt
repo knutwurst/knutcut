@@ -35,7 +35,9 @@ import de.knutwurst.knutcut.svgcore.Handshake
 import de.knutwurst.knutcut.svgcore.History
 import de.knutwurst.knutcut.data.PlotterFamily
 import de.knutwurst.knutcut.svgcore.GpglCutSettings
+import de.knutwurst.knutcut.svgcore.GpglProtocol
 import de.knutwurst.knutcut.svgcore.GpglSession
+import de.knutwurst.knutcut.svgcore.SilhouetteFamily
 import de.knutwurst.knutcut.svgcore.HpglEncoder
 import de.knutwurst.knutcut.svgcore.LinkTransport
 import de.knutwurst.knutcut.svgcore.ManagedLink
@@ -62,6 +64,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -667,13 +670,15 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             val cols = b.colorList()
             b.polylines.mapIndexed { i, pl -> pl to cols.getOrNull(i) }
         }
-        // Group by colour key in document order.
+        // Group by RGB (ignoring alpha) in document order, so the same colour at different opacities
+        // lands in one layer rather than splitting into look-alike groups.
         val byColor = LinkedHashMap<Int?, MutableList<Polyline>>()
-        flat.forEach { (pl, c) -> byColor.getOrPut(c) { mutableListOf() }.add(pl) }
-        layers = byColor.map { (c, polys) ->
-            val name = if (c != null) "#%06X".format(c and 0xFFFFFF) else "Ohne Farbe"
+        flat.forEach { (pl, c) -> byColor.getOrPut(c?.and(0xFFFFFF)) { mutableListOf() }.add(pl) }
+        layers = byColor.map { (rgb, polys) ->
+            val argb = rgb?.let { it or 0xFF000000.toInt() }
+            val name = if (rgb != null) "#%06X".format(rgb) else "Ohne Farbe"
             Layer(name, polys, firstTool, visible = true,
-                centerMm = centerOf(polys.flatMap { it.points }), colorArgb = c)
+                centerMm = centerOf(polys.flatMap { it.points }), colorArgb = argb)
         }
         selectedLayer = 0
         markedLayers = emptySet()
@@ -864,6 +869,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 // The model (and thus the load/start gates) is the user's pick, not guessed from the
                 // generic BT name — so we keep [model] as selected.
                 settings.deviceAddress = dev.address
+                settings.deviceTransport = "SPP"
                 // Don't toast on the silent auto-reconnect at launch; the Settings sheet already shows
                 // the connected state. Only confirm when the user connected on purpose — and name the
                 // actual device, since it may be an explicitly-chosen non-plotter.
@@ -904,6 +910,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 settings.deviceAddress = dev.address
+                settings.deviceTransport = "BLE"
                 status = "Verbunden mit ${model.displayName} (BLE)."
             } catch (e: Exception) {
                 connected = false
@@ -921,6 +928,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val ctx = getApplication<Application>()
         if (!hasConnectPermission(ctx) || !BluetoothPlotter.isEnabled(ctx)) return
         val dev = runCatching { BluetoothPlotter.adapter(ctx)?.getRemoteDevice(addr) }.getOrNull() ?: return
+        // A Silhouette was last paired over BLE — reconnect on that path, not classic SPP.
+        if (settings.deviceTransport == "BLE") { connectLe(dev); return }
         // Only ever silently reconnect to a compatible plotter — never to some other paired device
         // (e.g. a laptop) that was connected explicitly once.
         if (!Devices.isCompatible(dev.name)) return
@@ -1094,12 +1103,35 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
         }
         if (polylines.isEmpty()) { finishCut("Keine sichtbaren Ebenen."); return }
-        val settings = GpglCutSettings(speed = 10, pressure = forceFor(Tool.KNIFE).coerceIn(1, 33))
-        status = "Schneiden (Silhouette)…"
-        val ok = withContext(Dispatchers.IO) {
-            GpglSession(l).cut(silDev, settings, polylines) { p -> progress = p }
+        // The editor mat and the machine's cuttable area can differ (e.g. a 203 mm Portrait), so check
+        // against the device's own bounds before streaming.
+        val pts = polylines.flatMap { it.points }
+        val maxX = pts.maxOfOrNull { it.xMm } ?: 0.0
+        val maxY = pts.maxOfOrNull { it.yMm } ?: 0.0
+        if (maxX > silDev.widthMm || maxY > silDev.lengthMm) {
+            finishCut("Design größer als ${model.displayName} (${silDev.widthMm.toInt()}×${silDev.lengthMm.toInt()} mm)."); return
         }
-        finishCut(if (ok) "Fertig an Silhouette gesendet." else "Silhouette hat nicht geantwortet – abgebrochen.")
+        // Cameo4-line devices run faster; legacy/Cameo3 cap at 10.
+        val speed = if (silDev.family == SilhouetteFamily.CAMEO4_LINE) 15 else 10
+        val settings = GpglCutSettings(speed = speed, pressure = silhouettePressure(forceFor(Tool.KNIFE)))
+        status = "Schneiden (Silhouette)…"
+        try {
+            val ok = withContext(Dispatchers.IO) {
+                GpglSession(l).cut(silDev, settings, polylines, shouldContinue = { isActive }) { p -> progress = p }
+            }
+            finishCut(if (ok) "Fertig an Silhouette gesendet." else "Silhouette hat nicht geantwortet – abgebrochen.")
+        } catch (e: CancellationException) {
+            withContext(NonCancellable + Dispatchers.IO) { runCatching { l.write(GpglProtocol.INIT) } }
+            finishCut("Abgebrochen.")
+            throw e
+        }
+    }
+
+    /** Map a VEVOR FS force (10..500) onto the Silhouette pressure scale (1..33). */
+    private fun silhouettePressure(force: Int): Int {
+        val span = (Materials.FORCE_MAX - Materials.FORCE_MIN).toDouble()
+        val frac = (force - Materials.FORCE_MIN).coerceAtLeast(0) / span
+        return (Math.round(frac * 32) + 1).toInt().coerceIn(1, 33)
     }
 
     private suspend fun runCutVevor(l: ManagedLink) {
