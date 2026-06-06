@@ -63,9 +63,9 @@ class Settings(context: Context) {
         get() = p.getString("matName", null)
         set(v) = p.edit().putString("matName", v).apply()
 
-    /** Top origin offset in mm: the mat's non-cuttable leading edge, so the plot starts below it. */
+    /** Top origin offset in mm: extra space above the 12" grid start. 0 = plotter handles it. */
     var originOffsetMm: Int
-        get() = p.getInt("originOffsetMm", 25)
+        get() = p.getInt("originOffsetMm", 0)
         set(v) = p.edit().putInt("originOffsetMm", v).apply()
 
     var displayUnit: DisplayUnit

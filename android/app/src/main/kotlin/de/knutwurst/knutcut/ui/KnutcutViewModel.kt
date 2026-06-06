@@ -906,8 +906,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * Plotter-space polylines for one tool's layers being cut. The machine shares the editor's
      * coordinate system (origin top-left, x right, y down; verified by device plots), so no flip is
-     * applied. The whole 12×12" area is freely usable in the editor; Y is shifted down by
-     * [originOffsetMm] here so the plot starts below the leading-edge gripper.
+     * applied. [originOffsetMm] shifts Y down when the user wants extra space above the grid start
+     * (0 by default — the plotter handles the gripper margin internally).
      */
     private fun plotterPolylinesFor(t: Tool): List<Polyline> {
         val dy = originOffsetMm.toDouble()
