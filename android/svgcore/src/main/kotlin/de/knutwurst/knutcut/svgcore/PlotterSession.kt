@@ -10,6 +10,25 @@ interface PlotterLink {
     fun readLine(timeoutMs: Long): String?
 }
 
+/** The physical transport a [ManagedLink] runs over. Decides which protocol stack may use it. */
+enum class LinkTransport { SPP, BLE }
+
+/**
+ * A [PlotterLink] that is also closeable and reports unexpected disconnections. Both the classic
+ * SPP link and the new BLE link implement this so the ViewModel can hold one typed reference.
+ *
+ * [transport] is authoritative about how the link is wired: the VEVOR JSON+HPGL stack only runs
+ * over [LinkTransport.SPP], the Silhouette GPGL stack only over [LinkTransport.BLE]. The caller must
+ * verify the selected model's transport matches before streaming, so the two never cross wires.
+ */
+interface ManagedLink : PlotterLink, AutoCloseable {
+    /** The physical transport this link runs over — set once at construction, never guessed. */
+    val transport: LinkTransport
+
+    /** Invoked on the reader/callback thread when the remote side drops the connection unexpectedly. */
+    var onClosed: (() -> Unit)?
+}
+
 /**
  * Drives a cut: frames each [PlotterMessage] with an incrementing [cseq], writes it, waits for the
  * device's response line, and resends on a `crc` rejection, an explicit failure, or a timeout

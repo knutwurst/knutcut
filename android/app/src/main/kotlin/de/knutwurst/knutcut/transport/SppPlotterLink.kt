@@ -2,7 +2,8 @@ package de.knutwurst.knutcut.transport
 
 import android.bluetooth.BluetoothSocket
 import de.knutwurst.knutcut.svgcore.LineFramer
-import de.knutwurst.knutcut.svgcore.PlotterLink
+import de.knutwurst.knutcut.svgcore.LinkTransport
+import de.knutwurst.knutcut.svgcore.ManagedLink
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.concurrent.LinkedBlockingQueue
@@ -12,7 +13,9 @@ import java.util.concurrent.TimeUnit
  * A [PlotterLink] over a connected RFCOMM socket. A daemon reader thread splits the input stream on
  * CRLF and queues whole response lines; [readLine] pops the next one (blocking up to a timeout).
  */
-class SppPlotterLink(private val socket: BluetoothSocket) : PlotterLink, AutoCloseable {
+class SppPlotterLink(private val socket: BluetoothSocket) : ManagedLink {
+
+    override val transport = LinkTransport.SPP
 
     private val out: OutputStream = socket.outputStream
     private val input: InputStream = socket.inputStream
@@ -20,7 +23,7 @@ class SppPlotterLink(private val socket: BluetoothSocket) : PlotterLink, AutoClo
     @Volatile private var running = true
 
     /** Invoked once if the reader stops unexpectedly (remote drop / read error), not on close(). */
-    @Volatile var onClosed: (() -> Unit)? = null
+    @Volatile override var onClosed: (() -> Unit)? = null
 
     private val reader = Thread {
         val buf = ByteArray(2048)

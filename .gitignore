@@ -17,6 +17,7 @@ tools/
 .gradle/
 build/
 */build/
+android/.robolectric-deps/
 local.properties
 captures/
 .cxx/

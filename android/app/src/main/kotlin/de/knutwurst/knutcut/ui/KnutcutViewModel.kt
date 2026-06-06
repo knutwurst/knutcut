@@ -12,6 +12,7 @@ import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.annotation.VisibleForTesting
 import androidx.compose.ui.geometry.Offset
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -31,7 +32,12 @@ import de.knutwurst.knutcut.svgcore.Bounds
 import de.knutwurst.knutcut.svgcore.DragKnife
 import de.knutwurst.knutcut.svgcore.Handshake
 import de.knutwurst.knutcut.svgcore.History
+import de.knutwurst.knutcut.data.PlotterFamily
+import de.knutwurst.knutcut.svgcore.GpglCutSettings
+import de.knutwurst.knutcut.svgcore.GpglSession
 import de.knutwurst.knutcut.svgcore.HpglEncoder
+import de.knutwurst.knutcut.svgcore.LinkTransport
+import de.knutwurst.knutcut.svgcore.ManagedLink
 import de.knutwurst.knutcut.svgcore.Matrix
 import de.knutwurst.knutcut.svgcore.mmToUnits
 import de.knutwurst.knutcut.svgcore.Nest
@@ -49,8 +55,8 @@ import de.knutwurst.knutcut.svgcore.SvgParser
 import de.knutwurst.knutcut.svgcore.UNITS_PER_MM
 import de.knutwurst.knutcut.svgcore.responseState
 import de.knutwurst.knutcut.svgcore.responseStateReady
+import de.knutwurst.knutcut.transport.BluetoothLePlotter
 import de.knutwurst.knutcut.transport.BluetoothPlotter
-import de.knutwurst.knutcut.transport.SppPlotterLink
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -137,7 +143,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var device by mutableStateOf<BluetoothDevice?>(null); private set
     var connecting by mutableStateOf(false); private set
     var connected by mutableStateOf(false); private set
-    private var link: SppPlotterLink? = null
+    private var link: ManagedLink? = null
 
     // Cut.
     var cutSelectedOnly by mutableStateOf(false); private set
@@ -168,8 +174,12 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Pick the plotter model (decides the load/start gates and the name shown). Persisted. */
     fun selectModel(m: PlotterModel) { model = m; settings.modelId = m.modelId }
 
-    /** True when the connected device is actually a supported plotter (vs. an explicitly-chosen other device). */
+    /** True when the connected device is a supported VEVOR plotter (classic BT). */
     val connectedToPlotter: Boolean get() = connected && Devices.isCompatible(device?.name)
+
+    /** True when the live connection is a BLE link (the transport Silhouette cutters use). Keyed off
+     *  the link itself, not the selected model, so it can't disagree with what's actually wired. */
+    val connectedToSilhouette: Boolean get() = connected && link?.transport == LinkTransport.BLE
 
     fun changeOriginOffset(mm: Int) { originOffsetMm = mm.coerceIn(0, 100); settings.originOffsetMm = originOffsetMm }
 
@@ -791,6 +801,41 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Connect to a Silhouette cutter over BLE GATT. Mirrors [connect] but uses [BluetoothLePlotter]
+     * for the blocking GATT handshake. The selected [model] must be a BLE_SILHOUETTE model before
+     * calling this, so the status message and subsequent [cut] dispatch are correct.
+     */
+    fun connectLe(dev: BluetoothDevice) {
+        if (connecting || connected) return
+        connecting = true
+        status = "Verbinde mit ${dev.name} (BLE)…"
+        viewModelScope.launch {
+            try {
+                val l = withContext(Dispatchers.IO) { BluetoothLePlotter.connect(getApplication(), dev) }
+                link?.close()
+                link = l
+                device = dev
+                connected = true
+                l.onClosed = {
+                    viewModelScope.launch {
+                        if (link === l) {
+                            connected = false
+                            if (!cutting) status = "BLE-Verbindung zum Plotter verloren."
+                        }
+                    }
+                }
+                settings.deviceAddress = dev.address
+                status = "Verbunden mit ${model.displayName} (BLE)."
+            } catch (e: Exception) {
+                connected = false
+                status = "BLE-Verbindung fehlgeschlagen: ${e.message}"
+            } finally {
+                connecting = false
+            }
+        }
+    }
+
     /** On launch (or when permission arrives): reconnect to the last device if Bluetooth is on. */
     fun autoConnect() {
         if (connected || connecting) return
@@ -813,14 +858,25 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         link?.close(); link = null; connected = false; device = null; status = "Getrennt."
     }
 
+    /**
+     * Test seam: attach a fake [ManagedLink] and mark the connection live, bypassing the Bluetooth
+     * stack so the cut() transport guard can be exercised on the JVM. Not called by production code.
+     */
+    @VisibleForTesting
+    internal fun attachLinkForTest(l: ManagedLink) { link = l; connected = true }
+
     private fun placedPolylines(ls: List<Layer>): List<Pair<Tool, List<Polyline>>> =
         ls.map { layer ->
             val m = layerMatrix(layer)
             layer.tool to layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
         }
 
-    /** Visible layers placed on the mat (mm, y-down), each paired with its tool — for drawing. */
-    fun placedLayers(): List<Pair<Tool, List<Polyline>>> = placedPolylines(layers.filter { it.visible })
+    /** Visible polylines placed on the mat (mm, y-down), grouped by tool — for drawing. */
+    fun placedLayers(): List<Pair<Tool, List<Polyline>>> =
+        layers.filter { it.visible }.map { layer ->
+            val m = layerMatrix(layer)
+            layer.tool to layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
+        }
 
     /** The layers a cut will send: just the selected one when [cutSelectedOnly], else all visible. */
     fun cutLayers(): List<Layer> =
@@ -928,15 +984,44 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun cut() {
         val l = link
         if (!connected || l == null) { status = "Bitte zuerst den Plotter verbinden."; return }
+        // The selected model decides the protocol; the link knows its transport. They must agree, or
+        // we'd stream VEVOR JSON+HPGL into a Silhouette (or GPGL into a VEVOR). Refuse the mismatch up
+        // front — before touching the design — instead of sending the wrong language down the wire.
+        if (!model.family.matches(l.transport)) {
+            status = if (model.family == PlotterFamily.BLE_SILHOUETTE)
+                "${model.displayName} braucht eine BLE-Verbindung. Verbinde das Gerät über die Silhouette-BLE-Liste."
+            else
+                "${model.displayName} braucht eine klassische Bluetooth-Verbindung. Wähle ein VEVOR-Gerät."
+            return
+        }
         if (!hasDesign) { status = "Kein Design geladen."; return }
         if (!designWithinMat()) { status = "Design ragt über die Matte hinaus – bitte verkleinern oder verschieben."; return }
         if (cutting) return
         cutting = true
         progress = 0f
-        cutJob = viewModelScope.launch { runCut(l) }
+        cutJob = viewModelScope.launch {
+            if (model.family == PlotterFamily.BLE_SILHOUETTE) runCutGpgl(l) else runCutVevor(l)
+        }
     }
 
-    private suspend fun runCut(l: SppPlotterLink) {
+    /** GPGL cut path for Silhouette cutters over BLE. */
+    private suspend fun runCutGpgl(l: ManagedLink) {
+        val silDev = model.silhouetteDevice
+        if (silDev == null) { finishCut("Kein Silhouette-Geräteprofil für dieses Modell."); return }
+        val polylines = cutLayers().flatMap { layer ->
+            val m = layerMatrix(layer)
+            layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
+        }
+        if (polylines.isEmpty()) { finishCut("Keine sichtbaren Ebenen."); return }
+        val settings = GpglCutSettings(speed = 10, pressure = forceFor(Tool.KNIFE).coerceIn(1, 33))
+        status = "Schneiden (Silhouette)…"
+        val ok = withContext(Dispatchers.IO) {
+            GpglSession(l).cut(silDev, settings, polylines) { p -> progress = p }
+        }
+        finishCut(if (ok) "Fertig an Silhouette gesendet." else "Silhouette hat nicht geantwortet – abgebrochen.")
+    }
+
+    private suspend fun runCutVevor(l: ManagedLink) {
         val session = PlotterSession(l)
         try {
             status = "Verbinde mit dem Plotter…"

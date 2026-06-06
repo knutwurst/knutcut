@@ -616,6 +616,7 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                 when {
                     vm.connecting -> "Verbinde…"
                     vm.connectedToPlotter -> "Verbunden: ${vm.model.displayName}"
+                    vm.connectedToSilhouette -> "Verbunden: ${vm.model.displayName} (BLE)"
                     vm.connected -> "Verbunden: ${vm.device?.name ?: "?"} (kein unterstützter Plotter)"
                     else -> "Nicht verbunden · Modell: ${vm.model.displayName}"
                 },
@@ -812,12 +813,13 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
     var showOther by remember { mutableStateOf(false) }
     var confirmOther by remember { mutableStateOf<android.bluetooth.BluetoothDevice?>(null) }
     val found = remember { mutableStateMapOf<String, android.bluetooth.BluetoothDevice>() }
+    val foundLe = remember { mutableStateMapOf<String, android.bluetooth.BluetoothDevice>() }
     val allBonded = remember(hasPerm) {
         if (hasPerm) de.knutwurst.knutcut.transport.BluetoothPlotter.bondedDevices(context) else emptyList()
     }
     // Compatible plotters (BT name contains "VEVOR"/"Smart"), like the stock app — these are the default.
     val bonded = allBonded.filter { Devices.isCompatible(it.name) }
-    val others = allBonded.filterNot { Devices.isCompatible(it.name) }
+    val others = allBonded.filterNot { Devices.isCompatible(it.name) && !Devices.isCompatibleLe(it.name) }
     val devices = (bonded + found.values).distinctBy { it.address }
 
     // Classic discovery while [scanning]; auto-stops after 30s. Stops + unregisters on dispose.
@@ -826,6 +828,17 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
             runCatching {
                 de.knutwurst.knutcut.transport.BluetoothPlotter.discover(context) { dev ->
                     if (Devices.isCompatible(dev.name)) found[dev.address] = dev
+                }
+            }.getOrNull()
+        } else null
+        onDispose { handle?.close() }
+    }
+    // BLE scan while [scanning]; delivers Silhouette devices into [foundLe].
+    DisposableEffect(scanning, hasPerm) {
+        val handle = if (scanning && hasPerm) {
+            runCatching {
+                de.knutwurst.knutcut.transport.BluetoothLePlotter.startScanLe(context) { dev ->
+                    if (Devices.isCompatibleLe(dev.name)) foundLe[dev.address] = dev
                 }
             }.getOrNull()
         } else null
@@ -846,8 +859,30 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
                     Spacer(Modifier.height(8.dp))
                     Button(onClick = onRequestPerm) { Text("Berechtigung erteilen") }
                 } else {
-                    Text("Dein Modell", style = MaterialTheme.typography.labelLarge)
-                    Devices.models.forEach { m ->
+                    Text("VEVOR-Modell", style = MaterialTheme.typography.labelLarge)
+                    Devices.vevorModels.forEach { m ->
+                        val sel = vm.model.modelId == m.modelId
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().clickable { vm.selectModel(m) }.padding(vertical = 8.dp),
+                        ) {
+                            Icon(painterResource(R.drawable.ic_plotter), contentDescription = null, modifier = Modifier.size(24.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                m.displayName,
+                                modifier = Modifier.weight(1f),
+                                color = if (sel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
+                            )
+                            if (sel) Icon(Icons.Default.Check, contentDescription = "Gewählt", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+                    // Silhouette model picker
+                    Text("Silhouette-Modell", style = MaterialTheme.typography.labelLarge)
+                    Devices.silhouetteModels.forEach { m ->
                         val sel = vm.model.modelId == m.modelId
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -867,8 +902,8 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
 
                     HorizontalDivider(Modifier.padding(vertical = 8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Geräte", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-                        TextButton(onClick = { found.clear(); scanning = !scanning }) { Text(if (scanning) "Stopp" else "Suchen") }
+                        Text("VEVOR-Geräte", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { found.clear(); foundLe.clear(); scanning = !scanning }) { Text(if (scanning) "Stopp" else "Suchen") }
                     }
                     if (devices.isEmpty()) {
                         Text(
@@ -885,6 +920,19 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
                             }
                         }
                     }
+                    // Silhouette BLE devices found during scan
+                    if (foundLe.isNotEmpty()) {
+                        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                        Text("Silhouette BLE", style = MaterialTheme.typography.labelLarge)
+                        foundLe.values.forEach { d ->
+                            TextButton(onClick = { scanning = false; vm.connectLe(d); onDismiss() }, modifier = Modifier.fillMaxWidth()) {
+                                Icon(painterResource(R.drawable.ic_plotter), contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(d.name ?: d.address, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+
                     if (scanning) {
                         Spacer(Modifier.height(6.dp))
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())

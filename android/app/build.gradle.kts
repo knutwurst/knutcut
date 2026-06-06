@@ -12,8 +12,8 @@ android {
         applicationId = "de.knutwurst.knutcut"
         minSdk = 26
         targetSdk = 34
-        versionCode = 74
-        versionName = "0.38.9"
+        versionCode = 76
+        versionName = "0.39.0"
     }
 
     buildFeatures {
@@ -49,6 +49,21 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            // Keep Robolectric's android-all framework jars inside the repo (gitignored), not in the
+            // user's global ~/.m2. Robolectric's MavenDependencyResolver honours maven.repo.local for
+            // its own downloads; ordinary Gradle dependencies are unaffected.
+            all {
+                it.systemProperty(
+                    "maven.repo.local",
+                    rootProject.file(".robolectric-deps").absolutePath,
+                )
+            }
+        }
+    }
 }
 
 dependencies {
@@ -72,6 +87,9 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
+    // Robolectric runs the AndroidViewModel cut() guard on the JVM (it needs a real Application
+    // plus SharedPreferences-backed settings).
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }
 
 // Publish the release APK to ../dist with a version in the name, clearing older ones.

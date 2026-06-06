@@ -43,3 +43,9 @@ const val UNITS_PER_MM = 40
 
 /** Millimetres to plotter units, rounded to the nearest unit. */
 fun mmToUnits(mm: Double): Int = (mm * UNITS_PER_MM).roundToInt()
+
+/** Silhouette/Graphtec resolution: GPGL units ("SU") of 1/20 mm (20 units per mm). */
+const val SU_PER_MM = 20
+
+/** Millimetres to Silhouette units, rounded to the nearest unit (matches inkscape-silhouette _mm_2_SU). */
+fun mmToSu(mm: Double): Int = (mm * SU_PER_MM).roundToInt()
