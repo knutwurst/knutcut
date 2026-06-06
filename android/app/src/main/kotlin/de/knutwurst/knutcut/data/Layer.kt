@@ -19,4 +19,6 @@ data class Layer(
     val rotationDeg: Double = 0.0,
     val flipX: Boolean = false,
     val flipY: Boolean = false,
+    /** Original SVG colour (packed ARGB), or null when the element carried no colour information. */
+    val colorArgb: Int? = null,
 )

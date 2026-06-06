@@ -12,7 +12,9 @@ data class Pt(val xMm: Double, val yMm: Double)
 data class Polyline(val points: List<Pt>, val closed: Boolean)
 
 /** A named shape from one SVG element (its polylines in mm) — a layer in the editor. */
-data class SvgShape(val name: String, val polylines: List<Polyline>)
+/** [colorArgb] is the element's fill (or stroke) colour as a packed ARGB int, inherited from parent
+ *  groups, or null when the element carries no colour information. */
+data class SvgShape(val name: String, val polylines: List<Polyline>, val colorArgb: Int? = null)
 
 /** Axis-aligned bounding box in millimetres. */
 data class Bounds(val minX: Double, val minY: Double, val maxX: Double, val maxY: Double) {

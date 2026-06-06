@@ -100,6 +100,7 @@ import de.knutwurst.knutcut.data.DisplayUnit
 import de.knutwurst.knutcut.data.Materials
 import de.knutwurst.knutcut.data.Mats
 import de.knutwurst.knutcut.data.display
+import de.knutwurst.knutcut.data.ColorMode
 import de.knutwurst.knutcut.data.ThemeMode
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Shapes
@@ -663,6 +664,13 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
             Text("Einheit", style = MaterialTheme.typography.labelLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DisplayUnit.entries.forEach { u -> FilterChip(selected = vm.displayUnit == u, onClick = { vm.changeDisplayUnit(u) }, label = { Text(u.label) }) }
+            }
+
+            Spacer(Modifier.height(18.dp))
+            Text("Farben", style = MaterialTheme.typography.labelLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = vm.colorMode == ColorMode.OUTLINE, onClick = { vm.changeColorMode(ColorMode.OUTLINE) }, label = { Text("Nur Outline") })
+                FilterChip(selected = vm.colorMode == ColorMode.COLOR, onClick = { vm.changeColorMode(ColorMode.COLOR) }, label = { Text("Farbig") })
             }
 
             Spacer(Modifier.height(18.dp))

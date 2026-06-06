@@ -5,6 +5,9 @@ import android.content.Context
 /** Theme override: follow Android, or force light/dark. */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
+/** Mat preview colour mode: tool-coloured outlines only, or the original SVG colours. */
+enum class ColorMode { OUTLINE, COLOR }
+
 private const val KEY_MATERIALS_JSON = "customMaterialsJson"
 
 /** Persists the user's choices (material, tool, force, mat, last device, theme) across app restarts. */
@@ -32,6 +35,10 @@ class Settings(context: Context) {
     var themeMode: ThemeMode
         get() = runCatching { ThemeMode.valueOf(p.getString("theme", ThemeMode.SYSTEM.name)!!) }.getOrDefault(ThemeMode.SYSTEM)
         set(v) = p.edit().putString("theme", v.name).apply()
+
+    var colorMode: ColorMode
+        get() = runCatching { ColorMode.valueOf(p.getString("colorMode", ColorMode.OUTLINE.name)!!) }.getOrDefault(ColorMode.OUTLINE)
+        set(v) = p.edit().putString("colorMode", v.name).apply()
 
     var deviceAddress: String?
         get() = devicePrefs.getString("deviceAddress", null)

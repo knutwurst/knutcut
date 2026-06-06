@@ -1,6 +1,7 @@
 package de.knutwurst.knutcut.svgcore
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -89,5 +90,37 @@ class SvgParserTest {
         val result = SvgParser.parseShapesResult(svg)
         assertEquals(2, result.shapes.size)
         assertEquals(1, result.skipped)
+    }
+
+    @Test
+    fun fillColourIsCapturedPerShape() {
+        val svg = """<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="40mm" viewBox="0 0 40 40">
+            <rect x="0" y="0" width="10" height="10" fill="#ff0000"/>
+            <rect x="20" y="0" width="10" height="10" style="fill:rgb(0,0,255)"/>
+            </svg>"""
+        val shapes = SvgParser.parseShapes(svg)
+        assertEquals(0xFFFF0000.toInt(), shapes[0].colorArgb)
+        assertEquals(0xFF0000FF.toInt(), shapes[1].colorArgb)
+    }
+
+    @Test
+    fun colourIsInheritedFromParentGroup() {
+        val svg = """<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="40mm" viewBox="0 0 40 40">
+            <g fill="green"><rect x="0" y="0" width="10" height="10"/></g></svg>"""
+        assertEquals(0xFF008000.toInt(), SvgParser.parseShapes(svg).single().colorArgb)
+    }
+
+    @Test
+    fun fillNoneFallsBackToStroke() {
+        val svg = """<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="40mm" viewBox="0 0 40 40">
+            <path d="M0,0 L10,0 L10,10" fill="none" stroke="#112233"/></svg>"""
+        assertEquals(0xFF112233.toInt(), SvgParser.parseShapes(svg).single().colorArgb)
+    }
+
+    @Test
+    fun missingColourIsNull() {
+        val svg = """<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="40mm" viewBox="0 0 40 40">
+            <rect x="0" y="0" width="10" height="10"/></svg>"""
+        assertNull(SvgParser.parseShapes(svg).single().colorArgb)
     }
 }

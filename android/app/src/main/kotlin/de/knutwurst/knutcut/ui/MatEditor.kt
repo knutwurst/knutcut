@@ -21,6 +21,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import de.knutwurst.knutcut.data.ColorMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
@@ -219,11 +220,14 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
 
         // design — knife layers in the primary colour, pen layers in the secondary; anything that
         // runs off the mat is drawn in the error colour as a warning.
-        for ((tool, pls) in vm.placedLayers()) {
+        // In COLOR mode each layer uses its own SVG fill colour (falling back to the tool colour).
+        for ((tool, colorArgb, pls) in vm.placedLayers()) {
             val toolColor = if (tool == Tool.PEN) penColor else knifeColor
+            val baseColor = if (vm.colorMode == ColorMode.COLOR && colorArgb != null)
+                Color(colorArgb) else toolColor
             for (pl in pls) {
                 if (pl.points.isEmpty()) continue
-                val col = if (pl.points.any { vm.isOutsideMat(it) }) offMatColor else toolColor
+                val col = if (pl.points.any { vm.isOutsideMat(it) }) offMatColor else baseColor
                 val path = Path()
                 val f = s(pl.points.first()); path.moveTo(f.x, f.y)
                 for (k in 1 until pl.points.size) { val q = s(pl.points[k]); path.lineTo(q.x, q.y) }

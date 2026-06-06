@@ -35,7 +35,7 @@ object SvgParser {
         val root = buildDoc(svg).documentElement ?: return Result(emptyList(), 0)
         val shapes = ArrayList<SvgShape>()
         val skipped = intArrayOf(0)
-        walk(root, rootUnitMatrix(root), shapes, toleranceMm, intArrayOf(0), skipped)
+        walk(root, rootUnitMatrix(root), shapes, toleranceMm, intArrayOf(0), skipped, null)
         return Result(shapes, skipped[0])
     }
 
@@ -69,10 +69,11 @@ object SvgParser {
         return Matrix.scale(s, s)
     }
 
-    private fun walk(el: Element, parent: Matrix, shapes: MutableList<SvgShape>, tol: Double, count: IntArray, skipped: IntArray) {
+    private fun walk(el: Element, parent: Matrix, shapes: MutableList<SvgShape>, tol: Double, count: IntArray, skipped: IntArray, inheritedColor: Int?) {
         // A malformed transform/geometry on one element must not abort the whole import — skip it and
         // count it. A bad transform falls back to the parent matrix so the element can still be drawn.
         val m = runCatching { parent * Matrix.parse(el.getAttribute("transform")) }.getOrElse { skipped[0]++; parent }
+        val color = elementColor(el, inheritedColor)
         val subs = runCatching { shapeToSubPaths(el) }.getOrElse { skipped[0]++; null }
         if (subs != null) {
             val polys = runCatching { subs.map { flatten(it, m, tol) }.filter { it.points.size >= 2 } }
@@ -80,15 +81,37 @@ object SvgParser {
             if (polys.isNotEmpty()) {
                 count[0]++
                 val id = el.getAttribute("id")
-                shapes.add(SvgShape(if (id.isNotBlank()) id else "Ebene ${count[0]}", polys))
+                shapes.add(SvgShape(if (id.isNotBlank()) id else "Ebene ${count[0]}", polys, color))
             }
             return
         }
         var child = el.firstChild
         while (child != null) {
-            if (child.nodeType == Node.ELEMENT_NODE) walk(child as Element, m, shapes, tol, count, skipped)
+            if (child.nodeType == Node.ELEMENT_NODE) walk(child as Element, m, shapes, tol, count, skipped, color)
             child = child.nextSibling
         }
+    }
+
+    /** The element's drawing colour as ARGB: its own fill (preferred) or stroke, read from the
+     *  `style` attribute first then presentation attributes, falling back to the inherited group colour.
+     *  "none"/unparseable on one property falls through to the next. */
+    private fun elementColor(el: Element, inherited: Int?): Int? {
+        val style = el.getAttribute("style")
+        val fill = styleProp(style, "fill") ?: el.getAttribute("fill")
+        SvgColor.parse(fill)?.let { return it }
+        val stroke = styleProp(style, "stroke") ?: el.getAttribute("stroke")
+        SvgColor.parse(stroke)?.let { return it }
+        return inherited
+    }
+
+    /** Reads one `prop: value` declaration from a CSS `style` attribute, or null if absent. */
+    private fun styleProp(style: String?, prop: String): String? {
+        if (style.isNullOrBlank()) return null
+        for (decl in style.split(";")) {
+            val i = decl.indexOf(':')
+            if (i > 0 && decl.substring(0, i).trim().equals(prop, ignoreCase = true)) return decl.substring(i + 1).trim()
+        }
+        return null
     }
 
     private fun shapeToSubPaths(el: Element): List<SubPath>? = when (localName(el)) {

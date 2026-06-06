@@ -16,6 +16,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.compose.ui.geometry.Offset
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import de.knutwurst.knutcut.data.ColorMode
 import de.knutwurst.knutcut.data.Devices
 import de.knutwurst.knutcut.data.DisplayUnit
 import de.knutwurst.knutcut.data.Layer
@@ -153,6 +154,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var status by mutableStateOf<String?>(null)
 
     var themeMode by mutableStateOf(settings.themeMode); private set
+    var colorMode by mutableStateOf(settings.colorMode); private set
 
     var displayUnit by mutableStateOf(settings.displayUnit); private set
     var originOffsetMm by mutableStateOf(settings.originOffsetMm); private set
@@ -168,6 +170,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     val hasDesign: Boolean get() = layers.isNotEmpty()
 
     fun selectTheme(m: ThemeMode) { settings.themeMode = m; themeMode = m }
+
+    /** Switch the mat preview between tool-coloured outlines and the SVG's own colours. Persisted. */
+    fun changeColorMode(m: ColorMode) { settings.colorMode = m; colorMode = m }
 
     fun changeDisplayUnit(u: DisplayUnit) { settings.displayUnit = u; displayUnit = u }
 
@@ -281,7 +286,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return try {
             if (head.startsWith("<") || head.contains("<svg", ignoreCase = true)) {
                 val result = SvgParser.parseShapesResult(text)
-                val out = result.shapes.map { Layer(it.name, it.polylines, tool, visible = true) }
+                val out = result.shapes.map { Layer(it.name, it.polylines, tool, visible = true, colorArgb = it.colorArgb) }
                 if (out.flatMap { it.polylines }.flatMap { it.points }.isEmpty()) null else ParsedDesign(out, result.skipped)
             } else {
                 val polys = PltParser.parse(text)
@@ -871,11 +876,14 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             layer.tool to layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
         }
 
-    /** Visible polylines placed on the mat (mm, y-down), grouped by tool — for drawing. */
-    fun placedLayers(): List<Pair<Tool, List<Polyline>>> =
+    /** One entry from [placedLayers]: the layer's tool, original SVG colour, and placed polylines. */
+    data class PlacedLayer(val tool: Tool, val colorArgb: Int?, val polylines: List<Polyline>)
+
+    /** Visible layers placed on the mat (mm, y-down) — for drawing in the editor. */
+    fun placedLayers(): List<PlacedLayer> =
         layers.filter { it.visible }.map { layer ->
             val m = layerMatrix(layer)
-            layer.tool to layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
+            PlacedLayer(layer.tool, layer.colorArgb, layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) })
         }
 
     /** The layers a cut will send: just the selected one when [cutSelectedOnly], else all visible. */
