@@ -16,6 +16,8 @@ object SvgColor {
             s.startsWith("#") -> hex(s.substring(1))
             s.startsWith("rgba(") && s.endsWith(")") -> rgbFunc(s.substring(5, s.length - 1), hasAlpha = true)
             s.startsWith("rgb(") && s.endsWith(")") -> rgbFunc(s.substring(4, s.length - 1), hasAlpha = false)
+            s.startsWith("hsla(") && s.endsWith(")") -> hslFunc(s.substring(5, s.length - 1), hasAlpha = true)
+            s.startsWith("hsl(") && s.endsWith(")") -> hslFunc(s.substring(4, s.length - 1), hasAlpha = false)
             else -> NAMED[s]
         }
     }
@@ -31,12 +33,35 @@ object SvgColor {
     private fun dup(c: Char): Int? = c.digitToIntOrNull(16)?.let { it * 16 + it }
     private fun byte(h: String, at: Int): Int? = h.substring(at, at + 2).toIntOrNull(16)
 
+    // Split on commas, whitespace, or the slash that CSS Color 4 uses before the alpha component, so
+    // both "255, 0, 0" and "255 0 0 / 50%" parse.
+    private fun fields(body: String): List<String> =
+        body.split(Regex("[,/\\s]+")).map { it.trim() }.filter { it.isNotEmpty() }
+
     private fun rgbFunc(body: String, hasAlpha: Boolean): Int? {
-        val parts = body.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        val parts = fields(body)
         if (parts.size < 3) return null
         val r = channel(parts[0]); val g = channel(parts[1]); val b = channel(parts[2])
         val a = if (hasAlpha && parts.size >= 4) alpha(parts[3]) else 255
         return argb(a, r, g, b)
+    }
+
+    private fun hslFunc(body: String, hasAlpha: Boolean): Int? {
+        val parts = fields(body)
+        if (parts.size < 3) return null
+        val h = parts[0].removeSuffix("deg").toDoubleOrNull() ?: return null
+        val sat = parts[1].removeSuffix("%").toDoubleOrNull()?.div(100.0) ?: return null
+        val lig = parts[2].removeSuffix("%").toDoubleOrNull()?.div(100.0) ?: return null
+        val a = if (hasAlpha && parts.size >= 4) alpha(parts[3]) ?: 255 else 255
+        val c = (1 - kotlin.math.abs(2 * lig - 1)) * sat
+        val hp = (((h % 360) + 360) % 360) / 60.0
+        val x = c * (1 - kotlin.math.abs(hp % 2 - 1))
+        val (r1, g1, b1) = when (hp.toInt()) {
+            0 -> Triple(c, x, 0.0); 1 -> Triple(x, c, 0.0); 2 -> Triple(0.0, c, x)
+            3 -> Triple(0.0, x, c); 4 -> Triple(x, 0.0, c); else -> Triple(c, 0.0, x)
+        }
+        val m = lig - c / 2
+        return argb(a, ((r1 + m) * 255).roundToInt(), ((g1 + m) * 255).roundToInt(), ((b1 + m) * 255).roundToInt())
     }
 
     /** A colour channel: an int 0..255 or a percentage. */

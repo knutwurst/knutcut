@@ -40,12 +40,16 @@ class GpglSession(
         device: SilhouetteDevice,
         settings: GpglCutSettings,
         polylines: List<Polyline>,
+        shouldContinue: () -> Boolean = { true },
         onProgress: (Float) -> Unit = {},
     ): Boolean {
         link.write(GpglProtocol.INIT)
         if (!waitForReady()) return false
         write(GpglProtocol.setup(device, settings))
-        streamPlot(GpglProtocol.plot(device, polylines), onProgress)
+        if (!streamPlot(GpglProtocol.plot(device, polylines), shouldContinue, onProgress)) {
+            link.write(GpglProtocol.INIT) // stop/reset the device on an aborted or stalled stream
+            return false
+        }
         write(GpglProtocol.trailer(polylines))
         return true
     }
@@ -60,16 +64,18 @@ class GpglSession(
      * Stream the plot commands in chunks that stay under the device's command buffer, waiting for
      * ready after each chunk so a long path can't overrun it.
      */
-    private fun streamPlot(commands: List<String>, onProgress: (Float) -> Unit) {
-        if (commands.isEmpty()) { onProgress(1f); return }
+    private fun streamPlot(commands: List<String>, shouldContinue: () -> Boolean, onProgress: (Float) -> Unit): Boolean {
+        if (commands.isEmpty()) { onProgress(1f); return true }
         var i = 0
         while (i < commands.size) {
+            if (!shouldContinue()) return false
             val end = minOf(i + CHUNK_COMMANDS, commands.size)
             write(commands.subList(i, end))
-            waitForReady()
+            if (!waitForReady()) return false
             i = end
             onProgress(i.toFloat() / commands.size)
         }
+        return true
     }
 
     private companion object {
