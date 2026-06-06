@@ -22,13 +22,8 @@ import java.util.concurrent.TimeUnit
 @SuppressLint("MissingPermission")
 object BluetoothLePlotter {
 
-    private val LE_NAME_TOKENS = listOf("silhouette")
-
     /** True if a BLE advertisement name matches a Silhouette plotter. */
-    fun isCompatibleLe(name: String?): Boolean {
-        val n = name?.lowercase() ?: return false
-        return LE_NAME_TOKENS.any { n.contains(it) }
-    }
+    fun isCompatibleLe(name: String?): Boolean = de.knutwurst.knutcut.data.Devices.isCompatibleLe(name)
 
     private fun adapter(context: Context): BluetoothAdapter? =
         (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
@@ -71,11 +66,17 @@ object BluetoothLePlotter {
             }
 
             override fun onMtuChanged(g: BluetoothGatt, negotiatedMtu: Int, status: Int) {
+                if (latch.count == 0L) return
                 mtu = negotiatedMtu
                 g.discoverServices()
             }
 
+            override fun onCharacteristicWrite(g: BluetoothGatt, ch: BluetoothGattCharacteristic, status: Int) {
+                result?.onWriteComplete()
+            }
+
             override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
+                if (latch.count == 0L) return
                 if (status != BluetoothGatt.GATT_SUCCESS) {
                     error = Exception("Diensterkennung fehlgeschlagen (status=$status)"); latch.countDown(); return
                 }

@@ -30,6 +30,9 @@ class BlePlotterLink(
     override var onClosed: (() -> Unit)? = null
 
     private val tokens = LinkedBlockingQueue<String>()
+    // One slot per completed write: a write must not be issued while another is outstanding, so each
+    // chunk waits here for its onCharacteristicWrite before the next is sent.
+    private val writeAcks = LinkedBlockingQueue<Boolean>()
     @Volatile private var running = true
     private val framer = EtxFramer()
 
@@ -38,6 +41,8 @@ class BlePlotterLink(
     internal fun onNotification(data: ByteArray) {
         for (token in framer.append(data, data.size)) tokens.add(token)
     }
+
+    internal fun onWriteComplete() { writeAcks.offer(true) }
 
     internal fun onDisconnected() {
         if (running) onClosed?.invoke()
@@ -50,7 +55,8 @@ class BlePlotterLink(
         val bytes = text.toByteArray(Charsets.UTF_8)
         val chunkSize = maxOf(20, mtu - 3)
         var offset = 0
-        while (offset < bytes.size) {
+        writeAcks.clear()
+        while (offset < bytes.size && running) {
             val end = minOf(offset + chunkSize, bytes.size)
             val chunk = bytes.copyOfRange(offset, end)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -59,6 +65,9 @@ class BlePlotterLink(
                 @Suppress("DEPRECATION") writeChar.value = chunk
                 @Suppress("DEPRECATION") gatt.writeCharacteristic(writeChar)
             }
+            // Serialise against the GATT queue (only one operation may be outstanding). Bail if the
+            // write never completes so a stalled link can't block the cut thread forever.
+            if (writeAcks.poll(WRITE_TIMEOUT_MS, TimeUnit.MILLISECONDS) == null) break
             offset = end
         }
     }
@@ -67,7 +76,12 @@ class BlePlotterLink(
 
     override fun close() {
         running = false
+        writeAcks.offer(true) // release a write that may be waiting for an ack
         runCatching { gatt.disconnect() }
         runCatching { gatt.close() }
+    }
+
+    private companion object {
+        const val WRITE_TIMEOUT_MS = 3000L
     }
 }
