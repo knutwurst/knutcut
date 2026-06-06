@@ -32,12 +32,13 @@ object BluetoothLePlotter {
      * Start a BLE scan and deliver each Silhouette-compatible device to [onFound]. Returns a
      * [Closeable] that stops the scan — the caller must close it to avoid leaking the scanner.
      */
-    fun startScanLe(context: Context, onFound: (BluetoothDevice) -> Unit): Closeable {
+    fun startScanLe(context: Context, onFound: (BluetoothDevice, String?) -> Unit): Closeable {
         val scanner = adapter(context)?.bluetoothLeScanner ?: return Closeable {}
         val cb = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
-                val name = result.scanRecord?.deviceName ?: result.device.name
-                if (isCompatibleLe(name)) onFound(result.device)
+                // Deliver every result with its resolved name; the caller splits compatible Silhouettes
+                // from unknown BLE devices (the latter sit behind the "other devices" warning).
+                onFound(result.device, result.scanRecord?.deviceName ?: result.device.name)
             }
         }
         scanner.startScan(cb)

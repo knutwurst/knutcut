@@ -866,6 +866,8 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
     var confirmOther by remember { mutableStateOf<android.bluetooth.BluetoothDevice?>(null) }
     val found = remember { mutableStateMapOf<String, android.bluetooth.BluetoothDevice>() }
     val foundLe = remember { mutableStateMapOf<String, android.bluetooth.BluetoothDevice>() }
+    val foundLeOther = remember { mutableStateMapOf<String, android.bluetooth.BluetoothDevice>() }
+    var confirmOtherLe by remember { mutableStateOf<android.bluetooth.BluetoothDevice?>(null) }
     val allBonded = remember(hasPerm) {
         if (hasPerm) de.knutwurst.knutcut.transport.BluetoothPlotter.bondedDevices(context) else emptyList()
     }
@@ -889,8 +891,8 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
     DisposableEffect(scanning, hasPerm) {
         val handle = if (scanning && hasPerm) {
             runCatching {
-                de.knutwurst.knutcut.transport.BluetoothLePlotter.startScanLe(context) { dev ->
-                    if (Devices.isCompatibleLe(dev.name)) foundLe[dev.address] = dev
+                de.knutwurst.knutcut.transport.BluetoothLePlotter.startScanLe(context) { dev, name ->
+                    if (Devices.isCompatibleLe(name)) foundLe[dev.address] = dev else foundLeOther[dev.address] = dev
                 }
             }.getOrNull()
         } else null
@@ -933,7 +935,7 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
                     HorizontalDivider(Modifier.padding(vertical = 8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Geräte", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-                        TextButton(onClick = { found.clear(); foundLe.clear(); scanning = !scanning }) { Text(if (scanning) "Stopp" else "Suchen") }
+                        TextButton(onClick = { found.clear(); foundLe.clear(); foundLeOther.clear(); scanning = !scanning }) { Text(if (scanning) "Stopp" else "Suchen") }
                     }
                     if (devices.isEmpty()) {
                         Text(
@@ -969,7 +971,9 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
                     }
 
                     // Explicit escape hatch: connect to a non-plotter (e.g. for testing), with a warning.
-                    if (others.isNotEmpty()) {
+                    // Classic devices use the SPP path; unknown BLE devices (found during the scan) use
+                    // the BLE/GPGL path so a Silhouette-like cutter under a different name is still reachable.
+                    if (others.isNotEmpty() || foundLeOther.isNotEmpty()) {
                         TextButton(onClick = { showOther = !showOther }) {
                             Text(if (showOther) "Andere Geräte ausblenden" else "Andere Geräte anzeigen")
                         }
@@ -984,6 +988,13 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
                                     Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
                                     Spacer(Modifier.width(8.dp))
                                     Text(d.name ?: d.address, modifier = Modifier.weight(1f))
+                                }
+                            }
+                            foundLeOther.values.forEach { d ->
+                                TextButton(onClick = { confirmOtherLe = d }, modifier = Modifier.fillMaxWidth()) {
+                                    Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("${d.name ?: d.address} (BLE)", modifier = Modifier.weight(1f))
                                 }
                             }
                         }
@@ -1007,6 +1018,18 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
                 TextButton(onClick = { confirmOther = null; scanning = false; vm.connect(d); onDismiss() }) { Text("Trotzdem verbinden") }
             },
             dismissButton = { TextButton(onClick = { confirmOther = null }) { Text("Abbrechen") } },
+        )
+    }
+
+    confirmOtherLe?.let { d ->
+        AlertDialog(
+            onDismissRequest = { confirmOtherLe = null },
+            title = { Text("Unbekanntes BLE-Gerät") },
+            text = { Text("„${d.name ?: d.address}“ ist kein erkannter Silhouette-Plotter. Verbinde nur, wenn dein Modell oben als Silhouette gewählt ist – sonst schlägt der Schnitt fehl. Trotzdem verbinden?") },
+            confirmButton = {
+                TextButton(onClick = { confirmOtherLe = null; scanning = false; vm.connectLe(d); onDismiss() }) { Text("Trotzdem verbinden") }
+            },
+            dismissButton = { TextButton(onClick = { confirmOtherLe = null }) { Text("Abbrechen") } },
         )
     }
 }
