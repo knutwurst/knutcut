@@ -66,11 +66,17 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     var sizePx by remember { mutableStateOf(IntSize.Zero) }
 
     // Derive the grid/ruler tones from the theme so they stay visible on both light and dark.
+    // In COLOR mode the mat becomes an opaque white sheet so the original SVG colours read correctly
+    // regardless of the app theme (a black design would otherwise vanish on a dark mat); the grid and
+    // border ink is taken from that white background instead of the theme.
+    val colorMode = vm.colorMode == ColorMode.COLOR
     val onSurface = MaterialTheme.colorScheme.onSurface
-    val gridMinor = onSurface.copy(alpha = 0.16f)
-    val gridMajor = onSurface.copy(alpha = 0.38f)
-    val matColor = onSurface.copy(alpha = 0.55f)
-    val matFill = onSurface.copy(alpha = 0.05f)
+    val matInk = if (colorMode) Color.Black else onSurface
+    val gridMinor = matInk.copy(alpha = 0.16f)
+    val gridMajor = matInk.copy(alpha = 0.38f)
+    val matColor = matInk.copy(alpha = 0.55f)
+    val matFill = if (colorMode) Color.White else onSurface.copy(alpha = 0.05f)
+    // Rulers sit in the margin outside the mat, so they keep following the theme.
     val rulerColor = onSurface.copy(alpha = 0.7f).toArgb()
     val knifeColor = MaterialTheme.colorScheme.primary
     val penColor = MaterialTheme.colorScheme.secondary
@@ -209,11 +215,11 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
         val origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
         fun s(p: Pt) = worldToScreen(p, origin, ppm)
 
-        drawGrid(vm.mat, origin, ppm, gridMinor, gridMajor)
-
-        // mat border
+        // Fill the mat first, then the grid on top, then the border. In COLOR mode the fill is an
+        // opaque white sheet, so the grid has to be drawn over it to stay visible.
         val tl = s(Pt(0.0, 0.0)); val br = s(Pt(vm.mat.widthMm, vm.mat.heightMm))
         drawRect(matFill, topLeft = tl, size = Size(br.x - tl.x, br.y - tl.y))
+        drawGrid(vm.mat, origin, ppm, gridMinor, gridMajor)
         drawRect(matColor, topLeft = tl, size = Size(br.x - tl.x, br.y - tl.y), style = Stroke(width = 2f))
 
         drawRulers(vm.mat, origin, ppm, rulerColor)
