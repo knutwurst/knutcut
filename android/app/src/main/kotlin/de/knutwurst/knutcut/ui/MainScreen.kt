@@ -911,30 +911,8 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
                     Spacer(Modifier.height(8.dp))
                     Button(onClick = onRequestPerm) { Text("Berechtigung erteilen") }
                 } else {
-                    Text("VEVOR-Modell", style = MaterialTheme.typography.labelLarge)
-                    Devices.vevorModels.forEach { m ->
-                        val sel = vm.model.modelId == m.modelId
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().clickable { vm.selectModel(m) }.padding(vertical = 8.dp),
-                        ) {
-                            Icon(painterResource(R.drawable.ic_plotter), contentDescription = null, modifier = Modifier.size(24.dp))
-                            Spacer(Modifier.width(10.dp))
-                            Text(
-                                m.displayName,
-                                modifier = Modifier.weight(1f),
-                                color = if (sel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
-                            )
-                            if (sel) Icon(Icons.Default.Check, contentDescription = "Gewählt", tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-
-                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
-
-                    // Silhouette model picker
-                    Text("Silhouette-Modell", style = MaterialTheme.typography.labelLarge)
-                    Devices.silhouetteModels.forEach { m ->
+                    Text("Modell", style = MaterialTheme.typography.labelLarge)
+                    Devices.models.forEach { m ->
                         val sel = vm.model.modelId == m.modelId
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -954,7 +932,7 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
 
                     HorizontalDivider(Modifier.padding(vertical = 8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("VEVOR-Geräte", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                        Text("Geräte", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
                         TextButton(onClick = { found.clear(); foundLe.clear(); scanning = !scanning }) { Text(if (scanning) "Stopp" else "Suchen") }
                     }
                     if (devices.isEmpty()) {
