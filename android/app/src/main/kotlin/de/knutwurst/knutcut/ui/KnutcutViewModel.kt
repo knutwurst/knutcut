@@ -263,6 +263,34 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Save the current layers (placement + geometry) as a JSON project file. */
+    fun saveProject(uri: Uri) {
+        val json = de.knutwurst.knutcut.data.ProjectIO.toJson(layers)
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching { getApplication<Application>().contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) } }.isSuccess
+            }
+            status = if (ok) "Projekt gespeichert." else "Projekt konnte nicht gespeichert werden."
+        }
+    }
+
+    /** Load a JSON project file, replacing the current layers with the saved arrangement. */
+    fun loadProject(uri: Uri) {
+        viewModelScope.launch {
+            val text = withContext(Dispatchers.IO) {
+                runCatching { getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } }.getOrNull()
+            }
+            val ls = text?.let { runCatching { de.knutwurst.knutcut.data.ProjectIO.fromJson(it) }.getOrNull() }
+            if (ls.isNullOrEmpty()) { status = "Kein gültiges Projekt."; return@launch }
+            pushHistory()
+            layers = ls
+            selectedLayer = 0
+            markedLayers = emptySet()
+            pruneBoundsCache()
+            status = "Projekt geladen (${ls.size} Ebene${if (ls.size == 1) "" else "n"})."
+        }
+    }
+
     /** Resolve the pending import once the user picked replace or add. */
     fun resolveImport(replace: Boolean) {
         val p = pendingImport ?: return

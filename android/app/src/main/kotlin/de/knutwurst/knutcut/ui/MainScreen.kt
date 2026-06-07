@@ -711,6 +711,15 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
             }
 
             Spacer(Modifier.height(18.dp))
+            Text("Projekt", style = MaterialTheme.typography.labelLarge)
+            val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let { vm.saveProject(it) } }
+            val loadLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.loadProject(it) } }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { saveLauncher.launch("knutcut-projekt.json") }, enabled = vm.hasDesign, modifier = Modifier.weight(1f)) { Text("Speichern", maxLines = 1) }
+                OutlinedButton(onClick = { loadLauncher.launch(arrayOf("*/*")) }, modifier = Modifier.weight(1f)) { Text("Laden", maxLines = 1) }
+            }
+
+            Spacer(Modifier.height(18.dp))
             Text("Farben", style = MaterialTheme.typography.labelLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = vm.colorMode == ColorMode.OUTLINE, onClick = { vm.changeColorMode(ColorMode.OUTLINE) }, label = { Text("Nur Outline") })
