@@ -1,5 +1,7 @@
 package de.knutwurst.knutcut.ui
 
+import de.knutwurst.knutcut.data.Layer
+import de.knutwurst.knutcut.data.ProjectIO
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Pt
@@ -96,6 +98,16 @@ class KnutcutViewModelTest {
         vm.selectLayer(0)
         vm.tileSelected(1, 1)
         assertEquals(1, vm.layers.size)
+    }
+
+    @Test
+    fun loadDesignImportsAKcpProjectByContent() {
+        // A .kcp opened through the generic file path must load as a project, not error as "no SVG".
+        val vm = vm()
+        val json = ProjectIO.toJson(listOf(Layer("Profil", square(0.0), Tool.KNIFE, true)))
+        vm.loadDesign(json)
+        assertEquals(1, vm.layers.size)
+        assertEquals("Profil", vm.layers[0].name)
     }
 
     @Test

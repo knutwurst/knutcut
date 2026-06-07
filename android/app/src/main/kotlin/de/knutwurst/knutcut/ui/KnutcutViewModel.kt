@@ -436,6 +436,18 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Parse and place a single file. Returns true when something was loaded. */
     private fun loadDesignContent(text: String, replace: Boolean): Boolean {
+        // A .kcp project (opened via the file button too, not just "Open project"): load the saved
+        // arrangement as-is. Detected by content, so the extension/MIME doesn't matter.
+        val proj = runCatching { de.knutwurst.knutcut.data.ProjectIO.fromJson(text) }.getOrNull()
+        if (!proj.isNullOrEmpty()) {
+            pushHistory()
+            layers = proj
+            selectedLayer = 0
+            markedLayers = emptySet()
+            pruneBoundsCache()
+            status = qty(R.plurals.st_project_loaded, proj.size, proj.size)
+            return true
+        }
         val parsed = parseDesign(text)
         if (parsed == null || parsed.layers.isEmpty()) { status = s(R.string.st_no_cuttable_paths); return false }
         pushHistory()
