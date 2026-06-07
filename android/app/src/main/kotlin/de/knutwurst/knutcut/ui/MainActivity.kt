@@ -1,16 +1,23 @@
 package de.knutwurst.knutcut.ui
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import de.knutwurst.knutcut.data.Settings
 import de.knutwurst.knutcut.ui.theme.KnutcutTheme
 
 class MainActivity : ComponentActivity() {
 
     private val vm: KnutcutViewModel by viewModels()
+
+    // Apply the chosen UI language before the activity inflates, so all resources use it.
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleUtil.wrap(newBase, Settings(newBase).appLanguage))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

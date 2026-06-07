@@ -161,6 +161,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     var themeMode by mutableStateOf(settings.themeMode); private set
     var colorMode by mutableStateOf(settings.colorMode); private set
+    var appLanguage by mutableStateOf(settings.appLanguage); private set
 
     var displayUnit by mutableStateOf(settings.displayUnit); private set
     var originOffsetMm by mutableStateOf(settings.originOffsetMm); private set
@@ -213,10 +214,17 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun changeOptimizeCutOrder(on: Boolean) { optimizeCutOrder = on; settings.optimizeCutOrder = on }
 
+    /** Persist + apply the UI language; the caller recreates the activity to reload resources. */
+    fun changeAppLanguage(lang: String) { settings.appLanguage = lang; appLanguage = lang }
+
+    /** Context wrapped with the chosen language, so toasts honour it like the rest of the UI. */
+    private fun locCtx(): android.content.Context =
+        LocaleUtil.wrap(getApplication<Application>(), settings.appLanguage)
+
     /** Localized string / quantity-string helpers for status (toast) messages. */
-    private fun s(id: Int, vararg a: Any?): String = getApplication<Application>().getString(id, *a)
+    private fun s(id: Int, vararg a: Any?): String = locCtx().getString(id, *a)
     private fun qty(id: Int, n: Int, vararg a: Any?): String =
-        getApplication<Application>().resources.getQuantityString(id, n, *a)
+        locCtx().resources.getQuantityString(id, n, *a)
 
     /** Remove leftover update APKs (called once at launch, now that this version is running). */
     fun cleanupUpdates() { runCatching { de.knutwurst.knutcut.update.Updater.cleanup(getApplication()) } }

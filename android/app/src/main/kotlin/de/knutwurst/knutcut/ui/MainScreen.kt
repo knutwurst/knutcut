@@ -788,6 +788,19 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
             }
 
             Spacer(Modifier.height(18.dp))
+            Text(stringResource(R.string.ui_language), style = MaterialTheme.typography.labelLarge)
+            val langActivity = LocalContext.current as? android.app.Activity
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("system" to "🌐 System", "de" to "🇩🇪 Deutsch", "en" to "🇬🇧 English").forEach { (code, lbl) ->
+                    FilterChip(
+                        selected = vm.appLanguage == code,
+                        onClick = { if (vm.appLanguage != code) { vm.changeAppLanguage(code); langActivity?.recreate() } },
+                        label = { Text(lbl) },
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
             Text(stringResource(R.string.ui_appearance), style = MaterialTheme.typography.labelLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(ThemeMode.SYSTEM to stringResource(R.string.ui_system), ThemeMode.LIGHT to stringResource(R.string.ui_light), ThemeMode.DARK to stringResource(R.string.ui_dark)).forEach { (m, lbl) ->

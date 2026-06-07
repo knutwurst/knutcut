@@ -40,6 +40,11 @@ class Settings(context: Context) {
         get() = runCatching { ColorMode.valueOf(p.getString("colorMode", ColorMode.COLOR.name)!!) }.getOrDefault(ColorMode.COLOR)
         set(v) = p.edit().putString("colorMode", v.name).apply()
 
+    /** UI language: "system", "de" or "en". Applied via a locale-wrapped context. */
+    var appLanguage: String
+        get() = p.getString("appLanguage", "system") ?: "system"
+        set(v) = p.edit().putString("appLanguage", v).apply()
+
     var deviceAddress: String?
         get() = devicePrefs.getString("deviceAddress", null)
         set(v) = devicePrefs.edit().putString("deviceAddress", v).apply()
@@ -99,9 +104,9 @@ class Settings(context: Context) {
         get() = runCatching { DisplayUnit.valueOf(p.getString("displayUnit", DisplayUnit.MM.name)!!) }.getOrDefault(DisplayUnit.MM)
         set(v) = p.edit().putString("displayUnit", v.name).apply()
 
-    /** Grid snap step in mm while dragging on the mat (0 = off). */
+    /** Grid snap step in mm while dragging on the mat (0 = off). Defaults to 5 mm. */
     var snapMm: Float
-        get() = p.getFloat("snapMm", 0f)
+        get() = p.getFloat("snapMm", 5f)
         set(v) = p.edit().putFloat("snapMm", v).apply()
 
     /** Smart alignment guides: snap a dragged layer's centre to another layer's (or the mat's) centre. */
