@@ -152,7 +152,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                 Column(Modifier.weight(1f)) {
                     Text("Knutcut", style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "v$version · Knutwurst",
+                        stringResource(R.string.ui_header_sub, version),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -247,7 +247,7 @@ fun MainScreen(vm: KnutcutViewModel) {
         AlertDialog(
             onDismissRequest = { vm.dismissUpdate() },
             title = { Text(stringResource(R.string.ui_update_avail)) },
-            text = { Text("Installiert: ${appVersion(context)}\nVerfügbar: ${info.versionName}\n\nJetzt aktualisieren?") },
+            text = { Text(stringResource(R.string.ui_update_dialog, appVersion(context), info.versionName)) },
             confirmButton = { TextButton(onClick = { vm.runUpdate() }, enabled = !vm.updateBusy) { Text(stringResource(R.string.ui_update)) } },
             dismissButton = { TextButton(onClick = { vm.dismissUpdate() }) { Text(stringResource(R.string.ui_cancel)) } },
         )
@@ -416,7 +416,7 @@ private fun EditingBar(
 
     Spacer(Modifier.height(8.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        OutlinedButton(onClick = onLayers, modifier = Modifier.weight(1f)) { Text("Ebenen (${vm.layers.size})", maxLines = 1) }
+        OutlinedButton(onClick = onLayers, modifier = Modifier.weight(1f)) { Text(pluralStringResource(R.plurals.ui_layers_title, vm.layers.size, vm.layers.size), maxLines = 1) }
         OutlinedButton(onClick = onMaterial, modifier = Modifier.weight(1f)) { Text(vm.material.display(), maxLines = 1) }
     }
     Spacer(Modifier.height(8.dp))
@@ -485,18 +485,18 @@ private fun CutSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                 }
                 Spacer(Modifier.height(8.dp))
             } else {
-                Text("$knifeN Ebene${if (knifeN == 1) "" else "n"} schneiden · $penN Ebene${if (penN == 1) "" else "n"} zeichnen", style = MaterialTheme.typography.bodyMedium)
+                Text(pluralStringResource(R.plurals.ui_cut_n, knifeN, knifeN) + " · " + pluralStringResource(R.plurals.ui_draw_n, penN, penN), style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(8.dp))
             }
-            val ebenen = if (ls.size == 1) "1 Ebene" else "${ls.size} Ebenen"
+            val ebenen = pluralStringResource(R.plurals.ui_layers_count, ls.size, ls.size)
             val toolLabel = when (single) { Tool.KNIFE -> stringResource(R.string.ui_knife); Tool.PEN -> stringResource(R.string.ui_pen); else -> if (ls.isEmpty()) "–" else stringResource(R.string.ui_knife_pen) }
             Text(
                 "$ebenen · $toolLabel",
                 style = MaterialTheme.typography.bodyLarge,
                 color = if (knifeN > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text("Material: ${vm.material.display()}", style = MaterialTheme.typography.bodySmall)
-            vm.extentReadout(ls)?.let { Text("Größe (benötigtes Material): $it", style = MaterialTheme.typography.bodySmall) }
+            Text(stringResource(R.string.ui_material_label, vm.material.display()), style = MaterialTheme.typography.bodySmall)
+            vm.extentReadout(ls)?.let { Text(stringResource(R.string.ui_needed_material, it), style = MaterialTheme.typography.bodySmall) }
             if (!withinMat) {
                 Spacer(Modifier.height(8.dp))
                 Text(
@@ -511,7 +511,7 @@ private fun CutSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                 onClick = { onDismiss(); vm.cut() },
                 enabled = withinMat && ls.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-            ) { Text("$label starten") }
+            ) { Text(stringResource(R.string.ui_start_label, label)) }
         }
     }
 }
@@ -522,7 +522,7 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
     var allowRotate by remember { mutableStateOf(true) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
-            Text("Ebenen (${vm.layers.size})", style = MaterialTheme.typography.titleMedium)
+            Text(pluralStringResource(R.plurals.ui_layers_title, vm.layers.size, vm.layers.size), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             val marked = vm.markedLayers.count { it in vm.layers.indices }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -530,7 +530,7 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                 OutlinedButton(
                     onClick = { if (marked >= 2) vm.mergeMarked() else vm.mergeLayers() },
                     modifier = Modifier.weight(1f),
-                ) { Text(if (marked >= 2) "$marked zusammenführen" else stringResource(R.string.ui_merge_all), maxLines = 1) }
+                ) { Text(if (marked >= 2) stringResource(R.string.ui_merge_n, marked) else stringResource(R.string.ui_merge_all), maxLines = 1) }
             }
             Spacer(Modifier.height(4.dp))
             OutlinedButton(onClick = { vm.mergeByColor() }, modifier = Modifier.fillMaxWidth()) {
@@ -676,10 +676,10 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
             Text(
                 when {
                     vm.connecting -> stringResource(R.string.ui_connecting)
-                    vm.connectedToPlotter -> "Verbunden: ${vm.model.displayName}"
-                    vm.connectedToSilhouette -> "Verbunden: ${vm.model.displayName} (BLE)"
-                    vm.connected -> "Verbunden: ${vm.device?.name ?: "?"} (kein unterstützter Plotter)"
-                    else -> "Nicht verbunden · Modell: ${vm.model.displayName}"
+                    vm.connectedToPlotter -> stringResource(R.string.ui_connected, vm.model.displayName)
+                    vm.connectedToSilhouette -> stringResource(R.string.ui_connected_ble2, vm.model.displayName)
+                    vm.connected -> stringResource(R.string.ui_connected_unsupported, vm.device?.name ?: "?")
+                    else -> stringResource(R.string.ui_not_connected, vm.model.displayName)
                 },
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -731,7 +731,7 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(stringResource(R.string.ui_sil_speed), style = MaterialTheme.typography.bodyMedium)
-                        Text("1–${vm.silhouetteSpeedMax} (höher = schneller, weniger genau).", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.ui_speed_hint, vm.silhouetteSpeedMax), style = MaterialTheme.typography.bodySmall)
                     }
                     EditableStepper(vm.silhouetteSpeed, 1, vm.silhouetteSpeedMax, step = 1) { vm.changeSilhouetteSpeed(it) }
                 }
@@ -798,7 +798,7 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
             }
 
             Spacer(Modifier.height(14.dp))
-            Text("Knutcut v$version · Knutwurst", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.ui_footer_version, version), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -816,11 +816,11 @@ private fun TransformDialog(vm: KnutcutViewModel, onDismiss: () -> Unit) {
         title = { Text(stringResource(R.string.ui_size_angle)) },
         text = {
             Column {
-                OutlinedTextField(w, { w = it }, singleLine = true, label = { Text("Breite (${unit.label})") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(w, { w = it }, singleLine = true, label = { Text(stringResource(R.string.ui_width_unit, unit.label)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(h, { h = it }, singleLine = true, label = { Text("Höhe (${unit.label})") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(h, { h = it }, singleLine = true, label = { Text(stringResource(R.string.ui_height_unit, unit.label)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(ang, { ang = it }, singleLine = true, label = { Text("Winkel (°)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(ang, { ang = it }, singleLine = true, label = { Text(stringResource(R.string.ui_angle)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             }
         },
         confirmButton = {
@@ -854,7 +854,7 @@ private fun MaterialManageDialog(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                 } else {
                     custom.forEach { m ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("${m.name} · ${m.force}", maxLines = 1, modifier = Modifier.weight(1f))
+                            Text(stringResource(R.string.ui_material_item, m.name, m.force), maxLines = 1, modifier = Modifier.weight(1f))
                             TextButton(onClick = { editId = m.id; name = m.name; force = m.force }) { Text(stringResource(R.string.ui_edit)) }
                             TextButton(onClick = { vm.deleteMaterial(m.id) }) { Text(stringResource(R.string.ui_delete)) }
                         }
@@ -1047,7 +1047,7 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
                                 TextButton(onClick = { confirmOtherLe = d }, modifier = Modifier.fillMaxWidth()) {
                                     Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
                                     Spacer(Modifier.width(8.dp))
-                                    Text("${d.name ?: d.address} (BLE)", modifier = Modifier.weight(1f))
+                                    Text(stringResource(R.string.ui_device_ble, d.name ?: d.address), modifier = Modifier.weight(1f))
                                 }
                             }
                         }
@@ -1066,7 +1066,7 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
         AlertDialog(
             onDismissRequest = { confirmOther = null },
             title = { Text(stringResource(R.string.ui_unsupported_plotter)) },
-            text = { Text("„${d.name ?: d.address}“ ist kein unterstützter VEVOR-Plotter. Die Plotter-Funktionen können fehlschlagen. Trotzdem verbinden?") },
+            text = { Text(stringResource(R.string.ui_confirm_other_msg, d.name ?: d.address)) },
             confirmButton = {
                 TextButton(onClick = { confirmOther = null; scanning = false; vm.connect(d); onDismiss() }) { Text(stringResource(R.string.ui_connect_anyway)) }
             },
@@ -1078,7 +1078,7 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
         AlertDialog(
             onDismissRequest = { confirmOtherLe = null },
             title = { Text(stringResource(R.string.ui_unknown_ble)) },
-            text = { Text("„${d.name ?: d.address}“ ist kein erkannter Silhouette-Plotter. Verbinde nur, wenn dein Modell oben als Silhouette gewählt ist – sonst schlägt der Schnitt fehl. Trotzdem verbinden?") },
+            text = { Text(stringResource(R.string.ui_confirm_ble_msg, d.name ?: d.address)) },
             confirmButton = {
                 TextButton(onClick = { confirmOtherLe = null; scanning = false; vm.connectLe(d); onDismiss() }) { Text(stringResource(R.string.ui_connect_anyway)) }
             },

@@ -207,4 +207,41 @@
     <string name="ui_suffix_singleline">" · single-line"</string>
     <string name="ui_font_singleline_pen">"  (single-line · pen)"</string>
     <string name="ui_text_colon">"Text: "</string>
+    <string name="ui_update_dialog">Installed: %1$s\nAvailable: %2$s\n\nUpdate now?</string>
+    <string name="ui_material_label">Material: %1$s</string>
+    <string name="ui_needed_material">Size (material needed): %1$s</string>
+    <string name="ui_start_label">Start %1$s</string>
+    <string name="ui_merge_n">Merge %1$d</string>
+    <string name="ui_connected">Connected: %1$s</string>
+    <string name="ui_connected_ble2">Connected: %1$s (BLE)</string>
+    <string name="ui_connected_unsupported">Connected: %1$s (unsupported plotter)</string>
+    <string name="ui_not_connected">Not connected · Model: %1$s</string>
+    <string name="ui_speed_hint">1–%1$d (higher = faster, less precise).</string>
+    <string name="ui_width_unit">Width (%1$s)</string>
+    <string name="ui_height_unit">Height (%1$s)</string>
+    <string name="ui_angle">Angle (°)</string>
+    <string name="ui_material_item">%1$s · %2$d</string>
+    <string name="ui_device_ble">%1$s (BLE)</string>
+    <string name="ui_confirm_other_msg">“%1$s” is not a supported VEVOR plotter. Plotter functions may fail. Connect anyway?</string>
+    <string name="ui_confirm_ble_msg">“%1$s” is not a recognised Silhouette plotter. Only connect if your model above is set to a Silhouette – otherwise the cut will fail. Connect anyway?</string>
+    <string name="ui_header_sub">v%1$s · Knutwurst</string>
+    <string name="ui_footer_version">Knutcut v%1$s · Knutwurst</string>
+    <plurals name="ui_layers_title">
+        <item quantity="one">Layer (%1$d)</item>
+        <item quantity="other">Layers (%1$d)</item>
+    </plurals>
+    <plurals name="ui_layers_count">
+        <item quantity="one">%1$d layer</item>
+        <item quantity="other">%1$d layers</item>
+    </plurals>
+    <plurals name="ui_cut_n">
+        <item quantity="one">%1$d layer to cut</item>
+        <item quantity="other">%1$d layers to cut</item>
+    </plurals>
+    <plurals name="ui_draw_n">
+        <item quantity="one">%1$d layer to draw</item>
+        <item quantity="other">%1$d layers to draw</item>
+    </plurals>
+    <string name="st_cutting">Cutting…</string>
+    <string name="st_drawing">Drawing…</string>
 </resources>

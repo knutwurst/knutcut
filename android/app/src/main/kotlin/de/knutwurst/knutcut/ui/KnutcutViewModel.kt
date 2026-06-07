@@ -1301,7 +1301,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 if (!pollState(session, Query("queryStartKey"))) { finishCut(s(R.string.st_start_not_pressed)); return }
             }
 
-            status = if (Tool.KNIFE in toolsUsed) Tool.KNIFE.progress else Tool.PEN.progress
+            status = if (Tool.KNIFE in toolsUsed) s(R.string.st_cutting) else s(R.string.st_drawing)
             // Build one continuous command stream (the stock app's "plt"). Each tool's block starts
             // with its own SP/FS *inside* the stream — the machine takes the tool (SP1 = right/knife,
             // SP2 = left/pen) from the path data, not from a standalone setup command.

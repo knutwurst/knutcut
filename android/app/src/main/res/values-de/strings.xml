@@ -205,4 +205,41 @@
     <string name="ui_suffix_singleline">" · Einlinie"</string>
     <string name="ui_font_singleline_pen">"  (Einlinie · Stift)"</string>
     <string name="ui_text_colon">"Text: "</string>
+    <string name="ui_update_dialog">Installiert: %1$s\nVerfügbar: %2$s\n\nJetzt aktualisieren?</string>
+    <string name="ui_material_label">Material: %1$s</string>
+    <string name="ui_needed_material">Größe (benötigtes Material): %1$s</string>
+    <string name="ui_start_label">%1$s starten</string>
+    <string name="ui_merge_n">%1$d zusammenführen</string>
+    <string name="ui_connected">Verbunden: %1$s</string>
+    <string name="ui_connected_ble2">Verbunden: %1$s (BLE)</string>
+    <string name="ui_connected_unsupported">Verbunden: %1$s (kein unterstützter Plotter)</string>
+    <string name="ui_not_connected">Nicht verbunden · Modell: %1$s</string>
+    <string name="ui_speed_hint">1–%1$d (höher = schneller, weniger genau).</string>
+    <string name="ui_width_unit">Breite (%1$s)</string>
+    <string name="ui_height_unit">Höhe (%1$s)</string>
+    <string name="ui_angle">Winkel (°)</string>
+    <string name="ui_material_item">%1$s · %2$d</string>
+    <string name="ui_device_ble">%1$s (BLE)</string>
+    <string name="ui_confirm_other_msg">„%1$s“ ist kein unterstützter VEVOR-Plotter. Die Plotter-Funktionen können fehlschlagen. Trotzdem verbinden?</string>
+    <string name="ui_confirm_ble_msg">„%1$s“ ist kein erkannter Silhouette-Plotter. Verbinde nur, wenn dein Modell oben als Silhouette gewählt ist – sonst schlägt der Schnitt fehl. Trotzdem verbinden?</string>
+    <string name="ui_header_sub">v%1$s · Knutwurst</string>
+    <string name="ui_footer_version">Knutcut v%1$s · Knutwurst</string>
+    <plurals name="ui_layers_title">
+        <item quantity="one">Ebene (%1$d)</item>
+        <item quantity="other">Ebenen (%1$d)</item>
+    </plurals>
+    <plurals name="ui_layers_count">
+        <item quantity="one">%1$d Ebene</item>
+        <item quantity="other">%1$d Ebenen</item>
+    </plurals>
+    <plurals name="ui_cut_n">
+        <item quantity="one">%1$d Ebene schneiden</item>
+        <item quantity="other">%1$d Ebenen schneiden</item>
+    </plurals>
+    <plurals name="ui_draw_n">
+        <item quantity="one">%1$d Ebene zeichnen</item>
+        <item quantity="other">%1$d Ebenen zeichnen</item>
+    </plurals>
+    <string name="st_cutting">Schneide…</string>
+    <string name="st_drawing">Zeichne…</string>
 </resources>
