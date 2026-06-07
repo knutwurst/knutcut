@@ -31,9 +31,10 @@ Uses the same local toolchain as cricut-export (Android SDK and Gradle under `to
 ## Layout
 
 - `svgcore` — pure Kotlin, no Android. Turns an SVG into mm geometry and then into the plotter
-  command stream. No Android dependency, so cricut-export can reuse it. Unit-tested on the JVM.
-- `transport` — classic Bluetooth Serial (SPP) link to the plotter.
-- `app` — Compose UI: share target, mat editor (place, scale, rotate), material picker, cut.
+  command stream (HPGL for VEVOR, GPGL for Silhouette). No Android dependency, so cricut-export can
+  reuse it. Unit-tested on the JVM.
+- `app` — Compose UI (share target, mat editor, material picker, cut) plus the Bluetooth transports:
+  classic Serial (SPP) for VEVOR and Bluetooth LE (GATT) for Silhouette.
 
 ## Notes
 

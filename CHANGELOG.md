@@ -3,6 +3,14 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.50.1
+- Language: picking "System" restores the real system locale; no more global-locale side effects
+  from status messages. Real vector flags instead of emoji; settings reopen after a language change.
+- Reordering a layer no longer leaves stale "marked" selections.
+- Closes the Bluetooth link cleanly on the double-back exit.
+- Launch cleanup keeps a downloaded update until it's actually installed.
+- Layer row no longer overflows on small screens (edit/reorder show on the selected row).
+
 ## 0.50.0
 - Rename a layer and move it up or down in the list (reorder also changes the plot order).
 - "View" action recentres the camera on the mat.
