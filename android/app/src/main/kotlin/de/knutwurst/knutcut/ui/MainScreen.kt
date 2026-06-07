@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.FormatAlignCenter
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -248,7 +249,11 @@ fun MainScreen(vm: KnutcutViewModel) {
     if (showDevices) {
         DeviceDialog(vm, hasBtPerm, onRequestPerm = { permLauncher.launch(bluetoothPermissions()) }, onDismiss = { showDevices = false })
     }
-    LaunchedEffect(Unit) { vm.cleanupUpdates(); if (vm.autoUpdate) vm.checkForUpdate(silent = true) }
+    LaunchedEffect(Unit) {
+        if (vm.consumeReopenSettings()) showSettings = true // came back from a language-change recreate
+        vm.cleanupUpdates()
+        if (vm.autoUpdate) vm.checkForUpdate(silent = true)
+    }
 
     // Back on the base screen (open sheets/dialogs handle their own back first): press twice to close.
     // finishAndRemoveTask drops it from recents; exitProcess makes sure the lingering OneUI process dies.
@@ -649,15 +654,18 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                         modifier = Modifier.weight(1f).clickable { vm.selectLayer(i) },
                     )
-                    IconButton(onClick = { renameText = layer.name; renaming = i }) {
-                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.ui_rename), modifier = Modifier.size(18.dp))
-                    }
-                    if (vm.layers.size > 1) {
-                        IconButton(onClick = { vm.moveLayer(i, -1) }, enabled = i > 0) {
-                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = stringResource(R.string.ui_move_up))
+                    // Edit/reorder only on the selected row, so the row doesn't overflow on small screens.
+                    if (selected) {
+                        IconButton(onClick = { renameText = layer.name; renaming = i }) {
+                            Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.ui_rename), modifier = Modifier.size(18.dp))
                         }
-                        IconButton(onClick = { vm.moveLayer(i, 1) }, enabled = i < vm.layers.size - 1) {
-                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.ui_move_down))
+                        if (vm.layers.size > 1) {
+                            IconButton(onClick = { vm.moveLayer(i, -1) }, enabled = i > 0) {
+                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = stringResource(R.string.ui_move_up))
+                            }
+                            IconButton(onClick = { vm.moveLayer(i, 1) }, enabled = i < vm.layers.size - 1) {
+                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.ui_move_down))
+                            }
                         }
                     }
                     FilterChip(selected = layer.tool == Tool.PEN, onClick = { vm.setLayerTool(i, Tool.PEN) }, label = { Text(stringResource(R.string.ui_pen)) })
@@ -835,12 +843,22 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
             Spacer(Modifier.height(18.dp))
             Text(stringResource(R.string.ui_language), style = MaterialTheme.typography.labelLarge)
             val langActivity = LocalContext.current as? android.app.Activity
+            data class Lang(val code: String, val label: String, val flag: Int?)
+            val langs = listOf(
+                Lang("system", stringResource(R.string.ui_system), null),
+                Lang("de", "Deutsch", R.drawable.flag_de),
+                Lang("en", "English", R.drawable.flag_gb),
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("system" to "🌐 System", "de" to "🇩🇪 Deutsch", "en" to "🇬🇧 English").forEach { (code, lbl) ->
+                langs.forEach { l ->
                     FilterChip(
-                        selected = vm.appLanguage == code,
-                        onClick = { if (vm.appLanguage != code) { vm.changeAppLanguage(code); langActivity?.recreate() } },
-                        label = { Text(lbl) },
+                        selected = vm.appLanguage == l.code,
+                        onClick = { if (vm.appLanguage != l.code) { vm.changeAppLanguage(l.code); langActivity?.recreate() } },
+                        leadingIcon = {
+                            if (l.flag != null) Image(painterResource(l.flag), contentDescription = null, modifier = Modifier.size(20.dp, 14.dp))
+                            else Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(18.dp))
+                        },
+                        label = { Text(l.label) },
                     )
                 }
             }
