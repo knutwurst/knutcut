@@ -318,6 +318,7 @@ private fun AddMenu(expanded: Boolean, onDismiss: () -> Unit, onOpenFile: () -> 
         DropdownMenuItem(text = { Text("Text…") }, onClick = onText)
         HorizontalDivider()
         listOf(
+            "Probeschnitt 20 mm" to Shapes.rect(20.0, 20.0),
             "Quadrat" to Shapes.rect(40.0, 40.0),
             "Rechteck" to Shapes.rect(60.0, 40.0),
             "Kreis" to Shapes.circle(40.0),

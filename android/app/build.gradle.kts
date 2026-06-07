@@ -12,8 +12,8 @@ android {
         applicationId = "de.knutwurst.knutcut"
         minSdk = 26
         targetSdk = 34
-        versionCode = 93
-        versionName = "0.46.0"
+        versionCode = 94
+        versionName = "0.46.1"
     }
 
     buildFeatures {
