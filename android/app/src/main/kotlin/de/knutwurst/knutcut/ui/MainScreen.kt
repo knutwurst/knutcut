@@ -521,6 +521,18 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             OutlinedButton(onClick = { vm.mergeByColor() }, modifier = Modifier.fillMaxWidth()) {
                 Text("Nach Farben gruppieren", maxLines = 1)
             }
+            Spacer(Modifier.height(4.dp))
+            var cols by remember { mutableStateOf(2) }
+            var rows by remember { mutableStateOf(2) }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Kacheln", modifier = Modifier.weight(1f))
+                EditableStepper(cols, 1, 20, step = 1) { cols = it }
+                Text("×")
+                EditableStepper(rows, 1, 20, step = 1) { rows = it }
+            }
+            OutlinedButton(onClick = { vm.tileSelected(cols, rows) }, enabled = vm.selectedLayer in vm.layers.indices, modifier = Modifier.fillMaxWidth()) {
+                Text("Ausgewählte Ebene kacheln", maxLines = 1)
+            }
             Spacer(Modifier.height(10.dp))
             Text("Material sparen", style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.height(4.dp))

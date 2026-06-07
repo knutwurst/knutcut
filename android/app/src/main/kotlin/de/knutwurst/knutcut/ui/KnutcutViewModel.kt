@@ -678,6 +678,27 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         pruneBoundsCache()
     }
 
+    /** Tile the selected layer into a cols×rows grid, each copy offset by its footprint plus a gap. */
+    fun tileSelected(cols: Int, rows: Int, gapMm: Double = 5.0) {
+        val i = selectedLayer
+        if (i !in layers.indices || cols < 1 || rows < 1 || (cols == 1 && rows == 1)) return
+        val src = layers[i]
+        val b = layerBounds(src)
+        val stepX = b.widthMm * src.scaleX + gapMm
+        val stepY = b.heightMm * src.scaleY + gapMm
+        pushHistory()
+        val copies = ArrayList<Layer>()
+        for (r in 0 until rows) for (c in 0 until cols) {
+            if (r == 0 && c == 0) continue
+            copies.add(src.copy(
+                name = "${src.name} ${r * cols + c + 1}",
+                centerMm = Pt(src.centerMm.xMm + c * stepX, src.centerMm.yMm + r * stepY),
+            ))
+        }
+        layers = layers.toMutableList().also { it.addAll(i + 1, copies) }
+        pruneBoundsCache()
+    }
+
     /** Merge all layers into one, keeping the current arrangement and each shape's colour. */
     fun mergeLayers() {
         if (layers.isEmpty()) return
