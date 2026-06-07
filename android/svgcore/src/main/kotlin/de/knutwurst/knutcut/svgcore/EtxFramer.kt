@@ -19,6 +19,7 @@ class EtxFramer {
                 val token = String(buf, 0, len, Charsets.UTF_8)
                 (out ?: ArrayList<String>().also { out = it }).add(token)
                 len = 0
+                if (buf.size > MAX_KEEP) buf = ByteArray(64) // don't hold a huge buffer after one big token
             } else {
                 ensure(len + 1)
                 buf[len++] = b
@@ -36,5 +37,6 @@ class EtxFramer {
 
     private companion object {
         const val ETX = 0x03.toByte()
+        const val MAX_KEEP = 4096
     }
 }

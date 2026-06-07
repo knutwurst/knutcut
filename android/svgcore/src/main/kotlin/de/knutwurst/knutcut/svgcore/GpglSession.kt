@@ -21,11 +21,10 @@ class GpglSession(
     /** Poll status until the device is [GpglStatus.READY], or the attempts run out. */
     fun waitForReady(attempts: Int = READY_ATTEMPTS, pollMs: Long = READY_POLL_MS): Boolean {
         repeat(attempts) {
-            when (status()) {
-                GpglStatus.READY -> return true
-                GpglStatus.UNKNOWN -> return@repeat
-                else -> {}
-            }
+            // READY ends the wait; everything else (MOVING, UNLOADED, and a transient UNKNOWN/garbled
+            // reply) keeps polling after a delay — an UNKNOWN must not burn through every attempt
+            // instantly or abort a mid-stream chunk on a single noisy response.
+            if (status() == GpglStatus.READY) return true
             sleep(pollMs)
         }
         return status() == GpglStatus.READY
