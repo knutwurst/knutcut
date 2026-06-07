@@ -16,6 +16,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.compose.ui.geometry.Offset
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import de.knutwurst.knutcut.BuildConfig
 import de.knutwurst.knutcut.data.ColorMode
 import de.knutwurst.knutcut.data.Devices
 import de.knutwurst.knutcut.data.DisplayUnit
@@ -164,6 +165,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var originOffsetMm by mutableStateOf(settings.originOffsetMm); private set
     var silhouetteSpeed by mutableStateOf(settings.silhouetteSpeed); private set
     var optimizeCutOrder by mutableStateOf(settings.optimizeCutOrder); private set
+
+    // Self-update: the newer release (if any) and whether a download/install is in flight.
+    var updateInfo by mutableStateOf<de.knutwurst.knutcut.update.UpdateInfo?>(null); private set
+    var updateBusy by mutableStateOf(false); private set
     var snapMm by mutableStateOf(settings.snapMm); private set
     var alignGuides by mutableStateOf(settings.alignGuides); private set
     // Transient guide lines shown while a drag is snapped to another layer's (or the mat's) centre.
@@ -205,6 +210,38 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun changeSnap(mm: Float) { snapMm = mm; settings.snapMm = mm }
 
     fun changeOptimizeCutOrder(on: Boolean) { optimizeCutOrder = on; settings.optimizeCutOrder = on }
+
+    /** Remove leftover update APKs (called once at launch, now that this version is running). */
+    fun cleanupUpdates() { runCatching { de.knutwurst.knutcut.update.Updater.cleanup(getApplication()) } }
+
+    /** Check the release repo; show the update prompt if a newer versionCode is published. */
+    fun checkForUpdate(silent: Boolean) {
+        if (updateBusy) return
+        viewModelScope.launch {
+            val info = withContext(Dispatchers.IO) { de.knutwurst.knutcut.update.Updater.fetchLatest() }
+            when {
+                info != null && info.versionCode > BuildConfig.VERSION_CODE -> updateInfo = info
+                !silent && info != null -> status = "Kein Update verfügbar (installiert: ${BuildConfig.VERSION_NAME})."
+                !silent -> status = "Update-Prüfung fehlgeschlagen (keine Verbindung?)."
+            }
+        }
+    }
+
+    fun dismissUpdate() { updateInfo = null }
+
+    /** Download the pending update and hand it to the installer (the user confirms the install). */
+    fun runUpdate() {
+        val info = updateInfo ?: return
+        updateBusy = true
+        status = "Lade Update ${info.versionName}…"
+        viewModelScope.launch {
+            val apk = withContext(Dispatchers.IO) { de.knutwurst.knutcut.update.Updater.download(getApplication(), info) }
+            updateBusy = false
+            if (apk == null) { status = "Download fehlgeschlagen."; return@launch }
+            updateInfo = null
+            de.knutwurst.knutcut.update.Updater.install(getApplication(), apk)
+        }
+    }
 
     fun changeAlignGuides(on: Boolean) { alignGuides = on; settings.alignGuides = on; if (!on) clearGuides() }
 

@@ -240,6 +240,16 @@ fun MainScreen(vm: KnutcutViewModel) {
     if (showDevices) {
         DeviceDialog(vm, hasBtPerm, onRequestPerm = { permLauncher.launch(bluetoothPermissions()) }, onDismiss = { showDevices = false })
     }
+    LaunchedEffect(Unit) { vm.cleanupUpdates(); vm.checkForUpdate(silent = true) }
+    vm.updateInfo?.let { info ->
+        AlertDialog(
+            onDismissRequest = { vm.dismissUpdate() },
+            title = { Text("Neue Version verfügbar") },
+            text = { Text("Installiert: ${appVersion(context)}\nVerfügbar: ${info.versionName}\n\nJetzt aktualisieren?") },
+            confirmButton = { TextButton(onClick = { vm.runUpdate() }, enabled = !vm.updateBusy) { Text("Update") } },
+            dismissButton = { TextButton(onClick = { vm.dismissUpdate() }) { Text("Abbrechen") } },
+        )
+    }
     if (showSettings) SettingsSheet(vm, version, onConnect = { showSettings = false; openDevices() }, onDismiss = { showSettings = false })
     if (showMaterial) MaterialSheet(vm, onDismiss = { showMaterial = false })
     if (showLayers) LayersSheet(vm, onDismiss = { showLayers = false })
@@ -730,6 +740,10 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { saveLauncher.launch("knutcut-projekt.json") }, enabled = vm.hasDesign, modifier = Modifier.weight(1f)) { Text("Speichern", maxLines = 1) }
                 OutlinedButton(onClick = { loadLauncher.launch(arrayOf("*/*")) }, modifier = Modifier.weight(1f)) { Text("Laden", maxLines = 1) }
+            }
+            Spacer(Modifier.height(4.dp))
+            OutlinedButton(onClick = { vm.checkForUpdate(silent = false) }, enabled = !vm.updateBusy, modifier = Modifier.fillMaxWidth()) {
+                Text(if (vm.updateBusy) "Aktualisiere…" else "Auf neue Version prüfen", maxLines = 1)
             }
 
             Spacer(Modifier.height(18.dp))
