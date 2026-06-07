@@ -1414,7 +1414,12 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         job.cancel()
     }
 
-    override fun onCleared() { link?.close() }
+    override fun onCleared() {
+        cutJob?.cancel()
+        cutJob = null
+        link?.close()
+        link = null
+    }
 
     private companion object {
         const val TAG = "Knutcut"
