@@ -11,6 +11,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -749,7 +750,7 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             Text(stringResource(R.string.ui_settings), style = MaterialTheme.typography.titleMedium)
 
-            SettingsGroup(stringResource(R.string.ui_plotter)) {
+            SettingsGroup(stringResource(R.string.ui_plotter), initiallyExpanded = true) {
                 Text(
                     when {
                         vm.connecting -> stringResource(R.string.ui_connecting)
@@ -915,19 +916,32 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
     }
 }
 
-/** A titled card that groups related settings, so the sheet reads as distinct sections. */
+/** A titled, collapsible card that groups related settings, so the sheet reads as distinct
+ *  sections the user can fold away. Tap the header to expand/collapse. */
 @Composable
-private fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
+private fun SettingsGroup(title: String, initiallyExpanded: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+    var expanded by remember(title) { mutableStateOf(initiallyExpanded) }
     Spacer(Modifier.height(12.dp))
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(16.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(10.dp))
-            content()
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                Icon(
+                    if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+            AnimatedVisibility(visible = expanded) {
+                Column(Modifier.padding(bottom = 8.dp)) { content() }
+            }
         }
     }
 }
