@@ -45,6 +45,19 @@ class Settings(context: Context) {
         get() = p.getString("appLanguage", "system") ?: "system"
         set(v) = p.edit().putString("appLanguage", v).apply()
 
+    /** Reopen the settings sheet after the activity recreates (e.g. on a language change). */
+    var reopenSettings: Boolean
+        get() = p.getBoolean("reopenSettings", false)
+        set(v) = p.edit().putBoolean("reopenSettings", v).apply()
+
+    /** A downloaded-but-not-yet-installed update APK to keep through launch cleanup, with its code. */
+    var pendingApk: String?
+        get() = p.getString("pendingApk", null)
+        set(v) = p.edit().putString("pendingApk", v).apply()
+    var pendingApkCode: Int
+        get() = p.getInt("pendingApkCode", 0)
+        set(v) = p.edit().putInt("pendingApkCode", v).apply()
+
     var deviceAddress: String?
         get() = devicePrefs.getString("deviceAddress", null)
         set(v) = devicePrefs.edit().putString("deviceAddress", v).apply()

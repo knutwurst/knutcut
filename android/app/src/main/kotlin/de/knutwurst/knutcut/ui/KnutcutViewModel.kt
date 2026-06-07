@@ -215,8 +215,15 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun changeOptimizeCutOrder(on: Boolean) { optimizeCutOrder = on; settings.optimizeCutOrder = on }
 
-    /** Persist + apply the UI language; the caller recreates the activity to reload resources. */
-    fun changeAppLanguage(lang: String) { settings.appLanguage = lang; appLanguage = lang }
+    /** Persist + apply the UI language; the caller recreates the activity to reload resources. The
+     *  settings sheet is reopened after the recreate so the change doesn't dump the user to the editor. */
+    fun changeAppLanguage(lang: String) { settings.appLanguage = lang; appLanguage = lang; settings.reopenSettings = true }
+
+    /** True once, right after a language-change recreate, so the UI can reopen the settings sheet. */
+    fun consumeReopenSettings(): Boolean { val r = settings.reopenSettings; if (r) settings.reopenSettings = false; return r }
+
+    /** Release the link and cancel any cut — called from onCleared and before a hard exit. */
+    fun shutdown() { cutJob?.cancel(); cutJob = null; link?.close(); link = null }
 
     /** Context wrapped with the chosen language, so toasts honour it like the rest of the UI. */
     private fun locCtx(): android.content.Context =
@@ -227,8 +234,15 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     private fun qty(id: Int, n: Int, vararg a: Any?): String =
         locCtx().resources.getQuantityString(id, n, *a)
 
-    /** Remove leftover update APKs (called once at launch, now that this version is running). */
-    fun cleanupUpdates() { runCatching { de.knutwurst.knutcut.update.Updater.cleanup(getApplication()) } }
+    /** Remove leftover update APKs at launch, but keep a downloaded installer that's still newer than
+     *  what's running (the user may not have completed the install yet). */
+    fun cleanupUpdates() {
+        runCatching {
+            val keep = if (settings.pendingApkCode > installedVersionCode()) settings.pendingApk else null
+            if (keep == null) { settings.pendingApk = null; settings.pendingApkCode = 0 }
+            de.knutwurst.knutcut.update.Updater.cleanup(getApplication(), keep)
+        }
+    }
 
     /** Check the release repo; show the update prompt if a newer versionCode is published. */
     fun changeAutoUpdate(on: Boolean) { autoUpdate = on; settings.autoUpdate = on }
@@ -271,6 +285,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             val apk = withContext(Dispatchers.IO) { de.knutwurst.knutcut.update.Updater.download(getApplication(), info) }
             updateBusy = false
             if (apk == null) { status = s(R.string.st_update_download_failed); return@launch }
+            // Remember the verified APK so launch cleanup keeps it until the install actually lands.
+            settings.pendingApk = info.apk; settings.pendingApkCode = info.versionCode
             // Keep updateInfo set if the installer can't run yet (permission), so the user can retry.
             if (de.knutwurst.knutcut.update.Updater.install(getApplication(), apk)) updateInfo = null
             else status = s(R.string.st_install_permission)
@@ -482,6 +498,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         pushHistory()
         layers = layers.toMutableList().also { it.add(j, it.removeAt(i)) }
         selectedLayer = j
+        markedLayers = emptySet() // indices no longer map to the same layers after a reorder
     }
 
     /** Reset the camera (zoom + pan) to the default framing of the mat. */
@@ -1449,12 +1466,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         job.cancel()
     }
 
-    override fun onCleared() {
-        cutJob?.cancel()
-        cutJob = null
-        link?.close()
-        link = null
-    }
+    override fun onCleared() { shutdown() }
 
     private companion object {
         const val TAG = "Knutcut"

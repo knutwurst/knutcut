@@ -258,6 +258,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     BackHandler {
         val now = System.currentTimeMillis()
         if (now - lastBackMs in 1..2000) {
+            vm.shutdown() // close the Bluetooth link before the hard exit, since onCleared may not run
             activity?.finishAndRemoveTask()
             kotlin.system.exitProcess(0)
         } else {

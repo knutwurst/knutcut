@@ -83,10 +83,10 @@ object Updater {
         return true
     }
 
-    /** Delete leftover Knutcut update APKs (only ours), called once the new version is running. */
-    fun cleanup(context: Context) {
+    /** Delete leftover Knutcut update APKs (only ours), keeping [keep] (a pending installer). */
+    fun cleanup(context: Context, keep: String? = null) {
         File(context.cacheDir, DIR).listFiles()?.forEach {
-            if (it.isFile && it.name.startsWith("Knutcut", ignoreCase = true) && it.name.endsWith(".apk", ignoreCase = true)) it.delete()
+            if (it.isFile && it.name != keep && it.name.startsWith("Knutcut", ignoreCase = true) && it.name.endsWith(".apk", ignoreCase = true)) it.delete()
         }
     }
 

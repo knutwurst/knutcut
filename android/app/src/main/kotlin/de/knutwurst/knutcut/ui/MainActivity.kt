@@ -16,7 +16,9 @@ class MainActivity : ComponentActivity() {
 
     // Apply the chosen UI language before the activity inflates, so all resources use it.
     override fun attachBaseContext(newBase: Context) {
-        super.attachBaseContext(LocaleUtil.wrap(newBase, Settings(newBase).appLanguage))
+        val lang = Settings(newBase).appLanguage
+        LocaleUtil.applyDefault(lang)
+        super.attachBaseContext(LocaleUtil.wrap(newBase, lang))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
