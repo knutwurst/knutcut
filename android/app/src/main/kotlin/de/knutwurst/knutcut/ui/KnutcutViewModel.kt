@@ -1256,10 +1256,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         // we'd stream VEVOR JSON+HPGL into a Silhouette (or GPGL into a VEVOR). Refuse the mismatch up
         // front — before touching the design — instead of sending the wrong language down the wire.
         if (!model.family.matches(l.transport)) {
-            status = if (model.family == PlotterFamily.BLE_SILHOUETTE)
-                "${model.displayName} braucht eine BLE-Verbindung. Verbinde das Gerät über die Silhouette-BLE-Liste."
-            else
-                "${model.displayName} braucht eine klassische Bluetooth-Verbindung. Wähle ein VEVOR-Gerät."
+            status = if (model.family == PlotterFamily.BLE_SILHOUETTE) s(R.string.st_needs_ble, model.displayName)
+                     else s(R.string.st_needs_spp, model.displayName)
             return
         }
         if (!hasDesign) { status = s(R.string.st_no_design); return }

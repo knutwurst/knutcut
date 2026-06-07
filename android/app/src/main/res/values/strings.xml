@@ -256,4 +256,6 @@
     <string name="ui_about_fonts">Fonts: Anton, Pacifico, Abril Fatface (OFL) · Hershey fonts (public domain).</string>
     <string name="ui_copies">Copies</string>
     <string name="ui_copies_hint">Plot multiple passes (e.g. a deeper cut).</string>
+    <string name="st_needs_ble">%1$s needs a BLE connection. Connect it from the Silhouette BLE list.</string>
+    <string name="st_needs_spp">%1$s needs a classic Bluetooth connection. Pick a VEVOR device.</string>
 </resources>

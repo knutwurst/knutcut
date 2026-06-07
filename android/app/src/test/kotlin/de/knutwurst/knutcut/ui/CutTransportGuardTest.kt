@@ -1,5 +1,6 @@
 package de.knutwurst.knutcut.ui
 
+import de.knutwurst.knutcut.R
 import de.knutwurst.knutcut.data.Devices
 import de.knutwurst.knutcut.data.PlotterFamily
 import de.knutwurst.knutcut.svgcore.LinkTransport
@@ -32,7 +33,9 @@ class CutTransportGuardTest {
         override fun close() {}
     }
 
-    private fun viewModel() = KnutcutViewModel(RuntimeEnvironment.getApplication())
+    private val app get() = RuntimeEnvironment.getApplication()
+    private fun str(id: Int, vararg a: Any?) = app.getString(id, *a)
+    private fun viewModel() = KnutcutViewModel(app)
 
     private val vevorModel = Devices.models.first { it.family == PlotterFamily.SPP_VEVOR }
     private val silhouetteModel = Devices.models.first { it.family == PlotterFamily.BLE_SILHOUETTE }
@@ -48,7 +51,7 @@ class CutTransportGuardTest {
         // VEVOR can't talk over BLE — abort with the classic-Bluetooth hint, before any design check.
         val status = vm.status
         assertNotNull(status)
-        assertTrue("expected classic-Bluetooth hint, was: $status", status!!.contains("klassische Bluetooth"))
+        assertEquals(str(R.string.st_needs_spp, vevorModel.displayName), status)
         assertFalse("must not start cutting on a transport mismatch", vm.cutting)
     }
 
@@ -63,7 +66,7 @@ class CutTransportGuardTest {
         // A Silhouette needs BLE — abort with the BLE hint instead of sending GPGL down a VEVOR link.
         val status = vm.status
         assertNotNull(status)
-        assertTrue("expected BLE hint, was: $status", status!!.contains("BLE-Verbindung"))
+        assertEquals(str(R.string.st_needs_ble, silhouetteModel.displayName), status)
         assertFalse("must not start cutting on a transport mismatch", vm.cutting)
     }
 
@@ -76,7 +79,7 @@ class CutTransportGuardTest {
         vm.cut()
 
         // Matching transport clears the guard; the next gate (no design loaded) proves we got past it.
-        assertEquals("Kein Design geladen.", vm.status)
+        assertEquals(str(R.string.st_no_design), vm.status)
         assertFalse(vm.cutting)
     }
 
@@ -88,7 +91,7 @@ class CutTransportGuardTest {
 
         vm.cut()
 
-        assertEquals("Kein Design geladen.", vm.status)
+        assertEquals(str(R.string.st_no_design), vm.status)
         assertFalse(vm.cutting)
     }
 
@@ -98,7 +101,7 @@ class CutTransportGuardTest {
 
         vm.cut()
 
-        assertEquals("Bitte zuerst den Plotter verbinden.", vm.status)
+        assertEquals(str(R.string.st_connect_plotter_first), vm.status)
         assertFalse(vm.cutting)
     }
 }
