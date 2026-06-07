@@ -901,6 +901,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun connectLe(dev: BluetoothDevice, silent: Boolean = false) {
         if (connecting || connected) return
+        if (model.family != PlotterFamily.BLE_SILHOUETTE) {
+            if (!silent) status = "Bitte zuerst oben ein Silhouette-Modell wählen."
+            return
+        }
         connecting = true
         if (!silent) status = "Verbinde mit ${dev.name} (BLE)…"
         viewModelScope.launch {
@@ -1115,14 +1119,20 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         // The editor mat and the machine's cuttable area can differ (e.g. a 203 mm Portrait), so check
         // against the device's own bounds before streaming.
         val pts = polylines.flatMap { it.points }
+        val minX = pts.minOfOrNull { it.xMm } ?: 0.0
+        val minY = pts.minOfOrNull { it.yMm } ?: 0.0
         val maxX = pts.maxOfOrNull { it.xMm } ?: 0.0
         val maxY = pts.maxOfOrNull { it.yMm } ?: 0.0
-        if (maxX > silDev.widthMm || maxY > silDev.lengthMm) {
-            finishCut("Design größer als ${model.displayName} (${silDev.widthMm.toInt()}×${silDev.lengthMm.toInt()} mm)."); return
+        // Reject anything off the machine's cuttable area — too big, or pushed past the top/left origin
+        // into negative units (which would otherwise stream as out-of-range coordinates).
+        if (minX < 0 || minY < 0 || maxX > silDev.widthMm || maxY > silDev.lengthMm) {
+            finishCut("Design außerhalb des Schneidebereichs von ${model.displayName} (${silDev.widthMm.toInt()}×${silDev.lengthMm.toInt()} mm)."); return
         }
         // User-chosen speed, clamped to what this family allows (GpglProtocol clamps again defensively).
         val speed = silhouetteSpeed.coerceIn(1, silhouetteSpeedMax)
-        val cutSettings = GpglCutSettings(speed = speed, pressure = silhouettePressure(forceFor(Tool.KNIFE)))
+        // Use the predominant tool's force (knife if any knife layer, else pen), not always the knife.
+        val tool = if (cutLayers().any { it.tool == Tool.KNIFE }) Tool.KNIFE else Tool.PEN
+        val cutSettings = GpglCutSettings(speed = speed, pressure = silhouettePressure(forceFor(tool)))
         status = "Schneiden (Silhouette)…"
         try {
             val ok = withContext(Dispatchers.IO) {
