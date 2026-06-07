@@ -80,6 +80,11 @@ class Settings(context: Context) {
         get() = p.getInt("originOffsetMm", 0)
         set(v) = p.edit().putInt("originOffsetMm", v).apply()
 
+    /** Reorder contours by nearest-neighbour to shorten travel. Off by default (changes the path). */
+    var optimizeCutOrder: Boolean
+        get() = p.getBoolean("optimizeCutOrder", false)
+        set(v) = p.edit().putBoolean("optimizeCutOrder", v).apply()
+
     /** Silhouette cut speed (GPGL "!" command); clamped per family at cut time. */
     var silhouetteSpeed: Int
         get() = p.getInt("silhouetteSpeed", 10)

@@ -732,6 +732,15 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
             }
 
             Spacer(Modifier.height(18.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Schnittreihenfolge optimieren", style = MaterialTheme.typography.bodyMedium)
+                    Text("Kürzere Leerwege zwischen Konturen. Ändert den Pfad – am Gerät prüfen.", style = MaterialTheme.typography.bodySmall)
+                }
+                Switch(checked = vm.optimizeCutOrder, onCheckedChange = { vm.changeOptimizeCutOrder(it) })
+            }
+
+            Spacer(Modifier.height(18.dp))
             Text("Farben", style = MaterialTheme.typography.labelLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = vm.colorMode == ColorMode.OUTLINE, onClick = { vm.changeColorMode(ColorMode.OUTLINE) }, label = { Text("Nur Outline") })

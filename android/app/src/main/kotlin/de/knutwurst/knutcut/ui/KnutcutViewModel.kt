@@ -30,6 +30,7 @@ import de.knutwurst.knutcut.data.Settings
 import de.knutwurst.knutcut.data.ThemeMode
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Bounds
+import de.knutwurst.knutcut.svgcore.CutOrder
 import de.knutwurst.knutcut.svgcore.DragKnife
 import de.knutwurst.knutcut.svgcore.Handshake
 import de.knutwurst.knutcut.svgcore.History
@@ -162,6 +163,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var displayUnit by mutableStateOf(settings.displayUnit); private set
     var originOffsetMm by mutableStateOf(settings.originOffsetMm); private set
     var silhouetteSpeed by mutableStateOf(settings.silhouetteSpeed); private set
+    var optimizeCutOrder by mutableStateOf(settings.optimizeCutOrder); private set
     var snapMm by mutableStateOf(settings.snapMm); private set
     var alignGuides by mutableStateOf(settings.alignGuides); private set
     // Transient guide lines shown while a drag is snapped to another layer's (or the mat's) centre.
@@ -201,6 +203,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun changeSnap(mm: Float) { snapMm = mm; settings.snapMm = mm }
+
+    fun changeOptimizeCutOrder(on: Boolean) { optimizeCutOrder = on; settings.optimizeCutOrder = on }
 
     fun changeAlignGuides(on: Boolean) { alignGuides = on; settings.alignGuides = on; if (!on) clearGuides() }
 
@@ -1119,10 +1123,11 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun plotterPolylinesFor(t: Tool): List<Polyline> {
         val dy = originOffsetMm.toDouble()
-        return cutLayers().filter { it.tool == t }.flatMap { layer ->
+        val polys = cutLayers().filter { it.tool == t }.flatMap { layer ->
             val m = layerMatrix(layer)
             layer.polylines.map { pl -> Polyline(pl.points.map { val p = m.apply(it); Pt(p.xMm, p.yMm + dy) }, pl.closed) }
         }
+        return if (optimizeCutOrder) CutOrder.optimize(polys) else polys
     }
 
     private var cutJob: Job? = null
@@ -1160,10 +1165,11 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun runCutGpgl(l: ManagedLink) {
         val silDev = model.silhouetteDevice
         if (silDev == null) { finishCut("Kein Silhouette-Geräteprofil für dieses Modell."); return }
-        val polylines = cutLayers().flatMap { layer ->
+        val placed = cutLayers().flatMap { layer ->
             val m = layerMatrix(layer)
             layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
         }
+        val polylines = if (optimizeCutOrder) CutOrder.optimize(placed) else placed
         if (polylines.isEmpty()) { finishCut("Keine sichtbaren Ebenen."); return }
         // The editor mat and the machine's cuttable area can differ (e.g. a 203 mm Portrait), so check
         // against the device's own bounds before streaming.
