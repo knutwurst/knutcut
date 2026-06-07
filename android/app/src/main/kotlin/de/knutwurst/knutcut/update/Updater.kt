@@ -30,11 +30,15 @@ object Updater {
         // Cache-buster: raw.githubusercontent.com sits behind a CDN that caches latest.json for
         // minutes, so a fixed URL can return a stale version. A unique query param forces a fresh fetch.
         val txt = httpGet(BASE + "latest.json?ts=" + System.currentTimeMillis()) ?: return null
-        return try {
-            val o = JSONObject(txt)
-            UpdateInfo(o.getInt("versionCode"), o.optString("versionName"), o.optString("apk"), o.optString("sha256"), o.optString("notes"))
-        } catch (e: Exception) { null }
+        return parseLatest(txt)
     }
+
+    /** Parse a latest.json body into [UpdateInfo], or null if it's invalid or missing versionCode. */
+    fun parseLatest(json: String): UpdateInfo? = try {
+        val o = JSONObject(json)
+        if (!o.has("versionCode")) null
+        else UpdateInfo(o.getInt("versionCode"), o.optString("versionName"), o.optString("apk"), o.optString("sha256"), o.optString("notes"))
+    } catch (e: Exception) { null }
 
     /** Download the update APK into the cache dir; returns the file or null on failure. */
     fun download(context: Context, info: UpdateInfo): File? { return try {

@@ -1297,7 +1297,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val speed = silhouetteSpeed.coerceIn(1, silhouetteSpeedMax)
         // Use the predominant tool's force (knife if any knife layer, else pen), not always the knife.
         val tool = if (cutLayers().any { it.tool == Tool.KNIFE }) Tool.KNIFE else Tool.PEN
-        val cutSettings = GpglCutSettings(speed = speed, pressure = silhouettePressure(forceFor(tool)))
+        val cutSettings = GpglCutSettings(speed = speed, pressure = de.knutwurst.knutcut.data.Pressure.silhouette(forceFor(tool)))
         status = s(R.string.st_cutting_silhouette)
         try {
             val ok = withContext(Dispatchers.IO) {
@@ -1311,12 +1311,6 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Map a VEVOR FS force (10..500) onto the Silhouette pressure scale (1..33). */
-    private fun silhouettePressure(force: Int): Int {
-        val span = (Materials.FORCE_MAX - Materials.FORCE_MIN).toDouble()
-        val frac = (force - Materials.FORCE_MIN).coerceAtLeast(0) / span
-        return (Math.round(frac * 32) + 1).toInt().coerceIn(1, 33)
-    }
 
     private suspend fun runCutVevor(l: ManagedLink) {
         val session = PlotterSession(l)
