@@ -2,6 +2,8 @@ package de.knutwurst.knutcut.update
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.core.content.FileProvider
 import org.json.JSONObject
 import java.io.File
@@ -60,13 +62,25 @@ object Updater {
         return md.digest().joinToString("") { "%02x".format(it) }
     }
 
-    /** Launch the system package installer for [apk]; the user confirms. */
-    fun install(context: Context, apk: File) {
+    /**
+     * Launch the system package installer for [apk]; the user confirms. Returns false (and opens the
+     * "install unknown apps" settings for this app) if the source isn't allowed yet, so the install
+     * can't silently do nothing — the user grants it once and taps Update again.
+     */
+    fun install(context: Context, apk: File): Boolean {
+        if (!context.packageManager.canRequestPackageInstalls()) {
+            context.startActivity(
+                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + context.packageName))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            return false
+        }
         val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", apk)
         context.startActivity(Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         })
+        return true
     }
 
     /** Delete leftover Knutcut update APKs (only ours), called once the new version is running. */

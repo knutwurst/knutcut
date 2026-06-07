@@ -248,8 +248,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             val apk = withContext(Dispatchers.IO) { de.knutwurst.knutcut.update.Updater.download(getApplication(), info) }
             updateBusy = false
             if (apk == null) { status = s(R.string.st_update_download_failed); return@launch }
-            updateInfo = null
-            de.knutwurst.knutcut.update.Updater.install(getApplication(), apk)
+            // Keep updateInfo set if the installer can't run yet (permission), so the user can retry.
+            if (de.knutwurst.knutcut.update.Updater.install(getApplication(), apk)) updateInfo = null
+            else status = s(R.string.st_install_permission)
         }
     }
 
