@@ -224,14 +224,28 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Check the release repo; show the update prompt if a newer versionCode is published. */
     fun changeAutoUpdate(on: Boolean) { autoUpdate = on; settings.autoUpdate = on }
 
+    /** The versionCode actually installed right now (not the compile-time BuildConfig, which a
+     *  not-yet-restarted process reports stale after an in-place update). */
+    private fun installedVersionCode(): Long = runCatching {
+        val app = getApplication<Application>()
+        androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(
+            app.packageManager.getPackageInfo(app.packageName, 0)
+        )
+    }.getOrDefault(BuildConfig.VERSION_CODE.toLong())
+
+    private fun installedVersionName(): String = runCatching {
+        val app = getApplication<Application>()
+        app.packageManager.getPackageInfo(app.packageName, 0).versionName
+    }.getOrNull() ?: BuildConfig.VERSION_NAME
+
     fun checkForUpdate(silent: Boolean) {
         if (updateBusy) return
         status = s(R.string.st_update_checking)
         viewModelScope.launch {
             val info = withContext(Dispatchers.IO) { de.knutwurst.knutcut.update.Updater.fetchLatest() }
             when {
-                info != null && info.versionCode > BuildConfig.VERSION_CODE -> updateInfo = info
-                !silent && info != null -> status = s(R.string.st_update_none, BuildConfig.VERSION_NAME)
+                info != null && info.versionCode > installedVersionCode() -> updateInfo = info
+                !silent && info != null -> status = s(R.string.st_update_none, installedVersionName())
                 !silent -> status = s(R.string.st_update_check_failed)
             }
         }
