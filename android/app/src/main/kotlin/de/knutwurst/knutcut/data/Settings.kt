@@ -80,6 +80,11 @@ class Settings(context: Context) {
         get() = p.getInt("originOffsetMm", 0)
         set(v) = p.edit().putInt("originOffsetMm", v).apply()
 
+    /** Check for a new version on launch. On by default. */
+    var autoUpdate: Boolean
+        get() = p.getBoolean("autoUpdate", true)
+        set(v) = p.edit().putBoolean("autoUpdate", v).apply()
+
     /** Reorder contours by nearest-neighbour to shorten travel. Off by default (changes the path). */
     var optimizeCutOrder: Boolean
         get() = p.getBoolean("optimizeCutOrder", false)

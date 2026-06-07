@@ -240,7 +240,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     if (showDevices) {
         DeviceDialog(vm, hasBtPerm, onRequestPerm = { permLauncher.launch(bluetoothPermissions()) }, onDismiss = { showDevices = false })
     }
-    LaunchedEffect(Unit) { vm.cleanupUpdates(); vm.checkForUpdate(silent = true) }
+    LaunchedEffect(Unit) { vm.cleanupUpdates(); if (vm.autoUpdate) vm.checkForUpdate(silent = true) }
     vm.updateInfo?.let { info ->
         AlertDialog(
             onDismissRequest = { vm.dismissUpdate() },
@@ -744,6 +744,10 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
             Spacer(Modifier.height(4.dp))
             OutlinedButton(onClick = { vm.checkForUpdate(silent = false) }, enabled = !vm.updateBusy, modifier = Modifier.fillMaxWidth()) {
                 Text(if (vm.updateBusy) "Aktualisiere…" else "Auf neue Version prüfen", maxLines = 1)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Automatisch beim Start prüfen", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                Switch(checked = vm.autoUpdate, onCheckedChange = { vm.changeAutoUpdate(it) })
             }
 
             Spacer(Modifier.height(18.dp))

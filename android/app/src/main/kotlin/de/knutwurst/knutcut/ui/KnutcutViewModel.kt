@@ -169,6 +169,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     // Self-update: the newer release (if any) and whether a download/install is in flight.
     var updateInfo by mutableStateOf<de.knutwurst.knutcut.update.UpdateInfo?>(null); private set
     var updateBusy by mutableStateOf(false); private set
+    var autoUpdate by mutableStateOf(settings.autoUpdate); private set
     var snapMm by mutableStateOf(settings.snapMm); private set
     var alignGuides by mutableStateOf(settings.alignGuides); private set
     // Transient guide lines shown while a drag is snapped to another layer's (or the mat's) centre.
@@ -215,8 +216,11 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun cleanupUpdates() { runCatching { de.knutwurst.knutcut.update.Updater.cleanup(getApplication()) } }
 
     /** Check the release repo; show the update prompt if a newer versionCode is published. */
+    fun changeAutoUpdate(on: Boolean) { autoUpdate = on; settings.autoUpdate = on }
+
     fun checkForUpdate(silent: Boolean) {
         if (updateBusy) return
+        status = "Prüfe auf neue Version…"
         viewModelScope.launch {
             val info = withContext(Dispatchers.IO) { de.knutwurst.knutcut.update.Updater.fetchLatest() }
             when {
