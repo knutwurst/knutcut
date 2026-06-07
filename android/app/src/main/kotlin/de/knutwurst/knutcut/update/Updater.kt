@@ -7,9 +7,11 @@ import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 
-/** The latest release as published in the self-update repo's latest.json. */
-data class UpdateInfo(val versionCode: Int, val versionName: String, val apk: String)
+/** The latest release as published in the self-update repo's latest.json. [sha256] is the lowercase
+ *  hex digest of the APK; the download is rejected unless it matches, guarding against tampering. */
+data class UpdateInfo(val versionCode: Int, val versionName: String, val apk: String, val sha256: String)
 
 /**
  * Self-update from the knutcut-releases GitHub repo: read latest.json, compare versionCode, download
@@ -26,12 +28,12 @@ object Updater {
         val txt = httpGet(BASE + "latest.json") ?: return null
         return try {
             val o = JSONObject(txt)
-            UpdateInfo(o.getInt("versionCode"), o.optString("versionName"), o.optString("apk"))
+            UpdateInfo(o.getInt("versionCode"), o.optString("versionName"), o.optString("apk"), o.optString("sha256"))
         } catch (e: Exception) { null }
     }
 
     /** Download the update APK into the cache dir; returns the file or null on failure. */
-    fun download(context: Context, info: UpdateInfo): File? = try {
+    fun download(context: Context, info: UpdateInfo): File? { return try {
         val dir = File(context.cacheDir, DIR).apply { mkdirs() }
         val out = File(dir, info.apk)
         (URL(BASE + info.apk).openConnection() as HttpURLConnection).run {
@@ -39,8 +41,22 @@ object Updater {
             if (responseCode != 200) return null
             inputStream.use { input -> out.outputStream().use { o -> input.copyTo(o) } }
         }
+        // Integrity check: a tampered or truncated download (e.g. a MitM) must never be installed. A
+        // missing/blank checksum is treated as a failure, so latest.json must always carry sha256.
+        if (info.sha256.isBlank() || !sha256(out).equals(info.sha256.trim(), ignoreCase = true)) {
+            out.delete(); return null
+        }
         out
-    } catch (e: Exception) { null }
+    } catch (e: Exception) { null } }
+
+    private fun sha256(f: File): String {
+        val md = MessageDigest.getInstance("SHA-256")
+        f.inputStream().use { ins ->
+            val buf = ByteArray(8192)
+            while (true) { val n = ins.read(buf); if (n < 0) break; md.update(buf, 0, n) }
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }
+    }
 
     /** Launch the system package installer for [apk]; the user confirms. */
     fun install(context: Context, apk: File) {

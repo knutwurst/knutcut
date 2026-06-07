@@ -237,7 +237,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val apk = withContext(Dispatchers.IO) { de.knutwurst.knutcut.update.Updater.download(getApplication(), info) }
             updateBusy = false
-            if (apk == null) { status = "Download fehlgeschlagen."; return@launch }
+            if (apk == null) { status = "Download fehlgeschlagen oder Prüfsumme ungültig."; return@launch }
             updateInfo = null
             de.knutwurst.knutcut.update.Updater.install(getApplication(), apk)
         }
