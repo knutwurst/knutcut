@@ -899,10 +899,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      * for the blocking GATT handshake. The selected [model] must be a BLE_SILHOUETTE model before
      * calling this, so the status message and subsequent [cut] dispatch are correct.
      */
-    fun connectLe(dev: BluetoothDevice) {
+    fun connectLe(dev: BluetoothDevice, silent: Boolean = false) {
         if (connecting || connected) return
         connecting = true
-        status = "Verbinde mit ${dev.name} (BLE)…"
+        if (!silent) status = "Verbinde mit ${dev.name} (BLE)…"
         viewModelScope.launch {
             try {
                 val l = withContext(Dispatchers.IO) { BluetoothLePlotter.connect(getApplication(), dev) }
@@ -920,10 +920,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 settings.deviceAddress = dev.address
                 settings.deviceTransport = "BLE"
-                status = "Verbunden mit ${model.displayName} (BLE)."
+                if (!silent) status = "Verbunden mit ${model.displayName} (BLE)."
             } catch (e: Exception) {
                 connected = false
-                status = "BLE-Verbindung fehlgeschlagen: ${e.message}"
+                if (!silent) status = "BLE-Verbindung fehlgeschlagen: ${e.message}"
             } finally {
                 connecting = false
             }
@@ -938,7 +938,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         if (!hasConnectPermission(ctx) || !BluetoothPlotter.isEnabled(ctx)) return
         val dev = runCatching { BluetoothPlotter.adapter(ctx)?.getRemoteDevice(addr) }.getOrNull() ?: return
         // A Silhouette was last paired over BLE — reconnect on that path, not classic SPP.
-        if (settings.deviceTransport == "BLE") { connectLe(dev); return }
+        if (settings.deviceTransport == "BLE") { connectLe(dev, silent = true); return }
         // Only ever silently reconnect to a compatible plotter — never to some other paired device
         // (e.g. a laptop) that was connected explicitly once.
         if (!Devices.isCompatible(dev.name)) return

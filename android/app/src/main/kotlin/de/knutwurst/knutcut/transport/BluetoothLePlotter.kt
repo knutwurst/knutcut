@@ -72,10 +72,6 @@ object BluetoothLePlotter {
                 g.discoverServices()
             }
 
-            override fun onCharacteristicWrite(g: BluetoothGatt, ch: BluetoothGattCharacteristic, status: Int) {
-                result?.onWriteComplete()
-            }
-
             override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
                 if (latch.count == 0L) return
                 if (status != BluetoothGatt.GATT_SUCCESS) {
@@ -84,9 +80,19 @@ object BluetoothLePlotter {
                 val (writeChar, notifyChar) = findCharacteristics(g) ?: run {
                     error = Exception("Keine Silhouette-GATT-Charakteristik gefunden."); latch.countDown(); return
                 }
-                enableNotifications(g, notifyChar)
                 result = BlePlotterLink(g, writeChar, mtu)
-                latch.countDown()
+                // Only release the connect once notifications are actually enabled (CCCD write acked),
+                // so the first status query can't go out before the device can answer it. If there's no
+                // CCCD descriptor, there's nothing to wait for.
+                if (!enableNotifications(g, notifyChar)) latch.countDown()
+            }
+
+            override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+                if (latch.count > 0L) latch.countDown()
+            }
+
+            override fun onCharacteristicWrite(g: BluetoothGatt, ch: BluetoothGattCharacteristic, status: Int) {
+                result?.onWriteComplete(status == BluetoothGatt.GATT_SUCCESS)
             }
 
             @Deprecated("API < 33", replaceWith = ReplaceWith("onCharacteristicChanged(gatt, char, value)"))
@@ -105,16 +111,18 @@ object BluetoothLePlotter {
         return result ?: throw Exception("Unbekannter BLE-Fehler.")
     }
 
-    private fun enableNotifications(gatt: BluetoothGatt, char: BluetoothGattCharacteristic) {
+    /** Returns true if a CCCD descriptor write was issued (so the caller waits for onDescriptorWrite). */
+    private fun enableNotifications(gatt: BluetoothGatt, char: BluetoothGattCharacteristic): Boolean {
         gatt.setCharacteristicNotification(char, true)
         val cccdUuid = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
-        val cccd = char.getDescriptor(cccdUuid) ?: return
+        val cccd = char.getDescriptor(cccdUuid) ?: return false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
         } else {
             @Suppress("DEPRECATION") cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
             @Suppress("DEPRECATION") gatt.writeDescriptor(cccd)
         }
+        return true
     }
 
     private fun findCharacteristics(gatt: BluetoothGatt): Pair<BluetoothGattCharacteristic, BluetoothGattCharacteristic>? {

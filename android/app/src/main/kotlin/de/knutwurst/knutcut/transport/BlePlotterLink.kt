@@ -42,7 +42,7 @@ class BlePlotterLink(
         for (token in framer.append(data, data.size)) tokens.add(token)
     }
 
-    internal fun onWriteComplete() { writeAcks.offer(true) }
+    internal fun onWriteComplete(ok: Boolean) { writeAcks.offer(ok) }
 
     internal fun onDisconnected() {
         if (running) onClosed?.invoke()
@@ -67,7 +67,8 @@ class BlePlotterLink(
             }
             // Serialise against the GATT queue (only one operation may be outstanding). Bail if the
             // write never completes so a stalled link can't block the cut thread forever.
-            if (writeAcks.poll(WRITE_TIMEOUT_MS, TimeUnit.MILLISECONDS) == null) break
+            // Stop on timeout (null) or a failed write (false) so a dropped chunk isn't treated as sent.
+            if (writeAcks.poll(WRITE_TIMEOUT_MS, TimeUnit.MILLISECONDS) != true) break
             offset = end
         }
     }
@@ -76,7 +77,7 @@ class BlePlotterLink(
 
     override fun close() {
         running = false
-        writeAcks.offer(true) // release a write that may be waiting for an ack
+        writeAcks.offer(false) // release a waiting write as failed so it stops, not "sent"
         runCatching { gatt.disconnect() }
         runCatching { gatt.close() }
     }
