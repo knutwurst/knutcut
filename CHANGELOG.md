@@ -3,6 +3,9 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.53.0
+- Donate section in settings: a PayPal button (official logo) opening paypal.me/oliverkoester.
+
 ## 0.52.0
 - Settings reordered: Project on top (expanded), Plotter moved down, Language its own section.
 - Save/Load swapped (Save on the right) and the current project file name is shown.

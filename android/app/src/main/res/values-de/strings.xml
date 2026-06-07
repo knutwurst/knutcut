@@ -265,4 +265,6 @@
     <string name="ui_grp_language">Sprache</string>
     <string name="ui_open_project">Projekt öffnen</string>
     <string name="ui_current_file">Aktuell: %1$s</string>
+    <string name="ui_grp_donate">Unterstützen</string>
+    <string name="ui_donate_paypal">Mit PayPal spenden</string>
 </resources>

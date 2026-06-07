@@ -910,6 +910,18 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                 }
             }
 
+            SettingsGroup(stringResource(R.string.ui_grp_donate)) {
+                val donateCtx = LocalContext.current
+                OutlinedButton(
+                    onClick = { runCatching { donateCtx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://paypal.me/oliverkoester"))) } },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Image(painterResource(R.drawable.ic_paypal), contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.ui_donate_paypal))
+                }
+            }
+
             SettingsGroup(stringResource(R.string.ui_about)) {
                 val aboutCtx = LocalContext.current
                 TextButton(
