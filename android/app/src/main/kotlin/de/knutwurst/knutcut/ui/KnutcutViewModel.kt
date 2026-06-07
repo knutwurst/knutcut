@@ -248,7 +248,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun checkForUpdate(silent: Boolean) {
         if (updateBusy) return
-        status = s(R.string.st_update_checking)
+        if (!silent) status = s(R.string.st_update_checking) // no toast on the silent launch check
         viewModelScope.launch {
             val info = withContext(Dispatchers.IO) { de.knutwurst.knutcut.update.Updater.fetchLatest() }
             when {
