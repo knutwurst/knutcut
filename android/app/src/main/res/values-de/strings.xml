@@ -256,4 +256,8 @@
     <string name="ui_copies_hint">Mehrfach plotten (z.B. tieferer Schnitt).</string>
     <string name="st_needs_ble">%1$s braucht eine BLE-Verbindung. Verbinde das Gerät über die Silhouette-BLE-Liste.</string>
     <string name="st_needs_spp">%1$s braucht eine klassische Bluetooth-Verbindung. Wähle ein VEVOR-Gerät.</string>
+    <string name="ui_grp_cut">Schnitt &amp; Matte</string>
+    <string name="ui_grp_editor">Editor</string>
+    <string name="ui_grp_display">Darstellung</string>
+    <string name="ui_grp_updates">Updates</string>
 </resources>

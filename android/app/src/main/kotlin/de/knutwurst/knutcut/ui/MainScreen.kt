@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -747,166 +748,186 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             Text(stringResource(R.string.ui_settings), style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(10.dp))
-            Text(stringResource(R.string.ui_plotter), style = MaterialTheme.typography.labelLarge)
-            Text(
-                when {
-                    vm.connecting -> stringResource(R.string.ui_connecting)
-                    vm.connectedToPlotter -> stringResource(R.string.ui_connected, vm.model.displayName)
-                    vm.connectedToSilhouette -> stringResource(R.string.ui_connected_ble2, vm.model.displayName)
-                    vm.connected -> stringResource(R.string.ui_connected_unsupported, vm.device?.name ?: "?")
-                    else -> stringResource(R.string.ui_not_connected, vm.model.displayName)
-                },
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onConnect) { Text(if (vm.connected) stringResource(R.string.ui_other_plotter) else stringResource(R.string.ui_connect)) }
-                if (vm.connected) OutlinedButton(onClick = { vm.disconnect() }) { Text(stringResource(R.string.ui_disconnect)) }
-            }
 
-            Spacer(Modifier.height(18.dp))
-            Text(stringResource(R.string.ui_mat), style = MaterialTheme.typography.labelLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Mats.all.forEach { m -> FilterChip(selected = vm.mat == m, onClick = { vm.selectMat(m) }, label = { Text(m.name) }) }
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.ui_origin_offset), style = MaterialTheme.typography.bodyMedium)
-                    Text(stringResource(R.string.ui_origin_offset_hint), style = MaterialTheme.typography.bodySmall)
-                }
-                EditableStepper(vm.originOffsetMm, 0, 100, step = 1) { vm.changeOriginOffset(it) }
-            }
-            Spacer(Modifier.height(10.dp))
-            Text(stringResource(R.string.ui_snap), style = MaterialTheme.typography.bodyMedium)
-            Text(stringResource(R.string.ui_snap_hint), style = MaterialTheme.typography.bodySmall)
-            Spacer(Modifier.height(4.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(0f to stringResource(R.string.ui_off), 0.1f to "0,1 mm", 1f to "1 mm", 5f to "5 mm", 10f to "1 cm").forEach { (v, lbl) ->
-                    FilterChip(selected = vm.snapMm == v, onClick = { vm.changeSnap(v) }, label = { Text(lbl) })
+            SettingsGroup(stringResource(R.string.ui_plotter)) {
+                Text(
+                    when {
+                        vm.connecting -> stringResource(R.string.ui_connecting)
+                        vm.connectedToPlotter -> stringResource(R.string.ui_connected, vm.model.displayName)
+                        vm.connectedToSilhouette -> stringResource(R.string.ui_connected_ble2, vm.model.displayName)
+                        vm.connected -> stringResource(R.string.ui_connected_unsupported, vm.device?.name ?: "?")
+                        else -> stringResource(R.string.ui_not_connected, vm.model.displayName)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onConnect) { Text(if (vm.connected) stringResource(R.string.ui_other_plotter) else stringResource(R.string.ui_connect)) }
+                    if (vm.connected) OutlinedButton(onClick = { vm.disconnect() }) { Text(stringResource(R.string.ui_disconnect)) }
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.ui_align_guides), style = MaterialTheme.typography.bodyMedium)
-                    Text(stringResource(R.string.ui_align_guides_hint), style = MaterialTheme.typography.bodySmall)
+
+            SettingsGroup(stringResource(R.string.ui_grp_cut)) {
+                Text(stringResource(R.string.ui_mat), style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Mats.all.forEach { m -> FilterChip(selected = vm.mat == m, onClick = { vm.selectMat(m) }, label = { Text(m.name) }) }
                 }
-                Switch(checked = vm.alignGuides, onCheckedChange = { vm.changeAlignGuides(it) })
-            }
-
-            Spacer(Modifier.height(18.dp))
-            Text(stringResource(R.string.ui_unit), style = MaterialTheme.typography.labelLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DisplayUnit.entries.forEach { u -> FilterChip(selected = vm.displayUnit == u, onClick = { vm.changeDisplayUnit(u) }, label = { Text(u.label) }) }
-            }
-
-            if (vm.model.family == de.knutwurst.knutcut.data.PlotterFamily.BLE_SILHOUETTE) {
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(stringResource(R.string.ui_sil_speed), style = MaterialTheme.typography.bodyMedium)
-                        Text(stringResource(R.string.ui_speed_hint, vm.silhouetteSpeedMax), style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.ui_origin_offset), style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.ui_origin_offset_hint), style = MaterialTheme.typography.bodySmall)
                     }
-                    EditableStepper(vm.silhouetteSpeed, 1, vm.silhouetteSpeedMax, step = 1) { vm.changeSilhouetteSpeed(it) }
+                    EditableStepper(vm.originOffsetMm, 0, 100, step = 1) { vm.changeOriginOffset(it) }
                 }
-            }
-
-            Spacer(Modifier.height(18.dp))
-            Text(stringResource(R.string.ui_project), style = MaterialTheme.typography.labelLarge)
-            val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let { vm.saveProject(it) } }
-            val loadLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.loadProject(it) } }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { saveLauncher.launch("knutcut-projekt.json") }, enabled = vm.hasDesign, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.ui_save), maxLines = 1) }
-                OutlinedButton(onClick = { loadLauncher.launch(arrayOf("*/*")) }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.ui_load), maxLines = 1) }
-            }
-            Spacer(Modifier.height(4.dp))
-            OutlinedButton(onClick = { vm.checkForUpdate(silent = false) }, enabled = !vm.updateBusy, modifier = Modifier.fillMaxWidth()) {
-                Text(if (vm.updateBusy) stringResource(R.string.ui_updating) else stringResource(R.string.ui_check_update), maxLines = 1)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.ui_auto_check), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                Switch(checked = vm.autoUpdate, onCheckedChange = { vm.changeAutoUpdate(it) })
-            }
-
-            Spacer(Modifier.height(18.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.ui_optimize_order), style = MaterialTheme.typography.bodyMedium)
-                    Text(stringResource(R.string.ui_optimize_hint), style = MaterialTheme.typography.bodySmall)
+                if (vm.model.family == de.knutwurst.knutcut.data.PlotterFamily.BLE_SILHOUETTE) {
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.ui_sil_speed), style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.ui_speed_hint, vm.silhouetteSpeedMax), style = MaterialTheme.typography.bodySmall)
+                        }
+                        EditableStepper(vm.silhouetteSpeed, 1, vm.silhouetteSpeedMax, step = 1) { vm.changeSilhouetteSpeed(it) }
+                    }
                 }
-                Switch(checked = vm.optimizeCutOrder, onCheckedChange = { vm.changeOptimizeCutOrder(it) })
-            }
-
-            Spacer(Modifier.height(18.dp))
-            Text(stringResource(R.string.ui_colors), style = MaterialTheme.typography.labelLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = vm.colorMode == ColorMode.OUTLINE, onClick = { vm.changeColorMode(ColorMode.OUTLINE) }, label = { Text(stringResource(R.string.ui_outline_only)) })
-                FilterChip(selected = vm.colorMode == ColorMode.COLOR, onClick = { vm.changeColorMode(ColorMode.COLOR) }, label = { Text(stringResource(R.string.ui_colorful)) })
-            }
-
-            Spacer(Modifier.height(18.dp))
-            Text(stringResource(R.string.ui_language), style = MaterialTheme.typography.labelLarge)
-            val langActivity = LocalContext.current as? android.app.Activity
-            data class Lang(val code: String, val label: String, val flag: Int?)
-            val langs = listOf(
-                Lang("system", stringResource(R.string.ui_system), null),
-                Lang("de", "Deutsch", R.drawable.flag_de),
-                Lang("en", "English", R.drawable.flag_gb),
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                langs.forEach { l ->
-                    FilterChip(
-                        selected = vm.appLanguage == l.code,
-                        onClick = { if (vm.appLanguage != l.code) { vm.changeAppLanguage(l.code); langActivity?.recreate() } },
-                        leadingIcon = {
-                            if (l.flag != null) Image(painterResource(l.flag), contentDescription = null, modifier = Modifier.size(20.dp, 14.dp))
-                            else Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(18.dp))
-                        },
-                        label = { Text(l.label) },
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(18.dp))
-            Text(stringResource(R.string.ui_appearance), style = MaterialTheme.typography.labelLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(ThemeMode.SYSTEM to stringResource(R.string.ui_system), ThemeMode.LIGHT to stringResource(R.string.ui_light), ThemeMode.DARK to stringResource(R.string.ui_dark)).forEach { (m, lbl) ->
-                    FilterChip(selected = vm.themeMode == m, onClick = { vm.selectTheme(m) }, label = { Text(lbl) })
-                }
-            }
-
-            Spacer(Modifier.height(18.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.ui_cut), style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-                TextButton(onClick = { vm.resetCutSettings() }) { Text(stringResource(R.string.ui_to_default)) }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.ui_dragknife), style = MaterialTheme.typography.bodyMedium)
-                    Text(stringResource(R.string.ui_dragknife_hint), style = MaterialTheme.typography.bodySmall)
-                }
-                Switch(checked = vm.dragKnifeComp, onCheckedChange = { vm.changeDragKnifeComp(it) })
-            }
-            if (vm.dragKnifeComp) {
+                Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.ui_blade_offset), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    EditableStepper(vm.bladeOffset, 0, 40, step = 1) { vm.changeBladeOffset(it) }
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.ui_optimize_order), style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.ui_optimize_hint), style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(checked = vm.optimizeCutOrder, onCheckedChange = { vm.changeOptimizeCutOrder(it) })
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.ui_dragknife), style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.ui_dragknife_hint), style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(checked = vm.dragKnifeComp, onCheckedChange = { vm.changeDragKnifeComp(it) })
+                }
+                if (vm.dragKnifeComp) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.ui_blade_offset), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        EditableStepper(vm.bladeOffset, 0, 40, step = 1) { vm.changeBladeOffset(it) }
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { vm.resetCutSettings() }) { Text(stringResource(R.string.ui_to_default)) }
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
-            Text(stringResource(R.string.ui_about), style = MaterialTheme.typography.labelLarge)
-            val aboutCtx = LocalContext.current
-            TextButton(
-                onClick = { runCatching { aboutCtx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/knutwurst/knutcut"))) } },
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-            ) { Text(stringResource(R.string.ui_about_github)) }
-            Text(stringResource(R.string.ui_about_fonts), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SettingsGroup(stringResource(R.string.ui_grp_editor)) {
+                Text(stringResource(R.string.ui_snap), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.ui_snap_hint), style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(4.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(0f to stringResource(R.string.ui_off), 0.1f to "0,1 mm", 1f to "1 mm", 5f to "5 mm", 10f to "1 cm").forEach { (v, lbl) ->
+                        FilterChip(selected = vm.snapMm == v, onClick = { vm.changeSnap(v) }, label = { Text(lbl) })
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.ui_align_guides), style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.ui_align_guides_hint), style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(checked = vm.alignGuides, onCheckedChange = { vm.changeAlignGuides(it) })
+                }
+            }
 
-            Spacer(Modifier.height(14.dp))
-            Text(stringResource(R.string.ui_footer_version, version), style = MaterialTheme.typography.bodySmall)
+            SettingsGroup(stringResource(R.string.ui_grp_display)) {
+                Text(stringResource(R.string.ui_unit), style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DisplayUnit.entries.forEach { u -> FilterChip(selected = vm.displayUnit == u, onClick = { vm.changeDisplayUnit(u) }, label = { Text(u.label) }) }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(stringResource(R.string.ui_colors), style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = vm.colorMode == ColorMode.OUTLINE, onClick = { vm.changeColorMode(ColorMode.OUTLINE) }, label = { Text(stringResource(R.string.ui_outline_only)) })
+                    FilterChip(selected = vm.colorMode == ColorMode.COLOR, onClick = { vm.changeColorMode(ColorMode.COLOR) }, label = { Text(stringResource(R.string.ui_colorful)) })
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(stringResource(R.string.ui_language), style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(4.dp))
+                val langActivity = LocalContext.current as? android.app.Activity
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        Triple("system", stringResource(R.string.ui_system), null as Int?),
+                        Triple("de", "Deutsch", R.drawable.flag_de),
+                        Triple("en", "English", R.drawable.flag_gb),
+                    ).forEach { (code, lbl, flag) ->
+                        FilterChip(
+                            selected = vm.appLanguage == code,
+                            onClick = { if (vm.appLanguage != code) { vm.changeAppLanguage(code); langActivity?.recreate() } },
+                            leadingIcon = {
+                                if (flag != null) Image(painterResource(flag), contentDescription = null, modifier = Modifier.size(20.dp, 14.dp))
+                                else Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(18.dp))
+                            },
+                            label = { Text(lbl) },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(stringResource(R.string.ui_appearance), style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(ThemeMode.SYSTEM to stringResource(R.string.ui_system), ThemeMode.LIGHT to stringResource(R.string.ui_light), ThemeMode.DARK to stringResource(R.string.ui_dark)).forEach { (m, lbl) ->
+                        FilterChip(selected = vm.themeMode == m, onClick = { vm.selectTheme(m) }, label = { Text(lbl) })
+                    }
+                }
+            }
+
+            SettingsGroup(stringResource(R.string.ui_project)) {
+                val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let { vm.saveProject(it) } }
+                val loadLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.loadProject(it) } }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { saveLauncher.launch("knutcut-projekt.json") }, enabled = vm.hasDesign, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.ui_save), maxLines = 1) }
+                    OutlinedButton(onClick = { loadLauncher.launch(arrayOf("*/*")) }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.ui_load), maxLines = 1) }
+                }
+            }
+
+            SettingsGroup(stringResource(R.string.ui_grp_updates)) {
+                OutlinedButton(onClick = { vm.checkForUpdate(silent = false) }, enabled = !vm.updateBusy, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (vm.updateBusy) stringResource(R.string.ui_updating) else stringResource(R.string.ui_check_update), maxLines = 1)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.ui_auto_check), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Switch(checked = vm.autoUpdate, onCheckedChange = { vm.changeAutoUpdate(it) })
+                }
+            }
+
+            SettingsGroup(stringResource(R.string.ui_about)) {
+                val aboutCtx = LocalContext.current
+                TextButton(
+                    onClick = { runCatching { aboutCtx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/knutwurst/knutcut"))) } },
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                ) { Text(stringResource(R.string.ui_about_github)) }
+                Text(stringResource(R.string.ui_about_fonts), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                Text(stringResource(R.string.ui_footer_version, version), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+/** A titled card that groups related settings, so the sheet reads as distinct sections. */
+@Composable
+private fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Spacer(Modifier.height(12.dp))
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(10.dp))
+            content()
         }
     }
 }
