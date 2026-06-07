@@ -3,6 +3,18 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.52.0
+- Settings reordered: Project on top (expanded), Plotter moved down, Language its own section.
+- Save/Load swapped (Save on the right) and the current project file name is shown.
+- Projects use the `.kcp` extension; "Open project" button on the empty start screen ("Add shape" removed — use +).
+
+## 0.51.0–0.51.2
+- Settings grouped into collapsible cards; sheet opens at full height and stays there.
+
+## 0.50.2–0.50.3
+- Localised the transport-mismatch messages; fixed the i18n-broken guard tests.
+- Layout fixes: tiles label and the selected layer row no longer overflow.
+
 ## 0.50.1
 - Language: picking "System" restores the real system locale; no more global-locale side effects
   from status messages. Real vector flags instead of emoji; settings reopen after a language change.

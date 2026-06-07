@@ -354,18 +354,29 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Save the current layers (placement + geometry) as a JSON project file. */
+    /** Display name of the currently saved/loaded project file (shown in settings), or null. */
+    var projectName by mutableStateOf<String?>(null); private set
+
+    /** The human-readable file name behind a content uri (OpenableColumns), best-effort. */
+    private fun displayNameOf(uri: Uri): String? = runCatching {
+        getApplication<Application>().contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+            if (it.moveToFirst()) it.getString(0) else null
+        }
+    }.getOrNull() ?: uri.lastPathSegment
+
+    /** Save the current layers (placement + geometry) as a .kcp project file (JSON inside). */
     fun saveProject(uri: Uri) {
         val json = de.knutwurst.knutcut.data.ProjectIO.toJson(layers)
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) {
                 runCatching { getApplication<Application>().contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) } }.isSuccess
             }
-            status = if (ok) "Projekt gespeichert." else "Projekt konnte nicht gespeichert werden."
+            if (ok) projectName = displayNameOf(uri)
+            status = if (ok) s(R.string.st_project_saved) else s(R.string.st_project_save_failed)
         }
     }
 
-    /** Load a JSON project file, replacing the current layers with the saved arrangement. */
+    /** Load a .kcp project file, replacing the current layers with the saved arrangement. */
     fun loadProject(uri: Uri) {
         viewModelScope.launch {
             val text = withContext(Dispatchers.IO) {
@@ -378,6 +389,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             selectedLayer = 0
             markedLayers = emptySet()
             pruneBoundsCache()
+            projectName = displayNameOf(uri)
             status = qty(R.plurals.st_project_loaded, ls.size, ls.size)
         }
     }

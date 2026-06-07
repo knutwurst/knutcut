@@ -146,6 +146,8 @@ fun MainScreen(vm: KnutcutViewModel) {
         vm.importUris(uris)
     }
     fun openFile() = openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "text/plain", "application/octet-stream"))
+    val projectLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.loadProject(it) } }
+    fun openProject() = projectLauncher.launch(arrayOf("*/*"))
     fun openDevices() { if (hasBtPerm) showDevices = true else permLauncher.launch(bluetoothPermissions()) }
 
     LaunchedEffect(vm.status) {
@@ -204,7 +206,7 @@ fun MainScreen(vm: KnutcutViewModel) {
 
             when {
                 vm.cutting -> CuttingBar(vm)
-                !vm.hasDesign -> EmptyState(onOpen = { openFile() }, onAddShape = { showAdd = true })
+                !vm.hasDesign -> EmptyState(onOpen = { openFile() }, onOpenProject = { openProject() })
                 else -> EditingBar(
                     vm,
                     onSize = { showTransform = true },
@@ -384,7 +386,7 @@ private fun AddMenu(expanded: Boolean, onDismiss: () -> Unit, onOpenFile: () -> 
 }
 
 @Composable
-private fun EmptyState(onOpen: () -> Unit, onAddShape: () -> Unit) {
+private fun EmptyState(onOpen: () -> Unit, onOpenProject: () -> Unit) {
     Column(
         Modifier.fillMaxWidth().padding(bottom = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -399,7 +401,7 @@ private fun EmptyState(onOpen: () -> Unit, onAddShape: () -> Unit) {
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onOpen) { Text(stringResource(R.string.ui_open_file)) }
-            OutlinedButton(onClick = onAddShape) { Text(stringResource(R.string.ui_add_shape)) }
+            OutlinedButton(onClick = onOpenProject) { Text(stringResource(R.string.ui_open_project)) }
         }
     }
 }
@@ -752,21 +754,16 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             Text(stringResource(R.string.ui_settings), style = MaterialTheme.typography.titleMedium)
 
-            SettingsGroup(stringResource(R.string.ui_plotter), initiallyExpanded = true) {
-                Text(
-                    when {
-                        vm.connecting -> stringResource(R.string.ui_connecting)
-                        vm.connectedToPlotter -> stringResource(R.string.ui_connected, vm.model.displayName)
-                        vm.connectedToSilhouette -> stringResource(R.string.ui_connected_ble2, vm.model.displayName)
-                        vm.connected -> stringResource(R.string.ui_connected_unsupported, vm.device?.name ?: "?")
-                        else -> stringResource(R.string.ui_not_connected, vm.model.displayName)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Spacer(Modifier.height(8.dp))
+            SettingsGroup(stringResource(R.string.ui_project), initiallyExpanded = true) {
+                vm.projectName?.let {
+                    Text(stringResource(R.string.ui_current_file, it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(6.dp))
+                }
+                val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri -> uri?.let { vm.saveProject(it) } }
+                val loadLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.loadProject(it) } }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onConnect) { Text(if (vm.connected) stringResource(R.string.ui_other_plotter) else stringResource(R.string.ui_connect)) }
-                    if (vm.connected) OutlinedButton(onClick = { vm.disconnect() }) { Text(stringResource(R.string.ui_disconnect)) }
+                    OutlinedButton(onClick = { loadLauncher.launch(arrayOf("*/*")) }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.ui_load), maxLines = 1) }
+                    OutlinedButton(onClick = { saveLauncher.launch("knutcut.kcp") }, enabled = vm.hasDesign, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.ui_save), maxLines = 1) }
                 }
             }
 
@@ -855,8 +852,16 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                     FilterChip(selected = vm.colorMode == ColorMode.COLOR, onClick = { vm.changeColorMode(ColorMode.COLOR) }, label = { Text(stringResource(R.string.ui_colorful)) })
                 }
                 Spacer(Modifier.height(12.dp))
-                Text(stringResource(R.string.ui_language), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.ui_appearance), style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(ThemeMode.SYSTEM to stringResource(R.string.ui_system), ThemeMode.LIGHT to stringResource(R.string.ui_light), ThemeMode.DARK to stringResource(R.string.ui_dark)).forEach { (m, lbl) ->
+                        FilterChip(selected = vm.themeMode == m, onClick = { vm.selectTheme(m) }, label = { Text(lbl) })
+                    }
+                }
+            }
+
+            SettingsGroup(stringResource(R.string.ui_grp_language)) {
                 val langActivity = LocalContext.current as? android.app.Activity
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(
@@ -875,22 +880,23 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                         )
                     }
                 }
-                Spacer(Modifier.height(12.dp))
-                Text(stringResource(R.string.ui_appearance), style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(ThemeMode.SYSTEM to stringResource(R.string.ui_system), ThemeMode.LIGHT to stringResource(R.string.ui_light), ThemeMode.DARK to stringResource(R.string.ui_dark)).forEach { (m, lbl) ->
-                        FilterChip(selected = vm.themeMode == m, onClick = { vm.selectTheme(m) }, label = { Text(lbl) })
-                    }
-                }
             }
 
-            SettingsGroup(stringResource(R.string.ui_project)) {
-                val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let { vm.saveProject(it) } }
-                val loadLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.loadProject(it) } }
+            SettingsGroup(stringResource(R.string.ui_plotter)) {
+                Text(
+                    when {
+                        vm.connecting -> stringResource(R.string.ui_connecting)
+                        vm.connectedToPlotter -> stringResource(R.string.ui_connected, vm.model.displayName)
+                        vm.connectedToSilhouette -> stringResource(R.string.ui_connected_ble2, vm.model.displayName)
+                        vm.connected -> stringResource(R.string.ui_connected_unsupported, vm.device?.name ?: "?")
+                        else -> stringResource(R.string.ui_not_connected, vm.model.displayName)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { saveLauncher.launch("knutcut-projekt.json") }, enabled = vm.hasDesign, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.ui_save), maxLines = 1) }
-                    OutlinedButton(onClick = { loadLauncher.launch(arrayOf("*/*")) }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.ui_load), maxLines = 1) }
+                    Button(onClick = onConnect) { Text(if (vm.connected) stringResource(R.string.ui_other_plotter) else stringResource(R.string.ui_connect)) }
+                    if (vm.connected) OutlinedButton(onClick = { vm.disconnect() }) { Text(stringResource(R.string.ui_disconnect)) }
                 }
             }
 
