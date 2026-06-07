@@ -267,4 +267,5 @@
     <string name="ui_current_file">Aktuell: %1$s</string>
     <string name="ui_grp_donate">Unterstützen</string>
     <string name="ui_donate_paypal">Mit PayPal spenden</string>
+    <string name="ui_changelog">Änderungsverlauf</string>
 </resources>

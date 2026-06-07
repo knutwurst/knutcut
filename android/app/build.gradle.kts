@@ -12,8 +12,8 @@ android {
         applicationId = "de.knutwurst.knutcut"
         minSdk = 26
         targetSdk = 34
-        versionCode = 115
-        versionName = "0.53.0"
+        versionCode = 116
+        versionName = "0.53.1"
     }
 
     buildFeatures {
@@ -50,6 +50,10 @@ android {
         }
     }
 
+    // Ship the repo's CHANGELOG.md as an asset so the in-app "Changelog" shows it offline,
+    // from the single source of truth (copied in by the copyChangelog task below).
+    sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/changelogAssets"))
+
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
@@ -65,6 +69,13 @@ android {
         }
     }
 }
+
+val copyChangelog = tasks.register<Copy>("copyChangelog") {
+    from(rootProject.file("../CHANGELOG.md"))
+    into(layout.buildDirectory.dir("generated/changelogAssets"))
+    rename { "changelog.md" }
+}
+tasks.named("preBuild") { dependsOn(copyChangelog) }
 
 dependencies {
     implementation(project(":svgcore"))

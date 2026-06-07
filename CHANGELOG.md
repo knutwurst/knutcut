@@ -3,6 +3,9 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.53.1
+- "Changelog" entry in the About section, shown from the bundled file (offline).
+
 ## 0.53.0
 - Donate section in settings: a PayPal button (official logo) opening paypal.me/oliverkoester.
 

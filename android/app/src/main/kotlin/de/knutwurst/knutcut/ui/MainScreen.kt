@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -749,6 +750,17 @@ private fun MaterialSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -> Unit, onDismiss: () -> Unit) {
+    val ctx = LocalContext.current
+    var showChangelog by remember { mutableStateOf(false) }
+    if (showChangelog) {
+        val text = remember { runCatching { ctx.assets.open("changelog.md").bufferedReader().use { it.readText() } }.getOrDefault("") }
+        AlertDialog(
+            onDismissRequest = { showChangelog = false },
+            title = { Text(stringResource(R.string.ui_changelog)) },
+            text = { Text(text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) },
+            confirmButton = { TextButton(onClick = { showChangelog = false }) { Text(stringResource(R.string.ui_close)) } },
+        )
+    }
     // Open fully and stay there: expanding a section must not snap the sheet back to half height.
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
@@ -929,7 +941,9 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
                 ) { Text(stringResource(R.string.ui_about_github)) }
                 Text(stringResource(R.string.ui_about_fonts), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = { showChangelog = true }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+                    Text(stringResource(R.string.ui_changelog))
+                }
                 Text(stringResource(R.string.ui_footer_version, version), style = MaterialTheme.typography.bodySmall)
             }
         }
