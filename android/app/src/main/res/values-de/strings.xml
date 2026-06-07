@@ -268,4 +268,5 @@
     <string name="ui_grp_donate">Unterstützen</string>
     <string name="ui_donate_paypal">Mit PayPal spenden</string>
     <string name="ui_changelog">Änderungsverlauf</string>
+    <string name="ui_open">Datei/Projekt öffnen</string>
 </resources>

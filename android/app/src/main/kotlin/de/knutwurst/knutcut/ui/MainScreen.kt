@@ -147,8 +147,6 @@ fun MainScreen(vm: KnutcutViewModel) {
         vm.importUris(uris)
     }
     fun openFile() = openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "text/plain", "application/octet-stream"))
-    val projectLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.loadProject(it) } }
-    fun openProject() = projectLauncher.launch(arrayOf("*/*"))
     fun openDevices() { if (hasBtPerm) showDevices = true else permLauncher.launch(bluetoothPermissions()) }
 
     LaunchedEffect(vm.status) {
@@ -207,7 +205,7 @@ fun MainScreen(vm: KnutcutViewModel) {
 
             when {
                 vm.cutting -> CuttingBar(vm)
-                !vm.hasDesign -> EmptyState(onOpen = { openFile() }, onOpenProject = { openProject() })
+                !vm.hasDesign -> EmptyState(onOpen = { openFile() }, onAddShape = { showAdd = true })
                 else -> EditingBar(
                     vm,
                     onSize = { showTransform = true },
@@ -387,7 +385,7 @@ private fun AddMenu(expanded: Boolean, onDismiss: () -> Unit, onOpenFile: () -> 
 }
 
 @Composable
-private fun EmptyState(onOpen: () -> Unit, onOpenProject: () -> Unit) {
+private fun EmptyState(onOpen: () -> Unit, onAddShape: () -> Unit) {
     Column(
         Modifier.fillMaxWidth().padding(bottom = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -401,8 +399,8 @@ private fun EmptyState(onOpen: () -> Unit, onOpenProject: () -> Unit) {
             modifier = Modifier.padding(vertical = 6.dp),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onOpen) { Text(stringResource(R.string.ui_open_file)) }
-            OutlinedButton(onClick = onOpenProject) { Text(stringResource(R.string.ui_open_project)) }
+            Button(onClick = onOpen) { Text(stringResource(R.string.ui_open)) }
+            OutlinedButton(onClick = onAddShape) { Text(stringResource(R.string.ui_add_shape)) }
         }
     }
 }

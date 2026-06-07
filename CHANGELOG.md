@@ -3,6 +3,9 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.53.3
+- Start screen: one "Open file/project" button (handles SVG/PLT/.kcp), and "Add shape" is back.
+
 ## 0.53.2
 - Opening a .kcp via the normal file button loads it as a project (no more "not an SVG" error);
   the file is recognised by content, so the extension doesn't matter.
