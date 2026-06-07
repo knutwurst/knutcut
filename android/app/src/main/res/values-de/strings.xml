@@ -243,4 +243,5 @@
     <string name="st_cutting">Schneide…</string>
     <string name="st_drawing">Zeichne…</string>
     <string name="st_install_permission">Bitte die Installation aus dieser Quelle erlauben und erneut auf Update tippen.</string>
+    <string name="ui_back_to_exit">Zum Beenden erneut „Zurück“ drücken.</string>
 </resources>

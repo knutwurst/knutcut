@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -243,6 +244,22 @@ fun MainScreen(vm: KnutcutViewModel) {
         DeviceDialog(vm, hasBtPerm, onRequestPerm = { permLauncher.launch(bluetoothPermissions()) }, onDismiss = { showDevices = false })
     }
     LaunchedEffect(Unit) { vm.cleanupUpdates(); if (vm.autoUpdate) vm.checkForUpdate(silent = true) }
+
+    // Back on the base screen (open sheets/dialogs handle their own back first): press twice to close.
+    // finishAndRemoveTask drops it from recents; exitProcess makes sure the lingering OneUI process dies.
+    val activity = context as? android.app.Activity
+    var lastBackMs by remember { mutableStateOf(0L) }
+    val backHint = stringResource(R.string.ui_back_to_exit)
+    BackHandler {
+        val now = System.currentTimeMillis()
+        if (now - lastBackMs in 1..2000) {
+            activity?.finishAndRemoveTask()
+            kotlin.system.exitProcess(0)
+        } else {
+            lastBackMs = now
+            Toast.makeText(context, backHint, Toast.LENGTH_SHORT).show()
+        }
+    }
     vm.updateInfo?.let { info ->
         AlertDialog(
             onDismissRequest = { vm.dismissUpdate() },
