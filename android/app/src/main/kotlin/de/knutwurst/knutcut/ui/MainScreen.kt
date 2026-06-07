@@ -592,11 +592,12 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             OutlinedButton(onClick = { vm.mergeByColor() }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.ui_group_by_color), maxLines = 1)
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(8.dp))
             var cols by remember { mutableStateOf(2) }
             var rows by remember { mutableStateOf(2) }
+            Text(stringResource(R.string.ui_tiles), style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.ui_tiles), modifier = Modifier.weight(1f))
                 EditableStepper(cols, 1, 20, step = 1) { cols = it }
                 Text("×")
                 EditableStepper(rows, 1, 20, step = 1) { rows = it }
@@ -627,50 +628,55 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                 val selected = vm.selectedLayer == i
                 // Representative colour: per-layer colorArgb, or the first non-null polyline colour.
                 val layerColor = layer.colorArgb ?: layer.colorList().firstOrNull { it != null }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (vm.layers.size > 1) {
-                        Checkbox(checked = i in vm.markedLayers, onCheckedChange = { vm.toggleMarked(i) })
-                    }
-                    IconButton(onClick = { vm.toggleLayerVisible(i) }) {
-                        Icon(
-                            if (layer.visible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = stringResource(R.string.ui_visible),
-                        )
-                    }
-                    if (layerColor != null) {
-                        Box(
-                            Modifier
-                                .size(14.dp)
-                                .clip(CircleShape)
-                                .background(Color(layerColor))
-                                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                    }
-                    Text(
-                        layer.name,
-                        maxLines = 1,
-                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                        modifier = Modifier.weight(1f).clickable { vm.selectLayer(i) },
-                    )
-                    // Edit/reorder only on the selected row, so the row doesn't overflow on small screens.
-                    if (selected) {
-                        IconButton(onClick = { renameText = layer.name; renaming = i }) {
-                            Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.ui_rename), modifier = Modifier.size(18.dp))
-                        }
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         if (vm.layers.size > 1) {
-                            IconButton(onClick = { vm.moveLayer(i, -1) }, enabled = i > 0) {
-                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = stringResource(R.string.ui_move_up))
+                            Checkbox(checked = i in vm.markedLayers, onCheckedChange = { vm.toggleMarked(i) })
+                        }
+                        IconButton(onClick = { vm.toggleLayerVisible(i) }) {
+                            Icon(
+                                if (layer.visible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = stringResource(R.string.ui_visible),
+                            )
+                        }
+                        if (layerColor != null) {
+                            Box(
+                                Modifier
+                                    .size(14.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(layerColor))
+                                    .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        Text(
+                            layer.name,
+                            maxLines = 1,
+                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            modifier = Modifier.weight(1f).clickable { vm.selectLayer(i) },
+                        )
+                        FilterChip(selected = layer.tool == Tool.PEN, onClick = { vm.setLayerTool(i, Tool.PEN) }, label = { Text(stringResource(R.string.ui_pen)) })
+                        Spacer(Modifier.width(6.dp))
+                        FilterChip(selected = layer.tool == Tool.KNIFE, onClick = { vm.setLayerTool(i, Tool.KNIFE) }, label = { Text(stringResource(R.string.ui_knife)) })
+                    }
+                    // Rename/reorder for the selected layer go on their own row, so the row above never
+                    // overflows and pushes the tool chips off screen.
+                    if (selected) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { renameText = layer.name; renaming = i }) {
+                                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.ui_rename), modifier = Modifier.size(20.dp))
                             }
-                            IconButton(onClick = { vm.moveLayer(i, 1) }, enabled = i < vm.layers.size - 1) {
-                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.ui_move_down))
+                            if (vm.layers.size > 1) {
+                                IconButton(onClick = { vm.moveLayer(i, -1) }, enabled = i > 0) {
+                                    Icon(Icons.Default.KeyboardArrowUp, contentDescription = stringResource(R.string.ui_move_up))
+                                }
+                                IconButton(onClick = { vm.moveLayer(i, 1) }, enabled = i < vm.layers.size - 1) {
+                                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.ui_move_down))
+                                }
                             }
                         }
                     }
-                    FilterChip(selected = layer.tool == Tool.PEN, onClick = { vm.setLayerTool(i, Tool.PEN) }, label = { Text(stringResource(R.string.ui_pen)) })
-                    Spacer(Modifier.width(6.dp))
-                    FilterChip(selected = layer.tool == Tool.KNIFE, onClick = { vm.setLayerTool(i, Tool.KNIFE) }, label = { Text(stringResource(R.string.ui_knife)) })
                 }
             }
         }
