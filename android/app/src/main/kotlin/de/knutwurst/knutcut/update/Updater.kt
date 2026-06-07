@@ -25,7 +25,9 @@ object Updater {
 
     /** Read latest.json, or null on any network/parse error. */
     fun fetchLatest(): UpdateInfo? {
-        val txt = httpGet(BASE + "latest.json") ?: return null
+        // Cache-buster: raw.githubusercontent.com sits behind a CDN that caches latest.json for
+        // minutes, so a fixed URL can return a stale version. A unique query param forces a fresh fetch.
+        val txt = httpGet(BASE + "latest.json?ts=" + System.currentTimeMillis()) ?: return null
         return try {
             val o = JSONObject(txt)
             UpdateInfo(o.getInt("versionCode"), o.optString("versionName"), o.optString("apk"), o.optString("sha256"))
@@ -77,6 +79,8 @@ object Updater {
     private fun httpGet(url: String): String? = try {
         (URL(url).openConnection() as HttpURLConnection).run {
             connectTimeout = 8000; readTimeout = 8000
+            useCaches = false
+            setRequestProperty("Cache-Control", "no-cache")
             if (responseCode == 200) inputStream.bufferedReader().use { it.readText() } else null
         }
     } catch (e: Exception) { null }
