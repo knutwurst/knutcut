@@ -245,4 +245,13 @@
     <string name="st_install_permission">Bitte die Installation aus dieser Quelle erlauben und erneut auf Update tippen.</string>
     <string name="ui_back_to_exit">Zum Beenden erneut „Zurück“ drücken.</string>
     <string name="ui_language">Sprache</string>
+    <string name="ui_rename">Umbenennen</string>
+    <string name="ui_move_up">Nach oben</string>
+    <string name="ui_move_down">Nach unten</string>
+    <string name="ui_reset_view">Ansicht</string>
+    <string name="ui_about">Über</string>
+    <string name="ui_about_github">Projekt auf GitHub</string>
+    <string name="ui_about_fonts">Schriften: Anton, Pacifico, Abril Fatface (OFL) · Hershey-Fonts (gemeinfrei).</string>
+    <string name="ui_copies">Kopien</string>
+    <string name="ui_copies_hint">Mehrfach plotten (z.B. tieferer Schnitt).</string>
 </resources>

@@ -247,4 +247,13 @@
     <string name="st_install_permission">Please allow installation from this source, then tap Update again.</string>
     <string name="ui_back_to_exit">Press back again to exit.</string>
     <string name="ui_language">Language</string>
+    <string name="ui_rename">Rename</string>
+    <string name="ui_move_up">Move up</string>
+    <string name="ui_move_down">Move down</string>
+    <string name="ui_reset_view">View</string>
+    <string name="ui_about">About</string>
+    <string name="ui_about_github">Project on GitHub</string>
+    <string name="ui_about_fonts">Fonts: Anton, Pacifico, Abril Fatface (OFL) · Hershey fonts (public domain).</string>
+    <string name="ui_copies">Copies</string>
+    <string name="ui_copies_hint">Plot multiple passes (e.g. a deeper cut).</string>
 </resources>

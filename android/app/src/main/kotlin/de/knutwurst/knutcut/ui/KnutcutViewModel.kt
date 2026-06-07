@@ -154,6 +154,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     // Cut.
     var cutSelectedOnly by mutableStateOf(false); private set
+    var cutCopies by mutableStateOf(1); private set
     var cutting by mutableStateOf(false); private set
     var progress by mutableStateOf(0f); private set
 
@@ -464,6 +465,27 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun selectLayer(i: Int) { if (i in layers.indices) selectedLayer = i }
+
+    /** Rename a layer (trimmed; blank keeps the old name). */
+    fun renameLayer(i: Int, name: String) {
+        if (i !in layers.indices) return
+        val n = name.trim()
+        if (n.isEmpty() || n == layers[i].name) return
+        pushHistory()
+        layers = layers.toMutableList().also { it[i] = it[i].copy(name = n) }
+    }
+
+    /** Move a layer up (delta -1) or down (+1); reorder also changes the plot order. */
+    fun moveLayer(i: Int, delta: Int) {
+        val j = i + delta
+        if (i !in layers.indices || j !in layers.indices) return
+        pushHistory()
+        layers = layers.toMutableList().also { it.add(j, it.removeAt(i)) }
+        selectedLayer = j
+    }
+
+    /** Reset the camera (zoom + pan) to the default framing of the mat. */
+    fun resetView() { camScale = 1f; camOffset = Offset.Zero }
 
     /** Clear the layer selection and any marks — the mat itself becomes the active selection. */
     fun deselectLayers() { selectedLayer = -1; markedLayers = emptySet() }
@@ -856,6 +878,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun changeCutSelectedOnly(v: Boolean) { cutSelectedOnly = v }
 
+    fun changeCutCopies(n: Int) { cutCopies = n.coerceIn(1, 10) }
+
     /** Pressure for a tool: the material's knife pressure for the knife, the lighter pen pressure for the pen. */
     fun forceFor(t: Tool): Int = if (t == Tool.PEN) penForce else force
 
@@ -1239,7 +1263,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             val m = layerMatrix(layer)
             layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
         }
-        val polylines = if (optimizeCutOrder) CutOrder.optimize(placed) else placed
+        val ordered = if (optimizeCutOrder) CutOrder.optimize(placed) else placed
+        val polylines = if (cutCopies > 1) (1..cutCopies).flatMap { ordered } else ordered
         if (polylines.isEmpty()) { finishCut(s(R.string.st_no_visible_layers)); return }
         // The editor mat and the machine's cuttable area can differ (e.g. a 203 mm Portrait), so check
         // against the device's own bounds before streaming.
@@ -1330,7 +1355,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             // SP2 = left/pen) from the path data, not from a standalone setup command.
             val plt = ArrayList<String>()
             toolsUsed.forEach { t ->
-                val polys = plotterPolylinesFor(t)
+                val base = plotterPolylinesFor(t)
+                // Multiple copies = repeat every contour as extra passes (deeper cut / repeat draw).
+                val polys = if (cutCopies > 1) (1..cutCopies).flatMap { base } else base
                 var cmds = HpglEncoder.encode(polys)
                 if (cmds.isEmpty()) return@forEach
                 val raw = cmds.size

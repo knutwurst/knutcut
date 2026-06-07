@@ -3,6 +3,7 @@ package de.knutwurst.knutcut.ui
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
@@ -42,10 +43,14 @@ import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Flip
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.FormatAlignCenter
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -264,7 +269,15 @@ fun MainScreen(vm: KnutcutViewModel) {
         AlertDialog(
             onDismissRequest = { vm.dismissUpdate() },
             title = { Text(stringResource(R.string.ui_update_avail)) },
-            text = { Text(stringResource(R.string.ui_update_dialog, appVersion(context), info.versionName)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.ui_update_dialog, appVersion(context), info.versionName))
+                    if (info.notes.isNotBlank()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(info.notes, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            },
             confirmButton = { TextButton(onClick = { vm.runUpdate() }, enabled = !vm.updateBusy) { Text(stringResource(R.string.ui_update)) } },
             dismissButton = { TextButton(onClick = { vm.dismissUpdate() }) { Text(stringResource(R.string.ui_cancel)) } },
         )
@@ -429,6 +442,7 @@ private fun EditingBar(
             if (vm.matSelected) stringResource(R.string.ui_reset_all) else stringResource(R.string.ui_reset_layer),
             Icons.Default.Refresh,
         ) { if (vm.matSelected) vm.resetAll() else vm.resetSelectedPlacement() }
+        IconAction(stringResource(R.string.ui_reset_view), Icons.Default.CenterFocusStrong) { vm.resetView() }
     }
 
     Spacer(Modifier.height(8.dp))
@@ -522,6 +536,14 @@ private fun CutSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                     color = MaterialTheme.colorScheme.error,
                 )
             }
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.ui_copies), style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.ui_copies_hint), style = MaterialTheme.typography.bodySmall)
+                }
+                EditableStepper(vm.cutCopies, 1, 10, step = 1) { vm.changeCutCopies(it) }
+            }
             Spacer(Modifier.height(14.dp))
             val label = when (single) { Tool.KNIFE -> stringResource(R.string.ui_cut); Tool.PEN -> stringResource(R.string.ui_draw); else -> stringResource(R.string.ui_plot) }
             Button(
@@ -537,6 +559,17 @@ private fun CutSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
 @Composable
 private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
     var allowRotate by remember { mutableStateOf(true) }
+    var renaming by remember { mutableStateOf(-1) }
+    var renameText by remember { mutableStateOf("") }
+    if (renaming in vm.layers.indices) {
+        AlertDialog(
+            onDismissRequest = { renaming = -1 },
+            title = { Text(stringResource(R.string.ui_rename)) },
+            text = { OutlinedTextField(renameText, { renameText = it }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+            confirmButton = { TextButton(onClick = { vm.renameLayer(renaming, renameText); renaming = -1 }) { Text(stringResource(R.string.ui_apply)) } },
+            dismissButton = { TextButton(onClick = { renaming = -1 }) { Text(stringResource(R.string.ui_cancel)) } },
+        )
+    }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             Text(pluralStringResource(R.plurals.ui_layers_title, vm.layers.size, vm.layers.size), style = MaterialTheme.typography.titleMedium)
@@ -615,6 +648,17 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                         modifier = Modifier.weight(1f).clickable { vm.selectLayer(i) },
                     )
+                    IconButton(onClick = { renameText = layer.name; renaming = i }) {
+                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.ui_rename), modifier = Modifier.size(18.dp))
+                    }
+                    if (vm.layers.size > 1) {
+                        IconButton(onClick = { vm.moveLayer(i, -1) }, enabled = i > 0) {
+                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = stringResource(R.string.ui_move_up))
+                        }
+                        IconButton(onClick = { vm.moveLayer(i, 1) }, enabled = i < vm.layers.size - 1) {
+                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.ui_move_down))
+                        }
+                    }
                     FilterChip(selected = layer.tool == Tool.PEN, onClick = { vm.setLayerTool(i, Tool.PEN) }, label = { Text(stringResource(R.string.ui_pen)) })
                     Spacer(Modifier.width(6.dp))
                     FilterChip(selected = layer.tool == Tool.KNIFE, onClick = { vm.setLayerTool(i, Tool.KNIFE) }, label = { Text(stringResource(R.string.ui_knife)) })
@@ -826,6 +870,15 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                     EditableStepper(vm.bladeOffset, 0, 40, step = 1) { vm.changeBladeOffset(it) }
                 }
             }
+
+            Spacer(Modifier.height(18.dp))
+            Text(stringResource(R.string.ui_about), style = MaterialTheme.typography.labelLarge)
+            val aboutCtx = LocalContext.current
+            TextButton(
+                onClick = { runCatching { aboutCtx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/knutwurst/knutcut"))) } },
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+            ) { Text(stringResource(R.string.ui_about_github)) }
+            Text(stringResource(R.string.ui_about_fonts), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             Spacer(Modifier.height(14.dp))
             Text(stringResource(R.string.ui_footer_version, version), style = MaterialTheme.typography.bodySmall)

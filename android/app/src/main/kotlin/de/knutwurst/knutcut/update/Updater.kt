@@ -13,7 +13,7 @@ import java.security.MessageDigest
 
 /** The latest release as published in the self-update repo's latest.json. [sha256] is the lowercase
  *  hex digest of the APK; the download is rejected unless it matches, guarding against tampering. */
-data class UpdateInfo(val versionCode: Int, val versionName: String, val apk: String, val sha256: String)
+data class UpdateInfo(val versionCode: Int, val versionName: String, val apk: String, val sha256: String, val notes: String = "")
 
 /**
  * Self-update from the knutcut-releases GitHub repo: read latest.json, compare versionCode, download
@@ -32,7 +32,7 @@ object Updater {
         val txt = httpGet(BASE + "latest.json?ts=" + System.currentTimeMillis()) ?: return null
         return try {
             val o = JSONObject(txt)
-            UpdateInfo(o.getInt("versionCode"), o.optString("versionName"), o.optString("apk"), o.optString("sha256"))
+            UpdateInfo(o.getInt("versionCode"), o.optString("versionName"), o.optString("apk"), o.optString("sha256"), o.optString("notes"))
         } catch (e: Exception) { null }
     }
 
