@@ -1,3 +1,63 @@
 <resources>
     <string name="app_name">Knutcut</string>
+
+    <!-- ViewModel status / toast messages -->
+    <string name="st_update_checking">Checking for a new version…</string>
+    <string name="st_update_none">No update available (installed: %1$s).</string>
+    <string name="st_update_check_failed">Update check failed (no connection?).</string>
+    <string name="st_update_downloading">Downloading update %1$s…</string>
+    <string name="st_update_download_failed">Download failed or checksum invalid.</string>
+    <string name="st_import_too_big">File too large (max. %1$d MB) – skipped.</string>
+    <string name="st_import_unreadable">File could not be read – skipped.</string>
+    <string name="st_project_invalid">Not a valid project.</string>
+    <string name="st_no_cuttable_paths">No cuttable paths found in the file.</string>
+    <string name="st_file_read_error">Could not read file: %1$s</string>
+    <string name="st_cleared">New – mat cleared.</string>
+    <string name="st_shape_added">%1$s added.</string>
+    <string name="st_connecting">Connecting to %1$s…</string>
+    <string name="st_connection_lost">Lost connection to the plotter.</string>
+    <string name="st_connect_failed">Connection failed: %1$s</string>
+    <string name="st_select_silhouette_first">Please select a Silhouette model above first.</string>
+    <string name="st_connecting_ble">Connecting to %1$s (BLE)…</string>
+    <string name="st_ble_connection_lost">Lost the BLE connection to the plotter.</string>
+    <string name="st_connected_ble">Connected to %1$s (BLE).</string>
+    <string name="st_ble_connect_failed">BLE connection failed: %1$s</string>
+    <string name="st_disconnected">Disconnected.</string>
+    <string name="st_connect_plotter_first">Please connect the plotter first.</string>
+    <string name="st_no_design">No design loaded.</string>
+    <string name="st_design_off_mat">Design extends past the mat – please shrink or move it.</string>
+    <string name="st_no_silhouette_profile">No Silhouette device profile for this model.</string>
+    <string name="st_no_visible_layers">No visible layers.</string>
+    <string name="st_design_off_area">Design outside the cutting area of %1$s (%2$d×%3$d mm).</string>
+    <string name="st_cutting_silhouette">Cutting (Silhouette)…</string>
+    <string name="st_cancelled">Cancelled.</string>
+    <string name="st_connecting_plotter">Connecting to the plotter…</string>
+    <string name="st_no_response">No response from the plotter.</string>
+    <string name="st_setup_not_confirmed">The plotter did not confirm setup – aborted.</string>
+    <string name="st_insert_material">Insert material and press the feed button on the plotter.</string>
+    <string name="st_material_not_loaded">Material not loaded (timeout).</string>
+    <string name="st_press_start">Ready – now press the start button on the plotter.</string>
+    <string name="st_start_not_pressed">Start button not pressed (timeout).</string>
+    <string name="st_transfer_aborted">Transfer aborted at chunk %1$d.</string>
+    <string name="st_sent_to_plotter">Finished sending to the plotter.</string>
+    <string name="st_error_generic">Error: %1$s</string>
+    <string name="st_material_detected">Material detected – press the feed button on the plotter.</string>
+    <string name="st_cancelling">Cancelling…</string>
+
+    <plurals name="st_project_loaded">
+        <item quantity="one">Project loaded (%1$d layer).</item>
+        <item quantity="other">Project loaded (%1$d layers).</item>
+    </plurals>
+    <plurals name="st_design_loaded">
+        <item quantity="one">Design loaded (%1$d layer)%2$s.</item>
+        <item quantity="other">Design loaded (%1$d layers)%2$s.</item>
+    </plurals>
+    <plurals name="st_arranged">
+        <item quantity="one">Arranged (%1$d layer).</item>
+        <item quantity="other">Arranged (%1$d layers).</item>
+    </plurals>
+    <plurals name="st_skipped_suffix">
+        <item quantity="one"> · %1$d unreadable part skipped</item>
+        <item quantity="other"> · %1$d unreadable parts skipped</item>
+    </plurals>
 </resources>

@@ -1,0 +1,61 @@
+<resources>
+    <!-- ViewModel status / toast messages -->
+    <string name="st_update_checking">Prüfe auf neue Version…</string>
+    <string name="st_update_none">Kein Update verfügbar (installiert: %1$s).</string>
+    <string name="st_update_check_failed">Update-Prüfung fehlgeschlagen (keine Verbindung?).</string>
+    <string name="st_update_downloading">Lade Update %1$s…</string>
+    <string name="st_update_download_failed">Download fehlgeschlagen oder Prüfsumme ungültig.</string>
+    <string name="st_import_too_big">Datei zu groß (max. %1$d MB) – übersprungen.</string>
+    <string name="st_import_unreadable">Datei konnte nicht gelesen werden – übersprungen.</string>
+    <string name="st_project_invalid">Kein gültiges Projekt.</string>
+    <string name="st_no_cuttable_paths">Keine schneidbaren Pfade in der Datei gefunden.</string>
+    <string name="st_file_read_error">Datei konnte nicht gelesen werden: %1$s</string>
+    <string name="st_cleared">Neu – Matte geleert.</string>
+    <string name="st_shape_added">%1$s hinzugefügt.</string>
+    <string name="st_connecting">Verbinde mit %1$s…</string>
+    <string name="st_connection_lost">Verbindung zum Plotter verloren.</string>
+    <string name="st_connect_failed">Verbindung fehlgeschlagen: %1$s</string>
+    <string name="st_select_silhouette_first">Bitte zuerst oben ein Silhouette-Modell wählen.</string>
+    <string name="st_connecting_ble">Verbinde mit %1$s (BLE)…</string>
+    <string name="st_ble_connection_lost">BLE-Verbindung zum Plotter verloren.</string>
+    <string name="st_connected_ble">Verbunden mit %1$s (BLE).</string>
+    <string name="st_ble_connect_failed">BLE-Verbindung fehlgeschlagen: %1$s</string>
+    <string name="st_disconnected">Getrennt.</string>
+    <string name="st_connect_plotter_first">Bitte zuerst den Plotter verbinden.</string>
+    <string name="st_no_design">Kein Design geladen.</string>
+    <string name="st_design_off_mat">Design ragt über die Matte hinaus – bitte verkleinern oder verschieben.</string>
+    <string name="st_no_silhouette_profile">Kein Silhouette-Geräteprofil für dieses Modell.</string>
+    <string name="st_no_visible_layers">Keine sichtbaren Ebenen.</string>
+    <string name="st_design_off_area">Design außerhalb des Schneidebereichs von %1$s (%2$d×%3$d mm).</string>
+    <string name="st_cutting_silhouette">Schneiden (Silhouette)…</string>
+    <string name="st_cancelled">Abgebrochen.</string>
+    <string name="st_connecting_plotter">Verbinde mit dem Plotter…</string>
+    <string name="st_no_response">Keine Antwort vom Plotter.</string>
+    <string name="st_setup_not_confirmed">Plotter hat die Vorbereitung nicht bestätigt – abgebrochen.</string>
+    <string name="st_insert_material">Lege Material ein und drücke die Einzugstaste am Plotter.</string>
+    <string name="st_material_not_loaded">Material nicht geladen (Zeitüberschreitung).</string>
+    <string name="st_press_start">Bereit – drücke jetzt die Start-Taste am Plotter.</string>
+    <string name="st_start_not_pressed">Start-Taste nicht gedrückt (Zeitüberschreitung).</string>
+    <string name="st_transfer_aborted">Übertragung abgebrochen bei Chunk %1$d.</string>
+    <string name="st_sent_to_plotter">Fertig an den Plotter gesendet.</string>
+    <string name="st_error_generic">Fehler: %1$s</string>
+    <string name="st_material_detected">Material erkannt – drücke die Einzugstaste am Plotter.</string>
+    <string name="st_cancelling">Abbrechen…</string>
+
+    <plurals name="st_project_loaded">
+        <item quantity="one">Projekt geladen (%1$d Ebene).</item>
+        <item quantity="other">Projekt geladen (%1$d Ebenen).</item>
+    </plurals>
+    <plurals name="st_design_loaded">
+        <item quantity="one">Design geladen (%1$d Ebene)%2$s.</item>
+        <item quantity="other">Design geladen (%1$d Ebenen)%2$s.</item>
+    </plurals>
+    <plurals name="st_arranged">
+        <item quantity="one">Angeordnet (%1$d Ebene).</item>
+        <item quantity="other">Angeordnet (%1$d Ebenen).</item>
+    </plurals>
+    <plurals name="st_skipped_suffix">
+        <item quantity="one"> · %1$d unlesbares Teil übersprungen</item>
+        <item quantity="other"> · %1$d unlesbare Teile übersprungen</item>
+    </plurals>
+</resources>

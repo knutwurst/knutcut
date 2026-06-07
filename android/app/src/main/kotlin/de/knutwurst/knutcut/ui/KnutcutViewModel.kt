@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.knutwurst.knutcut.BuildConfig
+import de.knutwurst.knutcut.R
 import de.knutwurst.knutcut.data.ColorMode
 import de.knutwurst.knutcut.data.Devices
 import de.knutwurst.knutcut.data.DisplayUnit
@@ -212,6 +213,11 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun changeOptimizeCutOrder(on: Boolean) { optimizeCutOrder = on; settings.optimizeCutOrder = on }
 
+    /** Localized string / quantity-string helpers for status (toast) messages. */
+    private fun s(id: Int, vararg a: Any?): String = getApplication<Application>().getString(id, *a)
+    private fun qty(id: Int, n: Int, vararg a: Any?): String =
+        getApplication<Application>().resources.getQuantityString(id, n, *a)
+
     /** Remove leftover update APKs (called once at launch, now that this version is running). */
     fun cleanupUpdates() { runCatching { de.knutwurst.knutcut.update.Updater.cleanup(getApplication()) } }
 
@@ -220,13 +226,13 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun checkForUpdate(silent: Boolean) {
         if (updateBusy) return
-        status = "Prüfe auf neue Version…"
+        status = s(R.string.st_update_checking)
         viewModelScope.launch {
             val info = withContext(Dispatchers.IO) { de.knutwurst.knutcut.update.Updater.fetchLatest() }
             when {
                 info != null && info.versionCode > BuildConfig.VERSION_CODE -> updateInfo = info
-                !silent && info != null -> status = "Kein Update verfügbar (installiert: ${BuildConfig.VERSION_NAME})."
-                !silent -> status = "Update-Prüfung fehlgeschlagen (keine Verbindung?)."
+                !silent && info != null -> status = s(R.string.st_update_none, BuildConfig.VERSION_NAME)
+                !silent -> status = s(R.string.st_update_check_failed)
             }
         }
     }
@@ -237,11 +243,11 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun runUpdate() {
         val info = updateInfo ?: return
         updateBusy = true
-        status = "Lade Update ${info.versionName}…"
+        status = s(R.string.st_update_downloading, info.versionName)
         viewModelScope.launch {
             val apk = withContext(Dispatchers.IO) { de.knutwurst.knutcut.update.Updater.download(getApplication(), info) }
             updateBusy = false
-            if (apk == null) { status = "Download fehlgeschlagen oder Prüfsumme ungültig."; return@launch }
+            if (apk == null) { status = s(R.string.st_update_download_failed); return@launch }
             updateInfo = null
             de.knutwurst.knutcut.update.Updater.install(getApplication(), apk)
         }
@@ -301,8 +307,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             for (uri in uris) {
                 when (val r = withContext(Dispatchers.IO) { readTextLimited(resolver, uri) }) {
                     is ImportText.Ok -> if (loadDesignContent(r.content, replaceNext)) replaceNext = false
-                    ImportText.TooBig -> status = "Datei zu groß (max. $MAX_IMPORT_MB MB) – übersprungen."
-                    ImportText.Failed -> status = "Datei konnte nicht gelesen werden – übersprungen."
+                    ImportText.TooBig -> status = s(R.string.st_import_too_big, MAX_IMPORT_MB)
+                    ImportText.Failed -> status = s(R.string.st_import_unreadable)
                 }
             }
         }
@@ -326,13 +332,13 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 runCatching { getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } }.getOrNull()
             }
             val ls = text?.let { runCatching { de.knutwurst.knutcut.data.ProjectIO.fromJson(it) }.getOrNull() }
-            if (ls.isNullOrEmpty()) { status = "Kein gültiges Projekt."; return@launch }
+            if (ls.isNullOrEmpty()) { status = s(R.string.st_project_invalid); return@launch }
             pushHistory()
             layers = ls
             selectedLayer = 0
             markedLayers = emptySet()
             pruneBoundsCache()
-            status = "Projekt geladen (${ls.size} Ebene${if (ls.size == 1) "" else "n"})."
+            status = qty(R.plurals.st_project_loaded, ls.size, ls.size)
         }
     }
 
@@ -379,7 +385,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Parse and place a single file. Returns true when something was loaded. */
     private fun loadDesignContent(text: String, replace: Boolean): Boolean {
         val parsed = parseDesign(text)
-        if (parsed == null || parsed.layers.isEmpty()) { status = "Keine schneidbaren Pfade in der Datei gefunden."; return false }
+        if (parsed == null || parsed.layers.isEmpty()) { status = s(R.string.st_no_cuttable_paths); return false }
         pushHistory()
         if (replace || layers.isEmpty()) {
             layers = placeAtHome(parsed.layers)
@@ -394,8 +400,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         markedLayers = emptySet()
         pruneBoundsCache()
         val n = parsed.layers.size
-        val skip = if (parsed.skipped > 0) " · ${parsed.skipped} unlesbare Teile übersprungen" else ""
-        status = "Design geladen ($n Ebene${if (n == 1) "" else "n"})$skip."
+        val skip = if (parsed.skipped > 0) qty(R.plurals.st_skipped_suffix, parsed.skipped, parsed.skipped) else ""
+        status = qty(R.plurals.st_design_loaded, n, n, skip)
         return true
     }
 
@@ -414,7 +420,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 if (polys.isEmpty()) null else ParsedDesign(listOf(Layer("PLT-Datei", polys, tool, visible = true)), 0)
             }
         } catch (e: Exception) {
-            status = "Datei konnte nicht gelesen werden: ${e.message}"
+            status = s(R.string.st_file_read_error, e.message)
             null
         }
     }
@@ -449,7 +455,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         pruneBoundsCache()
         camScale = 1f
         camOffset = Offset.Zero
-        status = "Neu – Matte geleert."
+        status = s(R.string.st_cleared)
     }
 
     /**
@@ -472,7 +478,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             l.copy(rotationDeg = if (p.rotated) 90.0 else 0.0, centerMm = Pt(p.x + p.w / 2, p.y + p.h / 2))
         }
         selectedLayer = -1
-        status = "Angeordnet (${layers.size} Ebenen)."
+        status = qty(R.plurals.st_arranged, layers.size, layers.size)
     }
 
     /** Add a new layer (e.g. a primitive shape or text) centred on the mat and select it. */
@@ -483,7 +489,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         layers = layers + layer
         selectedLayer = layers.lastIndex
         markedLayers = emptySet()
-        status = "$name hinzugefügt."
+        status = s(R.string.st_shape_added, name)
     }
 
     /** Mirror the selected layer (around its own centre). */
@@ -951,7 +957,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun connect(dev: BluetoothDevice, silent: Boolean = false) {
         if (connecting || connected) return
         connecting = true
-        if (!silent) status = "Verbinde mit ${dev.name}…"
+        if (!silent) status = s(R.string.st_connecting, dev.name)
         viewModelScope.launch {
             try {
                 val l = withContext(Dispatchers.IO) { BluetoothPlotter.connect(getApplication(), dev) }
@@ -965,7 +971,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                     viewModelScope.launch {
                         if (link === l) {
                             connected = false
-                            if (!cutting) status = "Verbindung zum Plotter verloren."
+                            if (!cutting) status = s(R.string.st_connection_lost)
                         }
                     }
                 }
@@ -981,7 +987,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                     else "Verbunden mit ${dev.name} (kein unterstützter Plotter)."
             } catch (e: Exception) {
                 connected = false
-                if (!silent) status = "Verbindung fehlgeschlagen: ${e.message}"
+                if (!silent) status = s(R.string.st_connect_failed, e.message)
             } finally {
                 connecting = false
             }
@@ -996,11 +1002,11 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun connectLe(dev: BluetoothDevice, silent: Boolean = false) {
         if (connecting || connected) return
         if (model.family != PlotterFamily.BLE_SILHOUETTE) {
-            if (!silent) status = "Bitte zuerst oben ein Silhouette-Modell wählen."
+            if (!silent) status = s(R.string.st_select_silhouette_first)
             return
         }
         connecting = true
-        if (!silent) status = "Verbinde mit ${dev.name} (BLE)…"
+        if (!silent) status = s(R.string.st_connecting_ble, dev.name)
         viewModelScope.launch {
             try {
                 val l = withContext(Dispatchers.IO) { BluetoothLePlotter.connect(getApplication(), dev) }
@@ -1012,16 +1018,16 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                     viewModelScope.launch {
                         if (link === l) {
                             connected = false
-                            if (!cutting) status = "BLE-Verbindung zum Plotter verloren."
+                            if (!cutting) status = s(R.string.st_ble_connection_lost)
                         }
                     }
                 }
                 settings.deviceAddress = dev.address
                 settings.deviceTransport = "BLE"
-                if (!silent) status = "Verbunden mit ${model.displayName} (BLE)."
+                if (!silent) status = s(R.string.st_connected_ble, model.displayName)
             } catch (e: Exception) {
                 connected = false
-                if (!silent) status = "BLE-Verbindung fehlgeschlagen: ${e.message}"
+                if (!silent) status = s(R.string.st_ble_connect_failed, e.message)
             } finally {
                 connecting = false
             }
@@ -1049,7 +1055,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun disconnect() {
-        link?.close(); link = null; connected = false; device = null; status = "Getrennt."
+        link?.close(); link = null; connected = false; device = null; status = s(R.string.st_disconnected)
     }
 
     /**
@@ -1181,7 +1187,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun cut() {
         val l = link
-        if (!connected || l == null) { status = "Bitte zuerst den Plotter verbinden."; return }
+        if (!connected || l == null) { status = s(R.string.st_connect_plotter_first); return }
         // The selected model decides the protocol; the link knows its transport. They must agree, or
         // we'd stream VEVOR JSON+HPGL into a Silhouette (or GPGL into a VEVOR). Refuse the mismatch up
         // front — before touching the design — instead of sending the wrong language down the wire.
@@ -1192,8 +1198,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 "${model.displayName} braucht eine klassische Bluetooth-Verbindung. Wähle ein VEVOR-Gerät."
             return
         }
-        if (!hasDesign) { status = "Kein Design geladen."; return }
-        if (!designWithinMat()) { status = "Design ragt über die Matte hinaus – bitte verkleinern oder verschieben."; return }
+        if (!hasDesign) { status = s(R.string.st_no_design); return }
+        if (!designWithinMat()) { status = s(R.string.st_design_off_mat); return }
         if (cutting) return
         cutting = true
         progress = 0f
@@ -1205,13 +1211,13 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** GPGL cut path for Silhouette cutters over BLE. */
     private suspend fun runCutGpgl(l: ManagedLink) {
         val silDev = model.silhouetteDevice
-        if (silDev == null) { finishCut("Kein Silhouette-Geräteprofil für dieses Modell."); return }
+        if (silDev == null) { finishCut(s(R.string.st_no_silhouette_profile)); return }
         val placed = cutLayers().flatMap { layer ->
             val m = layerMatrix(layer)
             layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
         }
         val polylines = if (optimizeCutOrder) CutOrder.optimize(placed) else placed
-        if (polylines.isEmpty()) { finishCut("Keine sichtbaren Ebenen."); return }
+        if (polylines.isEmpty()) { finishCut(s(R.string.st_no_visible_layers)); return }
         // The editor mat and the machine's cuttable area can differ (e.g. a 203 mm Portrait), so check
         // against the device's own bounds before streaming.
         val pts = polylines.flatMap { it.points }
@@ -1222,14 +1228,14 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         // Reject anything off the machine's cuttable area — too big, or pushed past the top/left origin
         // into negative units (which would otherwise stream as out-of-range coordinates).
         if (minX < 0 || minY < 0 || maxX > silDev.widthMm || maxY > silDev.lengthMm) {
-            finishCut("Design außerhalb des Schneidebereichs von ${model.displayName} (${silDev.widthMm.toInt()}×${silDev.lengthMm.toInt()} mm)."); return
+            finishCut(s(R.string.st_design_off_area, model.displayName, silDev.widthMm.toInt(), silDev.lengthMm.toInt())); return
         }
         // User-chosen speed, clamped to what this family allows (GpglProtocol clamps again defensively).
         val speed = silhouetteSpeed.coerceIn(1, silhouetteSpeedMax)
         // Use the predominant tool's force (knife if any knife layer, else pen), not always the knife.
         val tool = if (cutLayers().any { it.tool == Tool.KNIFE }) Tool.KNIFE else Tool.PEN
         val cutSettings = GpglCutSettings(speed = speed, pressure = silhouettePressure(forceFor(tool)))
-        status = "Schneiden (Silhouette)…"
+        status = s(R.string.st_cutting_silhouette)
         try {
             val ok = withContext(Dispatchers.IO) {
                 GpglSession(l).cut(silDev, cutSettings, polylines, shouldContinue = { isActive }) { p -> progress = p }
@@ -1237,7 +1243,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             finishCut(if (ok) "Fertig an Silhouette gesendet." else "Silhouette hat nicht geantwortet – abgebrochen.")
         } catch (e: CancellationException) {
             withContext(NonCancellable + Dispatchers.IO) { runCatching { l.write(GpglProtocol.INIT) } }
-            finishCut("Abgebrochen.")
+            finishCut(s(R.string.st_cancelled))
             throw e
         }
     }
@@ -1252,13 +1258,13 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun runCutVevor(l: ManagedLink) {
         val session = PlotterSession(l)
         try {
-            status = "Verbinde mit dem Plotter…"
+            status = s(R.string.st_connecting_plotter)
             val hs = withContext(Dispatchers.IO) { session.send(Handshake) }
             Log.d(TAG, "handshake -> $hs")
-            if (hs == null) { finishCut("Keine Antwort vom Plotter."); return }
+            if (hs == null) { finishCut(s(R.string.st_no_response)); return }
 
             val toolsUsed = cutLayers().map { it.tool }.distinct()
-            if (toolsUsed.isEmpty()) { finishCut("Keine sichtbaren Ebenen."); return }
+            if (toolsUsed.isEmpty()) { finishCut(s(R.string.st_no_visible_layers)); return }
             val primaryTool = if (Tool.KNIFE in toolsUsed) Tool.KNIFE else toolsUsed.first()
 
             // Setup, in the stock app's order: material, pressure (SP/FS), then the work-area scale.
@@ -1280,19 +1286,19 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             val scaleResp = withContext(Dispatchers.IO) { session.send(PltCommand("JS$widthUnits,$lengthUnits;")) }
             Log.d(TAG, "setScale -> $scaleResp")
             if (pressureResp == null || scaleResp == null) {
-                finishCut("Plotter hat die Vorbereitung nicht bestätigt – abgebrochen."); return
+                finishCut(s(R.string.st_setup_not_confirmed)); return
             }
 
             // Load gate (machines with a paper key): wait until the media is fed in (queryMaterial
             // state 3), not just sitting at the sensor (state 1).
             if (model.hasPaperKey) {
-                status = "Lege Material ein und drücke die Einzugstaste am Plotter."
-                if (!pollMaterialLoaded(session)) { finishCut("Material nicht geladen (Zeitüberschreitung)."); return }
+                status = s(R.string.st_insert_material)
+                if (!pollMaterialLoaded(session)) { finishCut(s(R.string.st_material_not_loaded)); return }
             }
             // Start gate (machines with a start key): wait for the physical Start button.
             if (model.hasStartKey) {
-                status = "Bereit – drücke jetzt die Start-Taste am Plotter."
-                if (!pollState(session, Query("queryStartKey"))) { finishCut("Start-Taste nicht gedrückt (Zeitüberschreitung)."); return }
+                status = s(R.string.st_press_start)
+                if (!pollState(session, Query("queryStartKey"))) { finishCut(s(R.string.st_start_not_pressed)); return }
             }
 
             status = if (Tool.KNIFE in toolsUsed) Tool.KNIFE.progress else Tool.PEN.progress
@@ -1314,7 +1320,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 plt += "SP${t.sp}"; plt += "FS${forceFor(t)}"
                 plt.addAll(cmds)
             }
-            if (plt.isEmpty()) { finishCut("Keine sichtbaren Ebenen."); return }
+            if (plt.isEmpty()) { finishCut(s(R.string.st_no_visible_layers)); return }
             plt += "PU"   // lift the tool at the end so the pen/knife isn't left pressed down
 
             // Stream as one continuous pltFile sequence (index 0..total-1, 30 commands per chunk),
@@ -1325,24 +1331,24 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 val resp = withContext(Dispatchers.IO) { session.send(m) }
                 if (resp == null) {
                     Log.d(TAG, "pltFile chunk ${i + 1}/${fileMsgs.size} not acknowledged")
-                    finishCut("Übertragung abgebrochen bei Chunk ${i + 1}."); return
+                    finishCut(s(R.string.st_transfer_aborted, i + 1)); return
                 }
                 progress = (i + 1).toFloat() / fileMsgs.size
             }
             // Finish: end the file so the machine lifts the tool and returns (stock sends TB66 here).
             withContext(Dispatchers.IO) { Log.d(TAG, "finish TB66 -> ${session.send(PltCommand("TB66;"))}") }
             recordMaterialUse(material.id)   // remember it under "recently used" now that it actually plotted
-            finishCut("Fertig an den Plotter gesendet.")
+            finishCut(s(R.string.st_sent_to_plotter))
         } catch (e: CancellationException) {
             cutting = false
-            status = "Abgebrochen."
+            status = s(R.string.st_cancelled)
             // Stop streaming and tell the machine to finish the current file (the stock app's stop).
             withContext(NonCancellable + Dispatchers.IO) {
                 runCatching { session.send(PltCommand("TB66;"), timeoutMs = 1500, maxAttempts = 1) }
             }
             throw e
         } catch (e: Exception) {
-            finishCut("Fehler: ${e.message}")
+            finishCut(s(R.string.st_error_generic, e.message))
         } finally {
             // One place that always tidies up, however the cut ended (success, error, cancel).
             cutJob = null
@@ -1365,8 +1371,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             val resp = withContext(Dispatchers.IO) { session.send(Query("queryMaterial")) }
             when (responseState(resp)) {
                 3 -> return true
-                1 -> status = "Material erkannt – drücke die Einzugstaste am Plotter."
-                else -> status = "Lege Material ein und drücke die Einzugstaste am Plotter."
+                1 -> status = s(R.string.st_material_detected)
+                else -> status = s(R.string.st_insert_material)
             }
             delay(intervalMs)
         }
@@ -1388,7 +1394,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         if (job == null) { cutting = false; progress = 0f; return }
         // Cancel the running job; runCut's CancellationException handler resets state and signals the
         // machine (TB66). Keeping it in one place avoids the two paths fighting over the status.
-        status = "Abbrechen…"
+        status = s(R.string.st_cancelling)
         cutJob = null
         job.cancel()
     }
