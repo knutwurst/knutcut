@@ -114,12 +114,12 @@ class KnutcutViewModelTest {
     @Test
     fun addLibrarySvgMergesMotifIntoOneLayer() {
         val vm = vm()
-        val flower = PlotterSvgLibrary.items.first { it.id == "flower" }
+        val flower = PlotterSvgLibrary.items.first { it.id == "mdi-flower" }
 
         vm.addLibrarySvg(flower.name, flower.svg)
 
         assertEquals(1, vm.layers.size)
-        assertEquals("Blume", vm.layers[0].name)
+        assertEquals("Flower", vm.layers[0].name)
         assertTrue("multi-part motif kept together", vm.layers[0].polylines.size > 1)
     }
 

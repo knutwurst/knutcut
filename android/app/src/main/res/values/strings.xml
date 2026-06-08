@@ -93,8 +93,11 @@
     <string name="ui_all">All</string>
     <string name="ui_lib_cat_basics">Basics</string>
     <string name="ui_lib_cat_nature">Nature</string>
+    <string name="ui_lib_cat_animals">Animals</string>
     <string name="ui_lib_cat_home">Home</string>
+    <string name="ui_lib_cat_food">Food</string>
     <string name="ui_lib_cat_party">Party</string>
+    <string name="ui_lib_cat_vehicles">Vehicles</string>
     <string name="ui_lib_cat_labels">Labels</string>
     <string name="ui_text_menu">Text…</string>
     <string name="ui_test_cut">Test cut 20 mm</string>
@@ -109,6 +112,8 @@
     <string name="ui_empty_hint">Open an SVG or PLT file, pick a motif from the library, or add a shape.</string>
     <string name="ui_open_file">Open file</string>
     <string name="ui_add_shape">Add shape</string>
+    <string name="ui_file_short">File</string>
+    <string name="ui_shape_short">Shape</string>
     <string name="ui_size_angle">Size &amp; angle</string>
     <string name="ui_rotate90">Rotate 90°</string>
     <string name="ui_flip_h">Flip horizontally</string>
@@ -264,7 +269,7 @@
     <string name="ui_reset_view">View</string>
     <string name="ui_about">About</string>
     <string name="ui_about_github">Project on GitHub</string>
-    <string name="ui_about_fonts">Fonts: Anton, Pacifico, Abril Fatface (OFL) · Hershey fonts (public domain).</string>
+    <string name="ui_about_fonts">Fonts: Anton, Pacifico, Abril Fatface (OFL) · Hershey fonts (public domain). SVG library: Material Design Icons (Apache-2.0) via Iconify.</string>
     <string name="ui_copies">Copies</string>
     <string name="ui_copies_hint">Plot multiple passes (e.g. a deeper cut).</string>
     <string name="st_needs_ble">%1$s needs a BLE connection. Connect it from the Silhouette BLE list.</string>

@@ -14,6 +14,12 @@ class PlotterSvgLibraryTest {
     }
 
     @Test
+    fun libraryHasLargeOfflineSelection() {
+        assertTrue("expected at least 500 library items", PlotterSvgLibrary.items.size >= 500)
+        assertEquals(8, PlotterSvgLibrary.categories.size)
+    }
+
+    @Test
     fun allLibraryItemsParseToCuttablePaths() {
         for (item in PlotterSvgLibrary.items) {
             val polylines = SvgParser.parse(item.svg)
@@ -24,10 +30,10 @@ class PlotterSvgLibraryTest {
 
     @Test
     fun searchMatchesNameTagsAndSource() {
-        val heart = PlotterSvgLibrary.items.first { it.id == "heart" }
+        val heart = PlotterSvgLibrary.items.first { it.id == "mdi-heart" }
 
-        assertTrue(heart.matches("Herz"))
-        assertTrue(heart.matches("valentine"))
-        assertTrue(heart.matches("Knutwurst"))
+        assertTrue(heart.matches("Heart"))
+        assertTrue(heart.matches("heart"))
+        assertTrue(heart.matches("Iconify"))
     }
 }

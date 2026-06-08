@@ -3,6 +3,12 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.54.5
+- SVG-Bibliothek deutlich erweitert: knapp tausend Offline-Motive aus Material Design Icons via
+  Iconify, mit zusätzlichen Kategorien.
+- Startansicht: kurze, gleich breite Buttons für Datei, Bibliothek und Form.
+- Bibliothek öffnet als hohes Sheet mit mehr sichtbarem Inhalt statt als kleines halbes Panel.
+
 ## 0.54.4
 - SVG-Bibliothek: durchsuchbare Motivauswahl mit Kategorien, Vorschau und direktem Einfügen in den
   Editor. Die Motive sind offline verfügbar und werden als zusammenhängende Ebene platziert.

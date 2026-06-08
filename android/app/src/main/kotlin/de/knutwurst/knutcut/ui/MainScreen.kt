@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -432,7 +433,7 @@ private fun LibrarySheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             .filter { it.matches(query) }
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
+        Column(Modifier.fillMaxHeight(0.96f).padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
             Text(stringResource(R.string.ui_library), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
@@ -476,7 +477,7 @@ private fun LibrarySheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 132.dp),
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 500.dp),
+                    modifier = Modifier.fillMaxWidth().weight(1f),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -550,7 +551,6 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawLibraryPreview(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun EmptyState(onOpen: () -> Unit, onLibrary: () -> Unit, onAddShape: () -> Unit) {
     Column(
@@ -565,10 +565,16 @@ private fun EmptyState(onOpen: () -> Unit, onLibrary: () -> Unit, onAddShape: ()
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(vertical = 6.dp),
         )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Button(onClick = onOpen) { Text(stringResource(R.string.ui_open)) }
-            OutlinedButton(onClick = onLibrary) { Text(stringResource(R.string.ui_library)) }
-            OutlinedButton(onClick = onAddShape) { Text(stringResource(R.string.ui_add_shape)) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onOpen, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.ui_file_short), maxLines = 1)
+            }
+            OutlinedButton(onClick = onLibrary, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.ui_library), maxLines = 1)
+            }
+            OutlinedButton(onClick = onAddShape, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.ui_shape_short), maxLines = 1)
+            }
         }
     }
 }

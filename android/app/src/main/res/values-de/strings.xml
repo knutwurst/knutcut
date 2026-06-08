@@ -91,8 +91,11 @@
     <string name="ui_all">Alle</string>
     <string name="ui_lib_cat_basics">Basics</string>
     <string name="ui_lib_cat_nature">Natur</string>
+    <string name="ui_lib_cat_animals">Tiere</string>
     <string name="ui_lib_cat_home">Zuhause</string>
+    <string name="ui_lib_cat_food">Essen</string>
     <string name="ui_lib_cat_party">Feiern</string>
+    <string name="ui_lib_cat_vehicles">Fahrzeuge</string>
     <string name="ui_lib_cat_labels">Etiketten</string>
     <string name="ui_text_menu">Text…</string>
     <string name="ui_test_cut">Probeschnitt 20 mm</string>
@@ -107,6 +110,8 @@
     <string name="ui_empty_hint">Öffne eine SVG- oder PLT-Datei, wähle ein Motiv aus der Bibliothek oder füge eine Form hinzu.</string>
     <string name="ui_open_file">Datei öffnen</string>
     <string name="ui_add_shape">Form hinzufügen</string>
+    <string name="ui_file_short">Datei</string>
+    <string name="ui_shape_short">Form</string>
     <string name="ui_size_angle">Größe &amp; Winkel</string>
     <string name="ui_rotate90">Drehen 90°</string>
     <string name="ui_flip_h">Horizontal spiegeln</string>
@@ -262,7 +267,7 @@
     <string name="ui_reset_view">Ansicht</string>
     <string name="ui_about">Über</string>
     <string name="ui_about_github">Projekt auf GitHub</string>
-    <string name="ui_about_fonts">Schriften: Anton, Pacifico, Abril Fatface (OFL) · Hershey-Fonts (gemeinfrei).</string>
+    <string name="ui_about_fonts">Schriften: Anton, Pacifico, Abril Fatface (OFL) · Hershey-Fonts (gemeinfrei). SVG-Bibliothek: Material Design Icons (Apache-2.0) über Iconify.</string>
     <string name="ui_copies">Kopien</string>
     <string name="ui_copies_hint">Mehrfach plotten (z.B. tieferer Schnitt).</string>
     <string name="st_needs_ble">%1$s braucht eine BLE-Verbindung. Verbinde das Gerät über die Silhouette-BLE-Liste.</string>
