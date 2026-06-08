@@ -8,7 +8,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -38,6 +37,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.FormatAlignLeft
 import androidx.compose.material.icons.automirrored.filled.FormatAlignRight
 import androidx.compose.material.icons.automirrored.filled.NoteAdd
@@ -138,6 +138,8 @@ fun MainScreen(vm: KnutcutViewModel) {
     var showNewConfirm by remember { mutableStateOf(false) }
     var showText by remember { mutableStateOf(false) }
     val fontRepo = remember(context) { FontRepository(context) }
+    var showChangelog by remember { mutableStateOf(false) }
+    val changelogText = remember { runCatching { context.assets.open("changelog.md").bufferedReader().use { it.readText() } }.getOrDefault("") }
 
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         hasBtPerm = hasBluetoothPermission(context)
@@ -158,7 +160,13 @@ fun MainScreen(vm: KnutcutViewModel) {
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
             // Top bar
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Image(painterResource(R.drawable.logo), contentDescription = null, modifier = Modifier.size(34.dp))
+                Image(
+                    painterResource(R.drawable.logo),
+                    contentDescription = null,
+                    modifier = Modifier.size(34.dp).clickable {
+                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/knutwurst"))) }
+                    },
+                )
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Knutcut", style = MaterialTheme.typography.titleLarge)
@@ -166,6 +174,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                         stringResource(R.string.ui_header_sub, version),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.clickable { showChangelog = true },
                     )
                 }
                 if (vm.hasDesign) {
@@ -236,6 +245,14 @@ fun MainScreen(vm: KnutcutViewModel) {
             dismissButton = { TextButton(onClick = { showNewConfirm = false }) { Text(stringResource(R.string.ui_cancel)) } },
         )
     }
+    if (showChangelog) {
+        AlertDialog(
+            onDismissRequest = { showChangelog = false },
+            title = { Text(stringResource(R.string.ui_changelog)) },
+            text = { Text(changelogText, style = MaterialTheme.typography.bodySmall, modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) },
+            confirmButton = { TextButton(onClick = { showChangelog = false }) { Text(stringResource(R.string.ui_close)) } },
+        )
+    }
     if (vm.pendingImport != null) {
         AlertDialog(
             onDismissRequest = { vm.cancelImport() },
@@ -259,22 +276,6 @@ fun MainScreen(vm: KnutcutViewModel) {
         if (vm.autoUpdate) vm.checkForUpdate(silent = true)
     }
 
-    // Back on the base screen (open sheets/dialogs handle their own back first): press twice to close.
-    // finishAndRemoveTask drops it from recents; exitProcess makes sure the lingering OneUI process dies.
-    val activity = context as? android.app.Activity
-    var lastBackMs by remember { mutableStateOf(0L) }
-    val backHint = stringResource(R.string.ui_back_to_exit)
-    BackHandler {
-        val now = System.currentTimeMillis()
-        if (now - lastBackMs in 1..2000) {
-            vm.shutdown() // close the Bluetooth link before the hard exit, since onCleared may not run
-            activity?.finishAndRemoveTask()
-            kotlin.system.exitProcess(0)
-        } else {
-            lastBackMs = now
-            Toast.makeText(context, backHint, Toast.LENGTH_SHORT).show()
-        }
-    }
     vm.updateInfo?.let { info ->
         AlertDialog(
             onDismissRequest = { vm.dismissUpdate() },
@@ -943,6 +944,16 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                     Text(stringResource(R.string.ui_changelog))
                 }
                 Text(stringResource(R.string.ui_footer_version, version), style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    IconButton(onClick = {
+                        vm.shutdown()
+                        (aboutCtx as? android.app.Activity)?.finishAndRemoveTask()
+                        kotlin.system.exitProcess(0)
+                    }) {
+                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = stringResource(R.string.ui_exit_app))
+                    }
+                }
             }
         }
     }

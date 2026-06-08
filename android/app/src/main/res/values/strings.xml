@@ -245,7 +245,7 @@
     <string name="st_cutting">Cutting…</string>
     <string name="st_drawing">Drawing…</string>
     <string name="st_install_permission">Please allow installation from this source, then tap Update again.</string>
-    <string name="ui_back_to_exit">Press back again to exit.</string>
+    <string name="ui_exit_app">Exit app</string>
     <string name="ui_language">Language</string>
     <string name="ui_rename">Rename</string>
     <string name="ui_move_up">Move up</string>

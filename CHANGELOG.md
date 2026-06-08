@@ -3,6 +3,12 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.54.2
+- Removed the double-back-to-exit gesture.
+- About section: exit button (bottom-right) closes the app cleanly — handy when something hangs.
+- Tap the logo in the header to open the project on GitHub.
+- Tap the version line ("v… · Knutwurst") to open the changelog directly from the main screen.
+
 ## 0.54.1
 - DXF import fixes: entities keep their file order; polylines defined in block/table sections no
   longer leak into the drawing; closed splines close properly; old-style POLYLINE arcs (bulges)
