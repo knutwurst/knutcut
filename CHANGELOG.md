@@ -105,8 +105,67 @@ published `latest.json` in the releases repo.
 - SVG colour display and a colour mode; group layers by colour.
 - Import confirmation dialog (replace or add).
 
-## up to 0.38.x
-- Mat editor (place, scale, rotate), per-layer tools, snapping and alignment guides.
-- Text tool with outline and single-stroke (Hershey) fonts.
-- Undo/redo, recently-used materials, auto-arrange.
-- VEVOR Smart cut path over classic Bluetooth (JSON + HPGL), drag-knife compensation.
+## 0.38.1–0.38.9
+- Resilient SVG parser; hardened XML reader, plotter session, and cut lifecycle.
+- Custom materials stored as JSON; device address excluded from backup.
+- Text vectorisation bounded to prevent runaway paths.
+- Structural undo de-duplication: snapshot only taken after a validated change.
+- AutoMirrored icon variants; updated origin-offset default.
+
+## 0.38.0
+- "New" button; automatic layer arrangement via shelf packing.
+
+## 0.37.3
+- Text tool: outline fonts (TTF) and single-stroke Hershey fonts.
+- Plotter model shown in the device dialog; bounding-box shelf packer added to svgcore.
+
+## 0.36.0
+- Undo/redo history; recently-used materials list; total design size readout in the cut sheet.
+
+## 0.34.0–0.34.3
+- Editor alignment and snapping overhaul; pre-cut tool-switch directly in the cut sheet.
+- Mat geometry modelled as a 12-inch grid with a gripper start offset.
+
+## 0.29.0–0.29.4
+- Proportional corner handles, side handles, and top-left-anchored free resize.
+- Selected layer's tool pressure shown in the Material sheet.
+- Snap and resize helpers extracted into svgcore; app icon redrawn as a clean vector pen.
+
+## 0.28.0–0.28.5
+- Fix tool selection, cut orientation, end-of-job lift/return, pressure range, and path flip.
+- Abbrechen sends an abort signal to the machine.
+- Adjustable top origin offset (default 25 mm).
+
+## 0.22.0–0.27.1
+- Canvas-first UI redesign: contextual action bar, bottom sheets, clear empty state.
+- German material names; prettier chips; cleaner toolbar with a spatial alignment grid.
+- Pre-cut confirmation sheet; editable numeric fields; multi-layer merge.
+- Add several designs to one mat; delete the last layer.
+- New K/C monogram app icon and in-app logo mark.
+
+## 0.11.0–0.21.1
+- Mirror (H/V), duplicate, delete the selected layer; enter exact size and rotation.
+- Warn when the design runs off the mat; preserve arrangement on split/merge.
+- Configurable drag-knife blade offset; option to cut only the selected layer.
+- Insert basic shapes (rect, circle, triangle, pentagon, hexagon, star).
+- Import `.plt` (HPGL) files; manage custom materials locally.
+- Choose display unit (mm / cm / inch); align layer on the mat grid.
+
+## 0.9.1–0.10.1
+- Cut output matched to the stock app; per-layer placement (place, scale, rotate); drag-knife compensation.
+- Separate pen pressure from knife pressure; hardened plotter link and response handling.
+
+## 0.4.0
+- Layer split/merge; mat size picker moved into the settings sheet; revised logo.
+
+## 0.3.0
+- SVG imported as multiple layers with per-layer tool selection and visibility toggle.
+
+## 0.2.0–0.2.3
+- App logo and bounded mat frame; version name shown in the header.
+- Cut flow: auto-reconnect; connect/disconnect in settings; no toast spam on load.
+
+## 0.1.0
+- Initial build: svgcore module (SVG → Bézier flattening → HPGL encoding, framed SPP protocol).
+- Compose UI with zoom/pan canvas, mm grid, mat selector, and drag handles.
+- Material list, knife/pen tool selector, full cut flow, system/light/dark theme.
