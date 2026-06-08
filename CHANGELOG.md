@@ -3,6 +3,11 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.54.3
+- Fix: sharing a design from another app a second time (after cancelling the first) no longer silently
+  replaces the loaded project. Back press now backgrounds the app instead of finishing it, so the
+  ViewModel stays alive and the import dialog always appears when a design is already loaded.
+
 ## 0.54.2
 - Removed the double-back-to-exit gesture.
 - About section: exit button (bottom-right) closes the app cleanly — handy when something hangs.

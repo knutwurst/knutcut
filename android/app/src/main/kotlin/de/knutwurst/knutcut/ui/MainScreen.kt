@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -276,6 +277,14 @@ fun MainScreen(vm: KnutcutViewModel) {
         if (vm.autoUpdate) vm.checkForUpdate(silent = true)
     }
 
+    // When a design is loaded, back press backgrounds the app rather than finishing the activity.
+    // This keeps the ViewModel alive so a subsequent share from another app (e.g. CricutExport)
+    // always hits onNewIntent on the live instance, which correctly shows the replace/add dialog.
+    // Without this, the finished activity would be recreated with an empty ViewModel, silently
+    // replacing the loaded design on the second share.
+    BackHandler(enabled = vm.hasDesign) {
+        (context as? android.app.Activity)?.moveTaskToBack(true)
+    }
     vm.updateInfo?.let { info ->
         AlertDialog(
             onDismissRequest = { vm.dismissUpdate() },
