@@ -2,8 +2,10 @@
 # The Superb Cut APK and anything decompiled/extracted from it stay strictly local,
 # the same way cricut-export keeps app-src/, refs/, tools/ out of git.
 research/
+dist/
 *.apk
 *.aab
+*.idsig
 *.dex
 btsnoop_hci.log
 *.btsnoop

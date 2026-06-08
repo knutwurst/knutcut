@@ -31,10 +31,42 @@ object DxfParser {
         14 to 100.0    // dm
     )
 
-    fun parse(text: String): List<Polyline> {
+    /** Result of [parseShapes]: per-layer shapes plus a count of entities that produced no geometry. */
+    class Result(val shapes: List<SvgShape>, val skipped: Int)
+
+    fun parse(text: String): List<Polyline> = parseShapes(text).shapes.flatMap { it.polylines }
+
+    /**
+     * Parse a DXF document into per-layer [SvgShape]s. Entities are grouped by their group-8 layer
+     * name (blank → "DXF") preserving layer encounter order; each layer's colour is the first
+     * mappable ACI colour (group 62) found among its entities. [Result.skipped] counts entities that
+     * produced no usable geometry (e.g. a fit-point-only spline we couldn't interpolate).
+     */
+    fun parseShapes(text: String): Result {
         val pairs = parsePairs(text)
         val scale = readScale(pairs)
-        return extractEntities(pairs, scale).filter { it.points.size >= 2 }
+        return extractShapes(pairs, scale)
+    }
+
+    /**
+     * A tighter "is this DXF?" sniff than searching for "SECTION" anywhere. Robust to leading
+     * whitespace and CRLF, and to the leading-space group codes the codebase's DXF writers emit.
+     * True when the content opens with a `0`/`SECTION` group pair, or carries an `ENTITIES` section
+     * marker (group 2 value ENTITIES).
+     */
+    fun looksLikeDxf(text: String): Boolean {
+        val lines = text.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.iterator()
+        if (!lines.hasNext()) return false
+        val first = lines.next()
+        if (first == "0" && lines.hasNext() && lines.next().equals("SECTION", ignoreCase = true)) return true
+        // Otherwise scan for a group-2 value of ENTITIES (a "2" line directly followed by "ENTITIES").
+        val all = text.lineSequence().map { it.trim() }.toList()
+        var i = 0
+        while (i < all.size - 1) {
+            if (all[i] == "2" && all[i + 1].equals("ENTITIES", ignoreCase = true)) return true
+            i++
+        }
+        return false
     }
 
     // ─── Group-code parsing ───────────────────────────────────────────────────────
@@ -72,39 +104,95 @@ object DxfParser {
 
     // ─── Entity extraction ────────────────────────────────────────────────────────
 
-    private fun extractEntities(pairs: List<Pair<Int, String>>, scale: Double): List<Polyline> {
-        val result = ArrayList<Polyline>()
+    /** One entity's polylines tagged with its layer name and (optional) mapped ARGB colour. */
+    private class Tagged(val layer: String, val colorArgb: Int?, val polylines: List<Polyline>)
 
-        // Advance to ENTITIES section
+    private fun extractShapes(pairs: List<Pair<Int, String>>, scale: Double): Result {
+        // Locate the ENTITIES section once; both simple and old-style dispatch run inside it only.
         var i = 0
         while (i < pairs.size) {
             if (pairs[i].first == 2 && pairs[i].second.equals("ENTITIES", ignoreCase = true)) { i++; break }
             i++
         }
 
+        val tagged = ArrayList<Tagged>()
+        var skipped = 0
+
         while (i < pairs.size) {
             val (code, value) = pairs[i]
             if (code == 0 && value.equals("ENDSEC", ignoreCase = true)) break
-            if (code == 0) {
-                val end = nextEntityStart(pairs, i + 1)
-                val block = pairs.subList(i, end)
-                when (value.uppercase()) {
-                    "LINE"       -> parseLine(block, scale)?.let { result.add(it) }
-                    "LWPOLYLINE" -> result.addAll(parseLwPolyline(block, scale))
-                    "CIRCLE"     -> parseCircle(block, scale)?.let { result.add(it) }
-                    "ARC"        -> parseArc(block, scale)?.let { result.add(it) }
-                    "ELLIPSE"    -> parseEllipse(block, scale)?.let { result.add(it) }
-                    "SPLINE"     -> parseSpline(block, scale)?.let { result.add(it) }
-                }
-                i = end
-            } else i++
+            if (code != 0) { i++; continue }
+
+            val type = value.uppercase()
+            if (type == "POLYLINE") {
+                // Old-style POLYLINE owns its VERTEX/SEQEND chain; parse it inline to keep file order.
+                val (next, t, miss) = parseOldPolyline(pairs, i, scale)
+                if (t != null) tagged.add(t) else if (miss) skipped++
+                i = next
+                continue
+            }
+
+            val end = nextEntityStart(pairs, i + 1)
+            val block = pairs.subList(i, end)
+            val layer = layerOf(block)
+            val color = colorOf(block)
+            val polys: List<Polyline>? = when (type) {
+                "LINE"       -> parseLine(block, scale)?.let { listOf(it) }
+                "LWPOLYLINE" -> parseLwPolyline(block, scale)
+                "CIRCLE"     -> parseCircle(block, scale)?.let { listOf(it) }
+                "ARC"        -> parseArc(block, scale)?.let { listOf(it) }
+                "ELLIPSE"    -> parseEllipse(block, scale)?.let { listOf(it) }
+                "SPLINE"     -> parseSpline(block, scale)
+                else         -> null
+            }
+            val usable = polys?.filter { it.points.size >= 2 } ?: emptyList()
+            if (usable.isNotEmpty()) {
+                tagged.add(Tagged(layer, color, usable))
+            } else if (type == "SPLINE") {
+                // A SPLINE we recognised but could not turn into geometry counts as skipped.
+                skipped++
+            }
+            i = end
         }
 
-        // Second pass: old-style POLYLINE/VERTEX/SEQEND chains
-        result.addAll(parseOldPolylines(pairs, scale))
-
-        return result
+        return Result(groupByLayer(tagged), skipped)
     }
+
+    /** Group tagged polylines into one SvgShape per layer, preserving layer encounter order. */
+    private fun groupByLayer(tagged: List<Tagged>): List<SvgShape> {
+        val order = ArrayList<String>()
+        val polysByLayer = LinkedHashMap<String, ArrayList<Polyline>>()
+        val colorByLayer = HashMap<String, Int?>()
+        for (t in tagged) {
+            if (t.layer !in polysByLayer) { polysByLayer[t.layer] = ArrayList(); order.add(t.layer) }
+            polysByLayer[t.layer]!!.addAll(t.polylines)
+            if (colorByLayer[t.layer] == null && t.colorArgb != null) colorByLayer[t.layer] = t.colorArgb
+        }
+        return order.map { layer ->
+            val name = layer.ifBlank { "DXF" }
+            SvgShape(name, polysByLayer[layer]!!, colorByLayer[layer])
+        }
+    }
+
+    private fun layerOf(block: List<Pair<Int, String>>): String =
+        block.firstOrNull { it.first == 8 }?.second?.trim() ?: ""
+
+    private fun colorOf(block: List<Pair<Int, String>>): Int? {
+        val aci = block.firstOrNull { it.first == 62 }?.second?.trim()?.toIntOrNull() ?: return null
+        return ACI_TO_ARGB[aci]
+    }
+
+    /** AutoCAD Color Index → opaque ARGB. Unmapped (0 ByBlock, 7, 256 ByLayer, …) stays null. */
+    private val ACI_TO_ARGB = mapOf(
+        1 to 0xFFFF0000.toInt(),
+        2 to 0xFFFFFF00.toInt(),
+        3 to 0xFF00FF00.toInt(),
+        4 to 0xFF00FFFF.toInt(),
+        5 to 0xFF0000FF.toInt(),
+        6 to 0xFFFF00FF.toInt(),
+        8 to 0xFF808080.toInt(),
+        9 to 0xFFC0C0C0.toInt()
+    )
 
     private fun nextEntityStart(pairs: List<Pair<Int, String>>, from: Int): Int {
         for (k in from until pairs.size) if (pairs[k].first == 0) return k
@@ -161,41 +249,62 @@ object DxfParser {
         return listOf(Polyline(pts, closed))
     }
 
-    private fun parseOldPolylines(pairs: List<Pair<Int, String>>, s: Double): List<Polyline> {
-        val result = ArrayList<Polyline>()
-        var i = 0
-        while (i < pairs.size) {
+    /** Result of parsing one old-style POLYLINE chain starting at [start] (a `0`/POLYLINE pair). */
+    private data class OldPoly(val next: Int, val tagged: Tagged?, val missed: Boolean)
+
+    /**
+     * Parse one old-style POLYLINE…VERTEX…SEQEND chain. Honours the closed flag (bit 1 of group 70)
+     * and per-vertex bulges (group 42), interpolating arcs the same way LWPOLYLINE does.
+     * Returns the index just past the chain so the dispatch loop can continue in file order.
+     */
+    private fun parseOldPolyline(pairs: List<Pair<Int, String>>, start: Int, s: Double): OldPoly {
+        var i = start
+        // Header of the POLYLINE entity: read flags + layer/colour up to the first VERTEX/SEQEND.
+        i++
+        var flags = 0
+        var layer = ""
+        var color: Int? = null
+        while (i < pairs.size && pairs[i].first != 0) {
             val (c, v) = pairs[i]
-            if (c != 0 || !v.equals("POLYLINE", ignoreCase = true)) { i++; continue }
-            var flags = 0
+            when (c) {
+                70 -> flags = v.trim().toIntOrNull() ?: 0
+                8  -> layer = v.trim()
+                62 -> color = v.trim().toIntOrNull()?.let { ACI_TO_ARGB[it] }
+            }
             i++
-            while (i < pairs.size && pairs[i].first != 0) {
-                if (pairs[i].first == 70) flags = pairs[i].second.trim().toIntOrNull() ?: 0
-                i++
-            }
-            val closed = (flags and 1) != 0
-            val pts = ArrayList<Pt>()
-            while (i < pairs.size) {
-                val (c0, v0) = pairs[i]
-                if (c0 == 0 && v0.equals("SEQEND", ignoreCase = true)) { i++; break }
-                if (c0 == 0 && !v0.equals("VERTEX", ignoreCase = true)) break
-                if (c0 == 0) {
-                    i++
-                    var vx = 0.0; var vy = 0.0
-                    while (i < pairs.size && pairs[i].first != 0) {
-                        val d = pairs[i].second.toDoubleOrNull() ?: 0.0
-                        when (pairs[i].first) { 10 -> vx = d; 20 -> vy = d }
-                        i++
-                    }
-                    pts.add(pt(vx, vy, s))
-                } else i++
-            }
-            if (pts.size >= 2) {
-                if (closed) pts.add(pts.first())
-                result.add(Polyline(pts, closed))
-            }
         }
-        return result
+        val closed = (flags and 1) != 0
+
+        val xs = ArrayList<Double>(); val ys = ArrayList<Double>(); val bulges = ArrayList<Double>()
+        while (i < pairs.size) {
+            val (c0, v0) = pairs[i]
+            if (c0 == 0 && v0.equals("SEQEND", ignoreCase = true)) { i++; break }
+            if (c0 == 0 && !v0.equals("VERTEX", ignoreCase = true)) break
+            if (c0 == 0) {
+                i++
+                var vx = 0.0; var vy = 0.0; var vb = 0.0
+                while (i < pairs.size && pairs[i].first != 0) {
+                    val d = pairs[i].second.toDoubleOrNull() ?: 0.0
+                    when (pairs[i].first) { 10 -> vx = d; 20 -> vy = d; 42 -> vb = d }
+                    i++
+                }
+                xs.add(vx); ys.add(vy); bulges.add(vb)
+            } else i++
+        }
+
+        if (xs.size < 2) return OldPoly(i, null, true)
+
+        val pts = ArrayList<Pt>()
+        val count = if (closed) xs.size else xs.size - 1
+        for (k in 0 until count) {
+            val j = (k + 1) % xs.size
+            pts.add(pt(xs[k], ys[k], s))
+            val b = bulges.getOrElse(k) { 0.0 }
+            if (abs(b) > 1e-10) pts.addAll(bulgeArc(xs[k], ys[k], xs[j], ys[j], b, s))
+        }
+        if (closed) pts.add(pts.first()) else pts.add(pt(xs.last(), ys.last(), s))
+
+        return OldPoly(i, Tagged(layer, color, listOf(Polyline(pts, closed))), false)
     }
 
     private fun parseCircle(e: List<Pair<Int, String>>, s: Double): Polyline? {
@@ -258,10 +367,11 @@ object DxfParser {
         return Polyline(pts, closed = abs(span - 2.0 * PI) < 1e-6)
     }
 
-    private fun parseSpline(e: List<Pair<Int, String>>, s: Double): Polyline? {
+    private fun parseSpline(e: List<Pair<Int, String>>, s: Double): List<Polyline> {
         var degree = 3; var flags = 0
         val knots = ArrayList<Double>()
         val ctrlX = ArrayList<Double>(); val ctrlY = ArrayList<Double>()
+        val fitX = ArrayList<Double>(); val fitY = ArrayList<Double>()
         for ((c, v) in e) {
             when (c) {
                 70 -> flags = v.trim().toIntOrNull() ?: 0
@@ -269,21 +379,38 @@ object DxfParser {
                 40 -> knots.add(v.toDoubleOrNull() ?: 0.0)
                 10 -> ctrlX.add(v.toDoubleOrNull() ?: 0.0)
                 20 -> ctrlY.add(v.toDoubleOrNull() ?: 0.0)
+                11 -> fitX.add(v.toDoubleOrNull() ?: 0.0)
+                21 -> fitY.add(v.toDoubleOrNull() ?: 0.0)
             }
         }
+        val closed = (flags and 1) != 0  // bit 1: closed/periodic
         val n = minOf(ctrlX.size, ctrlY.size)
-        if (n < 2) return null
+
+        if (n < 2) {
+            // No usable control points. Fall back to a polyline through the fit points if we have ≥2.
+            val fn = minOf(fitX.size, fitY.size)
+            if (fn < 2) return emptyList()
+            val pts = (0 until fn).mapTo(ArrayList()) { pt(fitX[it], fitY[it], s) }
+            closeIfNeeded(pts, closed)
+            return listOf(Polyline(pts, closed))
+        }
+
         val kv = if (knots.size == n + degree + 1) knots.toDoubleArray() else clampedKnots(n, degree)
-        val closed = (flags and 1) != 0
         val spans = n - degree
         val totalSteps = SPLINE_STEPS * spans
         val xs = ctrlX.toDoubleArray(); val ys = ctrlY.toDoubleArray()
-        val pts = (0..totalSteps).map { k ->
+        val pts = (0..totalSteps).mapTo(ArrayList()) { k ->
             val t = kv[degree] + (kv[n] - kv[degree]) * k / totalSteps
             val (x, y) = deBoor(degree, xs, ys, kv, t)
             pt(x, y, s)
         }
-        return Polyline(pts, closed)
+        closeIfNeeded(pts, closed)
+        return listOf(Polyline(pts, closed))
+    }
+
+    /** Ensure a closed polyline's last point equals its first (codebase convention). */
+    private fun closeIfNeeded(pts: MutableList<Pt>, closed: Boolean) {
+        if (closed && pts.isNotEmpty() && pts.first() != pts.last()) pts.add(pts.first())
     }
 
     // ─── Geometry helpers ─────────────────────────────────────────────────────────
@@ -304,11 +431,12 @@ object DxfParser {
         val chord = sqrt(dx * dx + dy * dy)
         if (chord < 1e-10) return emptyList()
         val r = chord / (2.0 * sin(theta / 2.0))
-        // Centre: perpendicular to chord at midpoint, offset by r*cos(θ/2) toward the CCW side
+        // Centre: perpendicular to chord at midpoint, offset by r*cos(θ/2) (the centre-to-chord
+        // distance, i.e. the apothem) toward the CCW side.
         val sg = sign(bulge)
-        val sagitta = r * cos(theta / 2.0)
-        val cx = (x1 + x2) / 2.0 - sg * sagitta * dy / chord
-        val cy = (y1 + y2) / 2.0 + sg * sagitta * dx / chord
+        val apothem = r * cos(theta / 2.0)
+        val cx = (x1 + x2) / 2.0 - sg * apothem * dy / chord
+        val cy = (y1 + y2) / 2.0 + sg * apothem * dx / chord
         val startAngle = atan2(y1 - cy, x1 - cx)
         val span = if (bulge > 0.0) theta else -theta
         val steps = max(1, (ARC_STEPS_FULL * theta / (2.0 * PI)).roundToInt())

@@ -3,6 +3,12 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.54.1
+- DXF import fixes: entities keep their file order; polylines defined in block/table sections no
+  longer leak into the drawing; closed splines close properly; old-style POLYLINE arcs (bulges)
+  are honoured; fit-point-only splines no longer vanish silently. DXF layers now map to separate
+  editor layers with their colour (ACI), and file detection is stricter.
+
 ## 0.54.0
 - DXF import: open .dxf files from the file picker or share from any app. Supports LINE,
   LWPOLYLINE (including bulge arcs), CIRCLE, ARC, ELLIPSE, and SPLINE. Units are read from

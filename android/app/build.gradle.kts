@@ -25,8 +25,8 @@ android {
         applicationId = "de.knutwurst.knutcut"
         minSdk = 26
         targetSdk = 34
-        versionCode = 120
-        versionName = "0.54.0"
+        versionCode = 121
+        versionName = "0.54.1"
     }
 
     signingConfigs {
@@ -38,8 +38,9 @@ android {
                 keyPassword = keystoreProps.getProperty("keyPassword")
                 // v2 + v3 APK signing. v2 covers every device we target (minSdk 26); v3 adds
                 // key-rotation support (Android 9+) via apksigner's signing lineage mechanism.
-                // To rotate: run `apksigner rotate --out release.lineage --old-signer ... --new-signer ...`
-                // then reference the lineage file here and bump versionCode.
+                // Rotation is performed automatically by scripts/sign_release.sh (invoked by
+                // release.sh), which re-signs the built APK with the debug->release lineage stored at
+                // android/signing-lineage.bin. No manual `apksigner rotate` step is needed here.
                 enableV2Signing = true
                 enableV3Signing = true
             }

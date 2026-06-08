@@ -11,13 +11,20 @@
 # a dual-signer block — debug key for v1/v2, release key for v3 with the rotation lineage.
 #
 # Usage: scripts/sign_release.sh <path-to-release.apk>
+#
+# Backup warning: the rotation lineage's ROOT is ~/.android/debug.keystore, the machine-specific
+# Android debug key that signed every pre-release install. If that file is lost or regenerated, the
+# lineage root no longer matches the certificate on those installed builds, and over-the-air updates
+# over old debug builds break (Android rejects them as a different signer). So BOTH
+# android/release.keystore AND ~/.android/debug.keystore must be backed up.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 APK="${1:?usage: scripts/sign_release.sh <apk>}"
 export JAVA_HOME="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17}"
 
-ANDROID_SDK="${ANDROID_SDK:-/Users/OKoester/IDEAProjects/cricut-export/tools/android-sdk}"
+SDK_FROM_PROPS="$(grep -E '^sdk\.dir=' android/local.properties 2>/dev/null | cut -d= -f2-)"
+ANDROID_SDK="${ANDROID_SDK:-${SDK_FROM_PROPS:-/Users/OKoester/IDEAProjects/cricut-export/tools/android-sdk}}"
 APKSIGNER="$(ls "$ANDROID_SDK/build-tools/"/*/apksigner 2>/dev/null | sort -V | tail -1)"
 [ -x "$APKSIGNER" ] || { echo "error: apksigner not found under $ANDROID_SDK/build-tools/"; exit 1; }
 

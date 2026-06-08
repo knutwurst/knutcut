@@ -482,10 +482,11 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                     if (out.flatMap { it.polylines }.flatMap { it.points }.isEmpty()) null
                     else ParsedDesign(out, result.skipped)
                 }
-                head.contains("SECTION", ignoreCase = true) -> {
-                    val polys = de.knutwurst.knutcut.svgcore.DxfParser.parse(text)
-                    if (polys.isEmpty()) null
-                    else ParsedDesign(listOf(Layer("DXF", polys, tool, visible = true)), 0)
+                de.knutwurst.knutcut.svgcore.DxfParser.looksLikeDxf(text) -> {
+                    val result = de.knutwurst.knutcut.svgcore.DxfParser.parseShapes(text)
+                    val out = result.shapes.map { Layer(it.name, it.polylines, tool, visible = true, colorArgb = it.colorArgb) }
+                    if (out.flatMap { it.polylines }.flatMap { it.points }.isEmpty()) null
+                    else ParsedDesign(out, result.skipped)
                 }
                 else -> {
                     val polys = PltParser.parse(text)
