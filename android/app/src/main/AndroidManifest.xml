@@ -35,21 +35,25 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Receive one or several SVGs shared from another app (e.g. Cricut Export). -->
+            <!-- Receive one or several design files shared from another app. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="image/svg+xml" />
                 <data android:mimeType="text/xml" />
+                <data android:mimeType="image/vnd.dxf" />
+                <data android:mimeType="application/dxf" />
             </intent-filter>
 
-            <!-- Open an .svg file directly. -->
+            <!-- Open a design file directly (file manager, email attachment, …). -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:mimeType="image/svg+xml" />
+                <data android:mimeType="image/vnd.dxf" />
+                <data android:mimeType="application/dxf" />
             </intent-filter>
         </activity>
 

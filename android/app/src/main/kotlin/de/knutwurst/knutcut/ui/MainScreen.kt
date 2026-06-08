@@ -146,7 +146,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         vm.importUris(uris)
     }
-    fun openFile() = openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "text/plain", "application/octet-stream"))
+    fun openFile() = openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "text/plain", "application/octet-stream", "image/vnd.dxf", "application/dxf"))
     fun openDevices() { if (hasBtPerm) showDevices = true else permLauncher.launch(bluetoothPermissions()) }
 
     LaunchedEffect(vm.status) {

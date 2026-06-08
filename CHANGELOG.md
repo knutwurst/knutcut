@@ -3,6 +3,11 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.54.0
+- DXF import: open .dxf files from the file picker or share from any app. Supports LINE,
+  LWPOLYLINE (including bulge arcs), CIRCLE, ARC, ELLIPSE, and SPLINE. Units are read from
+  the file header ($INSUNITS) and converted to mm automatically.
+
 ## 0.53.4
 - Release signing with v3 key-rotation lineage (debug -> release); existing installs update
   over the air without a manual reinstall on Android 9+.

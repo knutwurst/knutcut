@@ -471,17 +471,27 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     private class ParsedDesign(val layers: List<Layer>, val skipped: Int)
 
-    /** Parse a file into layers (SVG by content, else PLT). Null if nothing usable / unreadable. */
+    /** Parse a file into layers (SVG → DXF → PLT, detected by content). Null if nothing usable. */
     private fun parseDesign(text: String): ParsedDesign? {
         val head = text.trimStart()
         return try {
-            if (head.startsWith("<") || head.contains("<svg", ignoreCase = true)) {
-                val result = SvgParser.parseShapesResult(text)
-                val out = result.shapes.map { Layer(it.name, it.polylines, tool, visible = true, colorArgb = it.colorArgb) }
-                if (out.flatMap { it.polylines }.flatMap { it.points }.isEmpty()) null else ParsedDesign(out, result.skipped)
-            } else {
-                val polys = PltParser.parse(text)
-                if (polys.isEmpty()) null else ParsedDesign(listOf(Layer("PLT-Datei", polys, tool, visible = true)), 0)
+            when {
+                head.startsWith("<") || head.contains("<svg", ignoreCase = true) -> {
+                    val result = SvgParser.parseShapesResult(text)
+                    val out = result.shapes.map { Layer(it.name, it.polylines, tool, visible = true, colorArgb = it.colorArgb) }
+                    if (out.flatMap { it.polylines }.flatMap { it.points }.isEmpty()) null
+                    else ParsedDesign(out, result.skipped)
+                }
+                head.contains("SECTION", ignoreCase = true) -> {
+                    val polys = de.knutwurst.knutcut.svgcore.DxfParser.parse(text)
+                    if (polys.isEmpty()) null
+                    else ParsedDesign(listOf(Layer("DXF", polys, tool, visible = true)), 0)
+                }
+                else -> {
+                    val polys = PltParser.parse(text)
+                    if (polys.isEmpty()) null
+                    else ParsedDesign(listOf(Layer("PLT-Datei", polys, tool, visible = true)), 0)
+                }
             }
         } catch (e: Exception) {
             status = s(R.string.st_file_read_error, e.message)
