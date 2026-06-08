@@ -1,8 +1,21 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+// Release signing: read android/keystore.properties (gitignored) when present. A fixed release key
+// gives a stable signature, which is required for the self-update flow to install over a previous
+// build. If the file is absent (e.g. a fresh clone without the keystore) the build falls back to
+// the debug key so it still compiles.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
+}
+val hasReleaseKeystore = keystorePropsFile.exists() &&
+    rootProject.file(keystoreProps.getProperty("storeFile", "")).exists()
 
 android {
     namespace = "de.knutwurst.knutcut"
@@ -14,6 +27,23 @@ android {
         targetSdk = 34
         versionCode = 118
         versionName = "0.53.3"
+    }
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+                // v2 + v3 APK signing. v2 covers every device we target (minSdk 26); v3 adds
+                // key-rotation support (Android 9+) via apksigner's signing lineage mechanism.
+                // To rotate: run `apksigner rotate --out release.lineage --old-signer ... --new-signer ...`
+                // then reference the lineage file here and bump versionCode.
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
     }
 
     buildFeatures {
@@ -39,8 +69,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Debug-signed so the release APK installs directly for private use.
-            signingConfig = signingConfigs.getByName("debug")
+            // Sign with the release key when keystore.properties is present (stable signature
+            // for self-update; avoids the debug-cert Play Protect warning). Falls back to the
+            // debug key on machines without the keystore so the build still succeeds.
+            signingConfig = if (hasReleaseKeystore) signingConfigs.getByName("release")
+                            else signingConfigs.getByName("debug")
         }
     }
 
