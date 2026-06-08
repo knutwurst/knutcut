@@ -15,7 +15,7 @@ class PlotterSvgLibraryTest {
 
     @Test
     fun libraryHasLargeOfflineSelection() {
-        assertTrue("expected at least 500 library items", PlotterSvgLibrary.items.size >= 500)
+        assertTrue("expected at least 5000 library items", PlotterSvgLibrary.items.size >= 5000)
         assertEquals(8, PlotterSvgLibrary.categories.size)
     }
 

@@ -33,8 +33,10 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.ColumnScope
@@ -107,6 +109,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -427,11 +431,13 @@ private fun AddMenu(
 private fun LibrarySheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
     var query by remember { mutableStateOf("") }
     var category by remember { mutableStateOf<PlotterSvgCategory?>(null) }
+    val gridState = rememberLazyGridState()
     val items = remember(query, category) {
         PlotterSvgLibrary.items
             .filter { category == null || it.category == category }
             .filter { it.matches(query) }
     }
+    LaunchedEffect(query, category) { gridState.scrollToItem(0) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxHeight(0.96f).padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
             Text(stringResource(R.string.ui_library), style = MaterialTheme.typography.titleMedium)
@@ -452,20 +458,13 @@ private fun LibrarySheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(8.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChip(
-                    selected = category == null,
-                    onClick = { category = null },
-                    label = { Text(stringResource(R.string.ui_all)) },
-                )
-                PlotterSvgLibrary.categories.forEach { cat ->
-                    FilterChip(
-                        selected = category == cat,
-                        onClick = { category = cat },
-                        label = { Text(stringResource(cat.labelRes)) },
-                    )
-                }
-            }
+            LibraryCategoryPicker(category = category, onCategory = { category = it })
+            Text(
+                stringResource(R.string.ui_library_count, items.size),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
             Spacer(Modifier.height(10.dp))
             if (items.isEmpty()) {
                 Text(
@@ -475,24 +474,87 @@ private fun LibrarySheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                     textAlign = TextAlign.Center,
                 )
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 132.dp),
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(items, key = { it.id }) { item ->
-                        LibraryItem(
-                            item = item,
-                            onClick = {
-                                vm.addLibrarySvg(item.name, item.svg)
-                                onDismiss()
-                            },
-                        )
+                Box(Modifier.fillMaxWidth().weight(1f)) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 132.dp),
+                        state = gridState,
+                        modifier = Modifier.fillMaxSize().padding(end = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(items, key = { it.id }) { item ->
+                            LibraryItem(
+                                item = item,
+                                onClick = {
+                                    vm.addLibrarySvg(item.name, item.svg)
+                                    onDismiss()
+                                },
+                            )
+                        }
                     }
+                    LibraryGridScrollbar(gridState, Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(6.dp))
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LibraryCategoryPicker(category: PlotterSvgCategory?, onCategory: (PlotterSvgCategory?) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                stringResource(R.string.ui_category) + ": " + (category?.let { stringResource(it.labelRes) } ?: stringResource(R.string.ui_all)),
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Start,
+            )
+            Icon(Icons.Default.KeyboardArrowDown, contentDescription = null)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.ui_all)) },
+                onClick = {
+                    onCategory(null)
+                    expanded = false
+                },
+            )
+            PlotterSvgLibrary.categories.forEach { cat ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(cat.labelRes)) },
+                    onClick = {
+                        onCategory(cat)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryGridScrollbar(state: LazyGridState, modifier: Modifier = Modifier) {
+    val track = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+    val thumb = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
+    Canvas(modifier) {
+        val info = state.layoutInfo
+        val total = info.totalItemsCount
+        val visible = info.visibleItemsInfo
+        if (total <= 0 || visible.isEmpty()) return@Canvas
+        val first = visible.first().index
+        val last = visible.last().index
+        val visibleCount = (last - first + 1).coerceAtLeast(1)
+        val thumbHeight = (size.height * visibleCount / total).coerceIn(24f, size.height)
+        val travel = (size.height - thumbHeight).coerceAtLeast(0f)
+        val maxFirst = (total - visibleCount).coerceAtLeast(1)
+        val top = travel * (first.toFloat() / maxFirst)
+        val barWidth = size.width.coerceAtMost(5f)
+        val left = (size.width - barWidth) / 2f
+        val radius = CornerRadius(barWidth / 2f, barWidth / 2f)
+        drawRoundRect(track, topLeft = Offset(left, 0f), size = androidx.compose.ui.geometry.Size(barWidth, size.height), cornerRadius = radius)
+        drawRoundRect(thumb, topLeft = Offset(left, top), size = androidx.compose.ui.geometry.Size(barWidth, thumbHeight), cornerRadius = radius)
     }
 }
 

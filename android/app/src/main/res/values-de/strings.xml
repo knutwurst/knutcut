@@ -88,6 +88,8 @@
     <string name="ui_library_search">Motive suchen</string>
     <string name="ui_clear_search">Suche löschen</string>
     <string name="ui_library_empty">Keine passenden Motive.</string>
+    <string name="ui_library_count">%1$d Motive</string>
+    <string name="ui_category">Kategorie</string>
     <string name="ui_all">Alle</string>
     <string name="ui_lib_cat_basics">Basics</string>
     <string name="ui_lib_cat_nature">Natur</string>

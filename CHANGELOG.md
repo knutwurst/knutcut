@@ -3,15 +3,20 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.54.6
+- Expanded the SVG library to more than 7,600 offline motifs.
+- Replaced the multi-row category chips with a compact category picker.
+- Added a visible scrollbar to the library list.
+
 ## 0.54.5
-- SVG-Bibliothek deutlich erweitert: knapp tausend Offline-Motive aus Material Design Icons via
-  Iconify, mit zusätzlichen Kategorien.
-- Startansicht: kurze, gleich breite Buttons für Datei, Bibliothek und Form.
-- Bibliothek öffnet als hohes Sheet mit mehr sichtbarem Inhalt statt als kleines halbes Panel.
+- Expanded the SVG library to nearly one thousand offline motifs from Material Design Icons via
+  Iconify, with additional categories.
+- Start screen: short, equal-width buttons for file, library, and shape.
+- Library opens as a tall sheet with more visible content instead of a small half-height panel.
 
 ## 0.54.4
-- SVG-Bibliothek: durchsuchbare Motivauswahl mit Kategorien, Vorschau und direktem Einfügen in den
-  Editor. Die Motive sind offline verfügbar und werden als zusammenhängende Ebene platziert.
+- SVG library: searchable motif picker with categories, previews, and direct insertion into the
+  editor. Motifs are available offline and are placed as one grouped layer.
 
 ## 0.54.3
 - Fix: sharing a design from another app a second time (after cancelling the first) no longer silently

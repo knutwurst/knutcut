@@ -90,6 +90,8 @@
     <string name="ui_library_search">Search motifs</string>
     <string name="ui_clear_search">Clear search</string>
     <string name="ui_library_empty">No matching motifs.</string>
+    <string name="ui_library_count">%1$d motifs</string>
+    <string name="ui_category">Category</string>
     <string name="ui_all">All</string>
     <string name="ui_lib_cat_basics">Basics</string>
     <string name="ui_lib_cat_nature">Nature</string>
