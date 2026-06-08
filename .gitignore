@@ -25,6 +25,8 @@ captures/
 .idea/
 .kotlin/
 keystore.properties
+signing-lineage.bin
+*/signing-lineage.bin
 *.jks
 *.keystore
 

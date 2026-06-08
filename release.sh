@@ -40,6 +40,9 @@ echo "==> Build release APK"
 
 [ -f "$APK" ] || { echo "error: $APK not found"; exit 1; }
 
+echo "==> Sign APK with rotation lineage (debug -> release)"
+"$ROOT/scripts/sign_release.sh" "$APK"
+
 SHA="$(shasum -a 256 "$APK" | cut -d' ' -f1)"
 echo "==> sha256 $SHA"
 

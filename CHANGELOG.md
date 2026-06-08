@@ -3,6 +3,10 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.53.4
+- Release signing with v3 key-rotation lineage (debug -> release); existing installs update
+  over the air without a manual reinstall on Android 9+.
+
 ## 0.53.3
 - Start screen: one "Open file/project" button (handles SVG/PLT/.kcp), and "Add shape" is back.
 
