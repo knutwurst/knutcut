@@ -1,6 +1,7 @@
 package de.knutwurst.knutcut.ui
 
 import de.knutwurst.knutcut.data.Layer
+import de.knutwurst.knutcut.data.PlotterSvgLibrary
 import de.knutwurst.knutcut.data.ProjectIO
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Polyline
@@ -108,6 +109,18 @@ class KnutcutViewModelTest {
         vm.loadDesign(json)
         assertEquals(1, vm.layers.size)
         assertEquals("Profil", vm.layers[0].name)
+    }
+
+    @Test
+    fun addLibrarySvgMergesMotifIntoOneLayer() {
+        val vm = vm()
+        val flower = PlotterSvgLibrary.items.first { it.id == "flower" }
+
+        vm.addLibrarySvg(flower.name, flower.svg)
+
+        assertEquals(1, vm.layers.size)
+        assertEquals("Blume", vm.layers[0].name)
+        assertTrue("multi-part motif kept together", vm.layers[0].polylines.size > 1)
     }
 
     @Test

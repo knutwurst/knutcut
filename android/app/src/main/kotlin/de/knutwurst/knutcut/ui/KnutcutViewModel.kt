@@ -434,6 +434,26 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         loadDesignContent(text, replace = false)
     }
 
+    fun addLibrarySvg(name: String, svg: String) {
+        val parsed = parseDesign(svg)
+        if (parsed == null || parsed.layers.isEmpty()) { status = s(R.string.st_no_cuttable_paths); return }
+        val layer = mergeLibraryLayers(name, parsed.layers)
+        pushHistory()
+        if (layers.isEmpty()) {
+            layers = placeAtHome(listOf(layer))
+            selectedLayer = 0
+            camScale = 1f
+            camOffset = Offset.Zero
+        } else {
+            val added = appendPlaced(placeAtHome(listOf(layer)))
+            layers = layers + added
+            selectedLayer = layers.lastIndex
+        }
+        markedLayers = emptySet()
+        pruneBoundsCache()
+        status = s(R.string.st_shape_added, name)
+    }
+
     /** Parse and place a single file. Returns true when something was loaded. */
     private fun loadDesignContent(text: String, replace: Boolean): Boolean {
         // A .kcp project (opened via the file button too, not just "Open project"): load the saved
@@ -470,6 +490,20 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private class ParsedDesign(val layers: List<Layer>, val skipped: Int)
+
+    private fun mergeLibraryLayers(name: String, parsedLayers: List<Layer>): Layer {
+        val polylines = parsedLayers.flatMap { it.polylines }
+        val colors = parsedLayers.flatMap { it.colorList() }
+        val singleColor = colors.firstOrNull()?.takeIf { c -> colors.all { it == c } }
+        return Layer(
+            name = name,
+            polylines = polylines,
+            tool = tool,
+            visible = true,
+            colorArgb = singleColor,
+            polylineColors = if (colors.any { it != singleColor }) colors else null,
+        )
+    }
 
     /** Parse a file into layers (SVG → DXF → PLT, detected by content). Null if nothing usable. */
     private fun parseDesign(text: String): ParsedDesign? {

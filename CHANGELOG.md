@@ -3,6 +3,10 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.54.4
+- SVG-Bibliothek: durchsuchbare Motivauswahl mit Kategorien, Vorschau und direktem Einfügen in den
+  Editor. Die Motive sind offline verfügbar und werden als zusammenhängende Ebene platziert.
+
 ## 0.54.3
 - Fix: sharing a design from another app a second time (after cancelling the first) no longer silently
   replaces the loaded project. Back press now backgrounds the app instead of finishing it, so the

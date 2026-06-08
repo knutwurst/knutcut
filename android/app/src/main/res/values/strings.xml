@@ -85,6 +85,17 @@
     <string name="ui_height_mm">Height (mm)</string>
     <string name="ui_text_added_simplified">Text added – very long/complex, so it was simplified.</string>
     <string name="ui_open_svg_plt">Open SVG / PLT…</string>
+    <string name="ui_library_menu">Library…</string>
+    <string name="ui_library">Library</string>
+    <string name="ui_library_search">Search motifs</string>
+    <string name="ui_clear_search">Clear search</string>
+    <string name="ui_library_empty">No matching motifs.</string>
+    <string name="ui_all">All</string>
+    <string name="ui_lib_cat_basics">Basics</string>
+    <string name="ui_lib_cat_nature">Nature</string>
+    <string name="ui_lib_cat_home">Home</string>
+    <string name="ui_lib_cat_party">Party</string>
+    <string name="ui_lib_cat_labels">Labels</string>
     <string name="ui_text_menu">Text…</string>
     <string name="ui_test_cut">Test cut 20 mm</string>
     <string name="ui_square">Square</string>
@@ -95,7 +106,7 @@
     <string name="ui_hexagon">Hexagon</string>
     <string name="ui_star">Star</string>
     <string name="ui_no_design">No design</string>
-    <string name="ui_empty_hint">Open an SVG or PLT file (or share it from another app), or add a shape.</string>
+    <string name="ui_empty_hint">Open an SVG or PLT file, pick a motif from the library, or add a shape.</string>
     <string name="ui_open_file">Open file</string>
     <string name="ui_add_shape">Add shape</string>
     <string name="ui_size_angle">Size &amp; angle</string>

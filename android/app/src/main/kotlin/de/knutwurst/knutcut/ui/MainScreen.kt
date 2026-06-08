@@ -12,6 +12,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,6 +31,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.ColumnScope
@@ -49,6 +53,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -58,6 +63,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.FormatAlignCenter
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VerticalAlignBottom
 import androidx.compose.material.icons.filled.VerticalAlignCenter
@@ -101,6 +107,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -108,6 +116,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import de.knutwurst.knutcut.BuildConfig
@@ -118,10 +127,17 @@ import de.knutwurst.knutcut.data.Materials
 import de.knutwurst.knutcut.data.Mats
 import de.knutwurst.knutcut.data.display
 import de.knutwurst.knutcut.data.ColorMode
+import de.knutwurst.knutcut.data.PlotterSvgCategory
+import de.knutwurst.knutcut.data.PlotterSvgItem
+import de.knutwurst.knutcut.data.PlotterSvgLibrary
 import de.knutwurst.knutcut.data.ThemeMode
 import de.knutwurst.knutcut.data.Tool
+import de.knutwurst.knutcut.svgcore.Bounds
+import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Shapes
+import de.knutwurst.knutcut.svgcore.SvgParser
 import java.util.Locale
+import kotlin.math.min
 
 @Composable
 fun MainScreen(vm: KnutcutViewModel) {
@@ -138,6 +154,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showNewConfirm by remember { mutableStateOf(false) }
     var showText by remember { mutableStateOf(false) }
+    var showLibrary by remember { mutableStateOf(false) }
     val fontRepo = remember(context) { FontRepository(context) }
     var showChangelog by remember { mutableStateOf(false) }
     val changelogText = remember { runCatching { context.assets.open("changelog.md").bufferedReader().use { it.readText() } }.getOrDefault("") }
@@ -197,6 +214,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                         expanded = showAdd,
                         onDismiss = { showAdd = false },
                         onOpenFile = { showAdd = false; openFile() },
+                        onLibrary = { showAdd = false; showLibrary = true },
                         onText = { showAdd = false; showText = true },
                         onShape = { vm.addLayer(it.first, listOf(it.second)); showAdd = false },
                     )
@@ -215,7 +233,7 @@ fun MainScreen(vm: KnutcutViewModel) {
 
             when {
                 vm.cutting -> CuttingBar(vm)
-                !vm.hasDesign -> EmptyState(onOpen = { openFile() }, onAddShape = { showAdd = true })
+                !vm.hasDesign -> EmptyState(onOpen = { openFile() }, onLibrary = { showLibrary = true }, onAddShape = { showAdd = true })
                 else -> EditingBar(
                     vm,
                     onSize = { showTransform = true },
@@ -308,6 +326,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     if (showTransform && vm.hasDesign) TransformDialog(vm, onDismiss = { showTransform = false })
     if (showCut && vm.hasDesign) CutSheet(vm, onDismiss = { showCut = false })
     if (showText) TextDialog(vm, fontRepo, onDismiss = { showText = false })
+    if (showLibrary) LibrarySheet(vm, onDismiss = { showLibrary = false })
 }
 
 /** Add a text layer: type the text, pick a font (outline or single-stroke), choose a height. */
@@ -374,11 +393,19 @@ private fun TextDialog(vm: KnutcutViewModel, fonts: FontRepository, onDismiss: (
     )
 }
 
-/** Add menu: open a file, add text, or drop in a primitive shape. */
+/** Add menu: open a file, add text, open the library, or drop in a primitive shape. */
 @Composable
-private fun AddMenu(expanded: Boolean, onDismiss: () -> Unit, onOpenFile: () -> Unit, onText: () -> Unit, onShape: (Pair<String, de.knutwurst.knutcut.svgcore.Polyline>) -> Unit) {
+private fun AddMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onOpenFile: () -> Unit,
+    onLibrary: () -> Unit,
+    onText: () -> Unit,
+    onShape: (Pair<String, de.knutwurst.knutcut.svgcore.Polyline>) -> Unit,
+) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
         DropdownMenuItem(text = { Text(stringResource(R.string.ui_open_svg_plt)) }, onClick = onOpenFile)
+        DropdownMenuItem(text = { Text(stringResource(R.string.ui_library_menu)) }, onClick = onLibrary)
         DropdownMenuItem(text = { Text(stringResource(R.string.ui_text_menu)) }, onClick = onText)
         HorizontalDivider()
         listOf(
@@ -394,8 +421,138 @@ private fun AddMenu(expanded: Boolean, onDismiss: () -> Unit, onOpenFile: () -> 
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun EmptyState(onOpen: () -> Unit, onAddShape: () -> Unit) {
+private fun LibrarySheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
+    var query by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf<PlotterSvgCategory?>(null) }
+    val items = remember(query, category) {
+        PlotterSvgLibrary.items
+            .filter { category == null || it.category == category }
+            .filter { it.matches(query) }
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
+            Text(stringResource(R.string.ui_library), style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                singleLine = true,
+                label = { Text(stringResource(R.string.ui_library_search)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { query = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.ui_clear_search))
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(8.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilterChip(
+                    selected = category == null,
+                    onClick = { category = null },
+                    label = { Text(stringResource(R.string.ui_all)) },
+                )
+                PlotterSvgLibrary.categories.forEach { cat ->
+                    FilterChip(
+                        selected = category == cat,
+                        onClick = { category = cat },
+                        label = { Text(stringResource(cat.labelRes)) },
+                    )
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            if (items.isEmpty()) {
+                Text(
+                    stringResource(R.string.ui_library_empty),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
+                    textAlign = TextAlign.Center,
+                )
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 132.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 500.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(items, key = { it.id }) { item ->
+                        LibraryItem(
+                            item = item,
+                            onClick = {
+                                vm.addLibrarySvg(item.name, item.svg)
+                                onDismiss()
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryItem(item: PlotterSvgItem, onClick: () -> Unit) {
+    val polylines = remember(item.id) { runCatching { SvgParser.parse(item.svg) }.getOrDefault(emptyList()) }
+    val stroke = MaterialTheme.colorScheme.primary
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        tonalElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth().height(148.dp).border(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant,
+            RoundedCornerShape(8.dp),
+        ).clickable(onClick = onClick),
+    ) {
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Canvas(
+                modifier = Modifier.fillMaxWidth().height(72.dp),
+            ) {
+                drawLibraryPreview(polylines, stroke)
+            }
+            Text(item.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                item.source,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawLibraryPreview(polylines: List<Polyline>, color: Color) {
+    val points = polylines.flatMap { it.points }
+    val bounds = Bounds.ofOrNull(points) ?: return
+    if (bounds.widthMm <= 0.0 || bounds.heightMm <= 0.0) return
+    val pad = 8f
+    val usableW = (size.width - pad * 2).coerceAtLeast(1f)
+    val usableH = (size.height - pad * 2).coerceAtLeast(1f)
+    val scale = min(usableW / bounds.widthMm.toFloat(), usableH / bounds.heightMm.toFloat())
+    val ox = (size.width - bounds.widthMm.toFloat() * scale) / 2f - bounds.minX.toFloat() * scale
+    val oy = (size.height - bounds.heightMm.toFloat() * scale) / 2f - bounds.minY.toFloat() * scale
+    for (pl in polylines) {
+        if (pl.points.isEmpty()) continue
+        val path = Path()
+        val first = pl.points.first()
+        path.moveTo(first.xMm.toFloat() * scale + ox, first.yMm.toFloat() * scale + oy)
+        for (i in 1 until pl.points.size) {
+            val p = pl.points[i]
+            path.lineTo(p.xMm.toFloat() * scale + ox, p.yMm.toFloat() * scale + oy)
+        }
+        if (pl.closed) path.close()
+        drawPath(path, color, style = Stroke(width = 2.4f))
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun EmptyState(onOpen: () -> Unit, onLibrary: () -> Unit, onAddShape: () -> Unit) {
     Column(
         Modifier.fillMaxWidth().padding(bottom = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -408,8 +565,9 @@ private fun EmptyState(onOpen: () -> Unit, onAddShape: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(vertical = 6.dp),
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Button(onClick = onOpen) { Text(stringResource(R.string.ui_open)) }
+            OutlinedButton(onClick = onLibrary) { Text(stringResource(R.string.ui_library)) }
             OutlinedButton(onClick = onAddShape) { Text(stringResource(R.string.ui_add_shape)) }
         }
     }
