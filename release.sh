@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 #
-# Knutcut release: run tests, build the release APK, and publish it plus latest.json to the
-# self-update repo (knutwurst/knutcut-releases). The app then offers the update over the air.
+# Knutcut release: run tests, build the release APK, and publish it to the self-update repo
+# (knutwurst/knutcut-releases). The APK is uploaded as a GitHub release asset (the primary host,
+# referenced by latest.json's "apkUrl") and, during the transition, also committed to the repo so
+# installs that predate apkUrl keep updating via the raw URL. The app then offers the update OTA.
 #
 # Before running: bump versionCode + versionName in android/app/build.gradle.kts and (optionally)
 # add a CHANGELOG.md entry. Commit/push the code repo yourself — this script only publishes the APK.
@@ -46,15 +48,32 @@ echo "==> Sign APK with rotation lineage (debug -> release)"
 SHA="$(shasum -a 256 "$APK" | cut -d' ' -f1)"
 echo "==> sha256 $SHA"
 
+REPO_SLUG="knutwurst/knutcut-releases"
+TAG="v${VERSION_NAME}"
+ASSET_URL="https://github.com/${REPO_SLUG}/releases/download/${TAG}/${APK_NAME}"
+
+# Primary host: a GitHub release asset (doesn't bloat the repo, proper download CDN). The app prefers
+# this URL via latest.json's "apkUrl".
+echo "==> Publish APK as a GitHub release asset ($TAG)"
+if gh release view "$TAG" --repo "$REPO_SLUG" >/dev/null 2>&1; then
+    gh release upload "$TAG" "$APK" --repo "$REPO_SLUG" --clobber
+else
+    gh release create "$TAG" "$APK" --repo "$REPO_SLUG" --title "$TAG" --notes "${NOTES:-$TAG}"
+fi
+
+# Transition dual-hosting: also keep the APK in the repo (raw) so installs that predate "apkUrl" can
+# still update via BASE + apk. Retire this (stop committing the APK, delete old ones) once enough
+# users run an apkUrl-aware build — latest.json keeps pointing at the release asset.
+echo "==> Update latest.json (+ raw dual-host) in $REPO_SLUG"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 git clone -q "$RELEASES_REPO" "$TMP/rel"
 cp "$APK" "$TMP/rel/"
 
-python3 - "$TMP/rel/latest.json" "$VERSION_CODE" "$VERSION_NAME" "$APK_NAME" "$SHA" "$NOTES" <<'PY'
+python3 - "$TMP/rel/latest.json" "$VERSION_CODE" "$VERSION_NAME" "$APK_NAME" "$SHA" "$NOTES" "$ASSET_URL" <<'PY'
 import json, sys
-path, code, name, apk, sha, notes = sys.argv[1:7]
-data = {"versionCode": int(code), "versionName": name, "apk": apk, "sha256": sha, "notes": notes}
+path, code, name, apk, sha, notes, apk_url = sys.argv[1:8]
+data = {"versionCode": int(code), "versionName": name, "apk": apk, "sha256": sha, "notes": notes, "apkUrl": apk_url}
 with open(path, "w", encoding="utf-8") as f:
     f.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
 PY
@@ -64,5 +83,5 @@ PY
     && git config user.email "36196269+knutwurst@users.noreply.github.com" \
     && git add -A && git commit -q -m "Release $VERSION_NAME" && git push -q )
 
-echo "==> Published $APK_NAME + latest.json to knutcut-releases."
+echo "==> Published $APK_NAME to knutcut-releases: release asset $TAG + raw dual-host + latest.json."
 echo "    Devices on an older version will be offered v$VERSION_NAME."

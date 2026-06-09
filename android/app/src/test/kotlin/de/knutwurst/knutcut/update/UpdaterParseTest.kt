@@ -32,6 +32,16 @@ class UpdaterParseTest {
         assertEquals(5, info.versionCode)
         assertEquals("", info.sha256)
         assertEquals("", info.notes)
+        assertEquals("an absent apkUrl defaults to empty (raw fallback is used)", "", info.apkUrl)
+    }
+
+    @Test
+    fun parsesApkUrlWhenPresent() {
+        val info = Updater.parseLatest(
+            """{"versionCode":127,"versionName":"0.55.0","apk":"Knutcut-v0.55.0-release.apk","sha256":"abc","apkUrl":"https://github.com/knutwurst/knutcut-releases/releases/download/v0.55.0/Knutcut-v0.55.0-release.apk"}"""
+        )
+        requireNotNull(info)
+        assertEquals("https://github.com/knutwurst/knutcut-releases/releases/download/v0.55.0/Knutcut-v0.55.0-release.apk", info.apkUrl)
     }
 
     @Test

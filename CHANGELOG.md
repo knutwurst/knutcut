@@ -3,6 +3,11 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.55.3
+- Self-update now downloads the APK from a GitHub release asset (with the raw repo copy as a
+  fallback), so the releases repo no longer grows with every version. Older installs keep updating
+  via the existing raw URL during the transition.
+
 ## 0.55.2
 - Library previews follow the display setting: "Farbig" shows a filled silhouette, "Nur Outline"
   shows the outline (the toolpath). The motifs have no colour of their own, so the fill uses a

@@ -12,8 +12,18 @@ import java.net.URL
 import java.security.MessageDigest
 
 /** The latest release as published in the self-update repo's latest.json. [sha256] is the lowercase
- *  hex digest of the APK; the download is rejected unless it matches, guarding against tampering. */
-data class UpdateInfo(val versionCode: Int, val versionName: String, val apk: String, val sha256: String, val notes: String = "")
+ *  hex digest of the APK; the download is rejected unless it matches, guarding against tampering.
+ *  [apkUrl] is the full download URL of the APK (a GitHub release asset). When present it is preferred;
+ *  [apk] (the bare file name, resolved against the raw repo) is the fallback so already-installed
+ *  versions that predate [apkUrl] — and the dual-hosting transition — keep working. */
+data class UpdateInfo(
+    val versionCode: Int,
+    val versionName: String,
+    val apk: String,
+    val sha256: String,
+    val notes: String = "",
+    val apkUrl: String = "",
+)
 
 /**
  * Self-update from the knutcut-releases GitHub repo: read latest.json, compare versionCode, download
@@ -37,25 +47,44 @@ object Updater {
     fun parseLatest(json: String): UpdateInfo? = try {
         val o = JSONObject(json)
         if (!o.has("versionCode")) null
-        else UpdateInfo(o.getInt("versionCode"), o.optString("versionName"), o.optString("apk"), o.optString("sha256"), o.optString("notes"))
+        else UpdateInfo(o.getInt("versionCode"), o.optString("versionName"), o.optString("apk"), o.optString("sha256"), o.optString("notes"), o.optString("apkUrl"))
     } catch (e: Exception) { null }
 
-    /** Download the update APK into the cache dir; returns the file or null on failure. */
-    fun download(context: Context, info: UpdateInfo): File? { return try {
+    /**
+     * Download the update APK into the cache dir; returns the file or null on failure. Tries the
+     * release-asset URL ([UpdateInfo.apkUrl]) first, then the raw repo copy (BASE + apk). During the
+     * dual-hosting migration both resolve; once the raw copy is retired only the asset URL remains, and
+     * an old latest.json without apkUrl still works via the raw fallback.
+     */
+    fun download(context: Context, info: UpdateInfo): File? {
         val dir = File(context.cacheDir, DIR).apply { mkdirs() }
         val out = File(dir, info.apk)
-        (URL(BASE + info.apk).openConnection() as HttpURLConnection).run {
+        val urls = buildList {
+            if (info.apkUrl.isNotBlank()) add(info.apkUrl)
+            if (info.apk.isNotBlank()) add(BASE + info.apk)
+        }
+        for (url in urls) {
+            // Integrity check: a tampered or truncated download (e.g. a MitM) must never be installed.
+            // A missing/blank checksum is treated as a failure, so latest.json must always carry sha256.
+            if (fetchTo(url, out) && info.sha256.isNotBlank() && sha256(out).equals(info.sha256.trim(), ignoreCase = true)) {
+                return out
+            }
+            out.delete()
+        }
+        return null
+    }
+
+    /** Fetch [url] into [out]; true on a clean 200 download, false on any error. Redirects are followed
+     *  (GitHub release-asset URLs 302 to objects.githubusercontent.com). */
+    private fun fetchTo(url: String, out: File): Boolean = try {
+        (URL(url).openConnection() as HttpURLConnection).run {
+            instanceFollowRedirects = true
             connectTimeout = 10000; readTimeout = 30000
-            if (responseCode != 200) return null
+            if (responseCode != 200) return false
             inputStream.use { input -> out.outputStream().use { o -> input.copyTo(o) } }
         }
-        // Integrity check: a tampered or truncated download (e.g. a MitM) must never be installed. A
-        // missing/blank checksum is treated as a failure, so latest.json must always carry sha256.
-        if (info.sha256.isBlank() || !sha256(out).equals(info.sha256.trim(), ignoreCase = true)) {
-            out.delete(); return null
-        }
-        out
-    } catch (e: Exception) { null } }
+        true
+    } catch (e: Exception) { false }
 
     private fun sha256(f: File): String {
         val md = MessageDigest.getInstance("SHA-256")
