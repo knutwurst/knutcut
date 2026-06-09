@@ -303,4 +303,10 @@
     <string name="ui_draw_mode">Draw</string>
     <string name="ui_draw_mode_desc">Freehand draw mode</string>
     <string name="ui_draw_layer_name">Drawing</string>
+    <string name="ui_nodes">Nodes</string>
+    <string name="ui_nodes_desc">Node editor</string>
+    <string name="ui_node_smooth">Smooth</string>
+    <string name="ui_node_corner">Corner</string>
+    <string name="ui_node_delete">Delete node</string>
+    <string name="ui_node_convert">Make editable</string>
 </resources>

@@ -58,6 +58,7 @@ import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -728,6 +729,11 @@ private fun EditingBar(
 ) {
     // Per-layer actions only make sense with a layer selected; greyed out when the mat is selected.
     val perLayer = !vm.matSelected
+    val layer = vm.layers.getOrNull(vm.selectedLayer)
+    // The nodes button is available when the selected layer has an editPath OR exactly one polyline
+    // (which can be converted on tap).
+    val canEditNodes = perLayer && layer != null && (layer.editPath != null || layer.polylines.size == 1)
+    val inNodesMode = vm.editorTool == EditorTool.NODES
     // One toolbar row, spread across the full width (wraps to a new row if it can't fit).
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
@@ -740,6 +746,21 @@ private fun EditingBar(
         IconAction(stringResource(R.string.ui_flip_v), Icons.Default.Flip, rotate = 90f, enabled = perLayer) { vm.mirrorSelectedVertical() }
         IconAction(stringResource(R.string.ui_duplicate), Icons.Default.ContentCopy, enabled = perLayer) { vm.duplicateSelected() }
         IconAction(stringResource(R.string.ui_deform), Icons.Default.AutoFixHigh, enabled = perLayer, onClick = onDeform)
+        // Node editor toggle: enters NODES mode (converting first if needed) or returns to SELECT.
+        if (inNodesMode && canEditNodes) {
+            // Active state: filled tonal button
+            androidx.compose.material3.FilledTonalIconButton(
+                onClick = { vm.editorTool = EditorTool.SELECT },
+                enabled = canEditNodes,
+            ) {
+                Icon(Icons.Default.Timeline, contentDescription = stringResource(R.string.ui_nodes_desc))
+            }
+        } else {
+            IconAction(stringResource(R.string.ui_nodes), Icons.Default.Timeline, enabled = canEditNodes) {
+                if (layer?.editPath == null) vm.convertSelectedToEditablePath()
+                vm.editorTool = EditorTool.NODES
+            }
+        }
         IconAction(stringResource(R.string.ui_delete), Icons.Default.Delete, enabled = perLayer, onClick = onDelete)
         IconAction(
             if (vm.matSelected) stringResource(R.string.ui_reset_all) else stringResource(R.string.ui_reset_layer),

@@ -301,4 +301,10 @@
     <string name="ui_draw_mode">Zeichnen</string>
     <string name="ui_draw_mode_desc">Freihand-Zeichnen</string>
     <string name="ui_draw_layer_name">Zeichnung</string>
+    <string name="ui_nodes">Punkte</string>
+    <string name="ui_nodes_desc">Punkte bearbeiten</string>
+    <string name="ui_node_smooth">Glatt</string>
+    <string name="ui_node_corner">Ecke</string>
+    <string name="ui_node_delete">Punkt löschen</string>
+    <string name="ui_node_convert">Bearbeitbar machen</string>
 </resources>

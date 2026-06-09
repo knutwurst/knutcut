@@ -37,8 +37,17 @@ import de.knutwurst.knutcut.data.ThemeMode
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Bounds
 import de.knutwurst.knutcut.svgcore.CutOrder
+import de.knutwurst.knutcut.svgcore.EditablePath
+import de.knutwurst.knutcut.svgcore.HandleSide
+import de.knutwurst.knutcut.svgcore.deleteNode
+import de.knutwurst.knutcut.svgcore.insertNode
+import de.knutwurst.knutcut.svgcore.inverse
+import de.knutwurst.knutcut.svgcore.moveAnchor
+import de.knutwurst.knutcut.svgcore.moveHandle
+import de.knutwurst.knutcut.svgcore.setSmooth
 import de.knutwurst.knutcut.svgcore.simplifyRdp
 import de.knutwurst.knutcut.svgcore.smoothToPath
+import de.knutwurst.knutcut.svgcore.toEditablePath
 import de.knutwurst.knutcut.svgcore.DragKnife
 import de.knutwurst.knutcut.svgcore.Handshake
 import de.knutwurst.knutcut.svgcore.History
@@ -78,8 +87,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Editor interaction mode: normal SELECT/move/resize, or freehand DRAW. */
-enum class EditorTool { SELECT, DRAW }
+/** Editor interaction mode: normal SELECT/move/resize, freehand DRAW, or node editor NODES. */
+enum class EditorTool { SELECT, DRAW, NODES }
 
 class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -694,6 +703,99 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         markedLayers = emptySet()
         pruneBoundsCache()
         status = s(R.string.st_shape_added, name)
+    }
+
+    // -------------------------------------------------------------------------
+    // Node editor (EditorTool.NODES)
+    // -------------------------------------------------------------------------
+
+    /** The selected layer's editable path, or null when none is available. */
+    val selectedEditPath: EditablePath?
+        get() = layers.getOrNull(selectedLayer)?.editPath
+
+    /**
+     * Convert a world-space point to local (design) coordinates for layer [index].
+     * Returns null when the layer doesn't exist or its transform is degenerate.
+     */
+    fun worldToLayerLocal(index: Int, p: Pt): Pt? {
+        val layer = layers.getOrNull(index) ?: return null
+        return layerMatrix(layer).inverse()?.apply(p)
+    }
+
+    /**
+     * Convert a local-coordinate point on layer [index] to world (mat) coordinates.
+     * Returns null when the layer doesn't exist.
+     */
+    fun layerLocalToWorld(index: Int, p: Pt): Pt? {
+        val layer = layers.getOrNull(index) ?: return null
+        return layerMatrix(layer).apply(p)
+    }
+
+    /** Apply a new editPath to the selected layer and keep [polylines] in sync. */
+    private fun applyEditPath(newPath: EditablePath) {
+        val i = selectedLayer
+        if (i !in layers.indices) return
+        val poly = newPath.toPolyline()
+        layers = layers.mapIndexed { idx, l ->
+            if (idx == i) l.copy(editPath = newPath, polylines = listOf(poly)) else l
+        }
+        pruneBoundsCache()
+    }
+
+    /**
+     * Snapshot history once at the start of a node-drag gesture.  Call once on finger-down;
+     * the continuous drag updates don't add more steps.
+     */
+    fun beginNodeEdit() { pushHistory() }
+
+    /** Move anchor [i] to [toLocal] (local coords). Does not push history — caller does that. */
+    fun moveSelectedAnchor(i: Int, toLocal: Pt) {
+        val path = selectedEditPath ?: return
+        applyEditPath(path.moveAnchor(i, toLocal))
+    }
+
+    /** Move handle [side] of node [i] to [toLocal] (local coords). Does not push history. */
+    fun moveSelectedHandle(i: Int, side: HandleSide, toLocal: Pt) {
+        val path = selectedEditPath ?: return
+        applyEditPath(path.moveHandle(i, side, toLocal))
+    }
+
+    /** Insert a node on segment [segmentIndex] at parameter [t]. Pushes one undo step. */
+    fun insertSelectedNode(segmentIndex: Int, t: Double) {
+        val path = selectedEditPath ?: return
+        pushHistory()
+        applyEditPath(path.insertNode(segmentIndex, t))
+    }
+
+    /** Toggle the smooth flag on node [i]. Pushes one undo step. */
+    fun toggleSelectedNodeSmooth(i: Int) {
+        val path = selectedEditPath ?: return
+        pushHistory()
+        applyEditPath(path.setSmooth(i, !path.nodes[i].smooth))
+    }
+
+    /** Delete node [i]. No-op when too few nodes remain (EditablePath.deleteNode handles the guard). Pushes one undo step. */
+    fun deleteSelectedNode(i: Int) {
+        val path = selectedEditPath ?: return
+        pushHistory()
+        applyEditPath(path.deleteNode(i))
+    }
+
+    /**
+     * Convert the selected layer's single polyline to an editable path.
+     * No-op when the layer already has an editPath, has no polylines, or has more than one polyline.
+     * Pushes one undo step on success.
+     */
+    fun convertSelectedToEditablePath() {
+        val i = selectedLayer
+        val layer = layers.getOrNull(i) ?: return
+        if (layer.editPath != null) return
+        if (layer.polylines.size != 1) return
+        pushHistory()
+        val newPath = layer.polylines[0].toEditablePath()
+        layers = layers.mapIndexed { idx, l ->
+            if (idx == i) l.copy(editPath = newPath) else l
+        }
     }
 
     /** Mirror the selected layer (around its own centre). */

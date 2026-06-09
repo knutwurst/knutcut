@@ -7,6 +7,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.RadioButtonChecked
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -39,6 +45,10 @@ import de.knutwurst.knutcut.data.Mat
 import de.knutwurst.knutcut.data.PathDeform
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.EditablePath
+import de.knutwurst.knutcut.svgcore.HandleSide
+import de.knutwurst.knutcut.svgcore.nearestHandle
+import de.knutwurst.knutcut.svgcore.nearestNode
+import de.knutwurst.knutcut.svgcore.nearestSegment
 import de.knutwurst.knutcut.svgcore.Pt
 import kotlin.math.atan2
 import kotlin.math.min
@@ -54,6 +64,9 @@ private sealed interface Drag {
     object Move : Drag
     object PanCamera : Drag
     object Camera : Drag
+    // Node-editor drags
+    data class NodeAnchor(val index: Int) : Drag
+    data class NodeHandle(val nodeIndex: Int, val side: HandleSide) : Drag
 }
 
 private const val HANDLE_HIT_PX = 34f   // touch radius for grabbing a handle
@@ -65,6 +78,12 @@ private const val ROTATE_DOT_PX = 8f    // drawn radius of the rotate handle dot
 // Smart-guide line colour: a high-contrast magenta that reads on both light and dark mats.
 private val GUIDE_COLOR = Color(0xFFFF4081)
 
+// Node editor visual constants
+private const val NODE_ANCHOR_RADIUS_PX = 8f     // filled dot for an anchor
+private const val NODE_HANDLE_RADIUS_PX = 5f     // smaller dot for a control handle
+private const val NODE_HIT_PX = 22f              // touch radius for nodes/handles in the node editor
+private const val DOUBLE_TAP_MS = 350L           // max gap between taps to count as a double-tap
+
 /**
  * The placement mat. Pinch or one-finger-drag on empty space moves/zooms the *work area* (like a
  * photo). The design is moved by dragging it, scaled with the corner handles, and turned with the
@@ -75,6 +94,8 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     var sizePx by remember { mutableStateOf(IntSize.Zero) }
     // World-space points collected during a DRAW gesture; empty when not drawing.
     var liveStroke by remember { mutableStateOf<List<Pt>>(emptyList()) }
+    // Index of the node currently selected in NODES mode (-1 = none).
+    var selectedNodeIndex by remember { mutableStateOf(-1) }
 
     // Derive the grid/ruler tones from the theme so they stay visible on both light and dark.
     val colorMode = vm.colorMode == ColorMode.COLOR
@@ -90,6 +111,9 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     val offMatColor = MaterialTheme.colorScheme.error
     val guideColor = GUIDE_COLOR
     val deformGuideColor = MaterialTheme.colorScheme.outlineVariant
+    // Captured for use inside the Canvas draw scope (which is not a Composable context).
+    val nodeSurfaceColor = MaterialTheme.colorScheme.surface
+    val nodeSelectedColor = MaterialTheme.colorScheme.error
     val readout = vm.selectionReadout() ?: vm.overallReadout()
     val matSummary = readout?.let { "Arbeitsfläche: $it" } ?: "Arbeitsfläche, Matte ausgewählt"
 
@@ -142,6 +166,160 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                     liveStroke = emptyList()
                     return@awaitEachGesture
                 }
+
+                // ---- NODES mode: drag anchors/handles; tap to select; double-tap to insert ----
+                if (vm.editorTool == EditorTool.NODES) {
+                    val editPath = vm.selectedEditPath
+                    if (editPath == null) {
+                        // No editable path — fall through to camera pan.
+                    } else {
+                        val layerIdx = vm.selectedLayer
+                        // Hit-radius in mm: convert constant px to mm at the current zoom.
+                        val hitMm = (NODE_HIT_PX / ppm).toDouble()
+                        val downWorld = screenToWorld(down.position, origin, ppm)
+                        val downLocal = vm.worldToLayerLocal(layerIdx, downWorld) ?: downWorld
+
+                        // Priority: handles → anchors → segments.
+                        val handleHit = editPath.nearestHandle(downLocal, hitMm)
+                        val anchorHit = if (handleHit == null) editPath.nearestNode(downLocal, hitMm) else null
+
+                        val nodeDrag: Drag? = when {
+                            handleHit != null -> Drag.NodeHandle(handleHit.nodeIndex, handleHit.side)
+                            anchorHit != null -> Drag.NodeAnchor(anchorHit)
+                            else -> null
+                        }
+
+                        if (nodeDrag != null) {
+                            // Started on a node or handle — prepare for drag.
+                            var pushedNodeHistory = false
+                            var totalNodeDrag = 0f
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val pressed = event.changes.filter { it.pressed }
+                                if (pressed.isEmpty()) break
+                                if (pressed.size >= 2) {
+                                    // Two-finger: pan/zoom camera.
+                                    val p0 = pressed[0]; val p1 = pressed[1]
+                                    val prevC = (p0.previousPosition + p1.previousPosition) / 2f
+                                    val curC  = (p0.position + p1.position) / 2f
+                                    val prevD = (p0.previousPosition - p1.previousPosition).getDistance()
+                                    val curD  = (p0.position - p1.position).getDistance()
+                                    val z = if (prevD > 0f) curD / prevD else 1f
+                                    vm.camOffset = curC - (prevC - vm.camOffset) * z
+                                    vm.camScale *= z
+                                    event.changes.forEach { it.consume() }
+                                    ppm = ppmFor(sizePx, vm.mat, vm.camScale)
+                                    origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
+                                } else {
+                                    val p = pressed[0]
+                                    val moved = p.positionChange().getDistance()
+                                    totalNodeDrag += moved
+                                    if (!pushedNodeHistory && moved > 1f) {
+                                        vm.beginNodeEdit()
+                                        pushedNodeHistory = true
+                                    }
+                                    if (pushedNodeHistory) {
+                                        ppm = ppmFor(sizePx, vm.mat, vm.camScale)
+                                        origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
+                                        val curWorld = screenToWorld(p.position, origin, ppm)
+                                        val curLocal = vm.worldToLayerLocal(layerIdx, curWorld) ?: curWorld
+                                        when (nodeDrag) {
+                                            is Drag.NodeAnchor -> vm.moveSelectedAnchor(nodeDrag.index, curLocal)
+                                            is Drag.NodeHandle -> vm.moveSelectedHandle(nodeDrag.nodeIndex, nodeDrag.side, curLocal)
+                                            else -> Unit
+                                        }
+                                    }
+                                    p.consume()
+                                }
+                            }
+                            // Tap (no real drag): select the anchor node.
+                            if (totalNodeDrag < TAP_SLOP_PX) {
+                                selectedNodeIndex = when (nodeDrag) {
+                                    is Drag.NodeAnchor -> nodeDrag.index
+                                    is Drag.NodeHandle -> nodeDrag.nodeIndex
+                                    else -> -1
+                                }
+                            }
+                            return@awaitEachGesture
+                        }
+
+                        // Touched empty space — check for double-tap on a segment (insert node).
+                        val segHit = editPath.nearestSegment(downLocal, hitMm * 2)
+                        if (segHit != null) {
+                            // Wait briefly for a possible second tap.
+                            val tapTime = System.currentTimeMillis()
+                            var gotSecondTap = false
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val elapsed = System.currentTimeMillis() - tapTime
+                                if (elapsed > DOUBLE_TAP_MS) break
+                                val pressed = event.changes.filter { it.pressed }
+                                if (pressed.isEmpty()) {
+                                    // Finger lifted — wait for next down.
+                                    val down2 = awaitFirstDown(requireUnconsumed = false)
+                                    val elapsed2 = System.currentTimeMillis() - tapTime
+                                    if (elapsed2 <= DOUBLE_TAP_MS) {
+                                        // Second tap: insert node.
+                                        val w2 = screenToWorld(down2.position, origin, ppm)
+                                        val l2 = vm.worldToLayerLocal(layerIdx, w2) ?: w2
+                                        val seg2 = vm.selectedEditPath?.nearestSegment(l2, hitMm * 2)
+                                        if (seg2 != null) {
+                                            vm.insertSelectedNode(seg2.segmentIndex, seg2.t)
+                                            gotSecondTap = true
+                                        }
+                                    }
+                                    break
+                                }
+                                if (pressed.size >= 2) {
+                                    // Two-finger camera.
+                                    val p0 = pressed[0]; val p1 = pressed[1]
+                                    val prevC = (p0.previousPosition + p1.previousPosition) / 2f
+                                    val curC  = (p0.position + p1.position) / 2f
+                                    val prevD = (p0.previousPosition - p1.previousPosition).getDistance()
+                                    val curD  = (p0.position - p1.position).getDistance()
+                                    val z = if (prevD > 0f) curD / prevD else 1f
+                                    vm.camOffset = curC - (prevC - vm.camOffset) * z
+                                    vm.camScale *= z
+                                    event.changes.forEach { it.consume() }
+                                    break
+                                }
+                            }
+                            if (!gotSecondTap) {
+                                // Single tap on empty space: deselect node.
+                                selectedNodeIndex = -1
+                            }
+                            return@awaitEachGesture
+                        }
+
+                        // Tap on completely empty space: deselect.
+                        selectedNodeIndex = -1
+                        // Also let two-finger events pass through to camera below.
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val pressed = event.changes.filter { it.pressed }
+                            if (pressed.isEmpty()) break
+                            if (pressed.size >= 2) {
+                                val p0 = pressed[0]; val p1 = pressed[1]
+                                val prevC = (p0.previousPosition + p1.previousPosition) / 2f
+                                val curC  = (p0.position + p1.position) / 2f
+                                val prevD = (p0.previousPosition - p1.previousPosition).getDistance()
+                                val curD  = (p0.position - p1.position).getDistance()
+                                val z = if (prevD > 0f) curD / prevD else 1f
+                                vm.camOffset = curC - (prevC - vm.camOffset) * z
+                                vm.camScale *= z
+                                event.changes.forEach { it.consume() }
+                                ppm = ppmFor(sizePx, vm.mat, vm.camScale)
+                                origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
+                            } else {
+                                val p = pressed[0]
+                                vm.camOffset += p.positionChange()
+                                p.consume()
+                            }
+                        }
+                        return@awaitEachGesture
+                    }
+                }
+
                 // ---- SELECT mode (default): move / resize / rotate / pan ----
 
                 val handlesScreen = handleWorldPoints(vm.placedCorners()).map { worldToScreen(it, origin, ppm) }
@@ -248,6 +426,8 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                                 val a = atan2((p.position.y - cs.y).toDouble(), (p.position.x - cs.x).toDouble())
                                 vm.rotationDeg = startRotation + Math.toDegrees(a - startAngle)
                             }
+                            // Node drags are handled in the NODES branch above and never reach here.
+                            is Drag.NodeAnchor, is Drag.NodeHandle -> Unit
                         }
                         p.consume()
                     }
@@ -378,6 +558,42 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
             }
             else -> Unit
         }
+
+        // Node editor overlay: draw anchors and handles when in NODES mode.
+        val nodeEditPath = if (vm.editorTool == EditorTool.NODES) vm.selectedEditPath else null
+        if (nodeEditPath != null) {
+            val layerIdx = vm.selectedLayer
+            // Convert a local point to screen space via the layer matrix.
+            fun localToScreen(p: Pt): Offset {
+                val w = vm.layerLocalToWorld(layerIdx, p) ?: p
+                return s(w)
+            }
+            val nodeColor = handleColor
+            val handleLineColor = handleColor.copy(alpha = 0.55f)
+
+            for ((ni, node) in nodeEditPath.nodes.withIndex()) {
+                val anchorScreen = localToScreen(node.anchor)
+                val isSelected = ni == selectedNodeIndex
+
+                // Handle lines and dots.
+                node.handleIn?.let { hin ->
+                    val hinScreen = localToScreen(hin)
+                    drawLine(handleLineColor, anchorScreen, hinScreen, strokeWidth = 1.2f)
+                    drawCircle(nodeColor, radius = NODE_HANDLE_RADIUS_PX, center = hinScreen, style = Fill)
+                }
+                node.handleOut?.let { hout ->
+                    val houtScreen = localToScreen(hout)
+                    drawLine(handleLineColor, anchorScreen, houtScreen, strokeWidth = 1.2f)
+                    drawCircle(nodeColor, radius = NODE_HANDLE_RADIUS_PX, center = houtScreen, style = Fill)
+                }
+
+                // Anchor dot — highlighted when selected.
+                val anchorFill = if (isSelected) nodeSelectedColor else nodeColor
+                drawCircle(anchorFill, radius = NODE_ANCHOR_RADIUS_PX, center = anchorScreen, style = Fill)
+                // Outline ring so it reads on any background.
+                drawCircle(nodeSurfaceColor, radius = NODE_ANCHOR_RADIUS_PX, center = anchorScreen, style = Stroke(width = 1.5f))
+            }
+        }
       }
 
       // Bottom-left readout: the selected layer's position + size, or the whole design's total size
@@ -395,6 +611,56 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                   style = MaterialTheme.typography.labelSmall,
                   modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
               )
+          }
+      }
+
+      // Node-editor controls: shown bottom-right when a node is selected.
+      val showNodeControls = vm.editorTool == EditorTool.NODES &&
+          vm.selectedEditPath != null &&
+          selectedNodeIndex >= 0 &&
+          selectedNodeIndex < (vm.selectedEditPath?.nodes?.size ?: 0)
+      if (showNodeControls) {
+          val selNode = vm.selectedEditPath!!.nodes[selectedNodeIndex]
+          Surface(
+              color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+              contentColor = MaterialTheme.colorScheme.onSurface,
+              shape = RoundedCornerShape(8.dp),
+              tonalElevation = 2.dp,
+              modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
+          ) {
+              androidx.compose.foundation.layout.Row(
+                  verticalAlignment = Alignment.CenterVertically,
+                  modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+              ) {
+                  // Smooth / corner toggle.
+                  IconButton(onClick = { vm.toggleSelectedNodeSmooth(selectedNodeIndex) }) {
+                      val desc = if (selNode.smooth)
+                          androidx.compose.ui.res.stringResource(de.knutwurst.knutcut.R.string.ui_node_corner)
+                      else
+                          androidx.compose.ui.res.stringResource(de.knutwurst.knutcut.R.string.ui_node_smooth)
+                      Icon(
+                          if (selNode.smooth) Icons.Default.RadioButtonChecked
+                          else Icons.Default.RadioButtonUnchecked,
+                          contentDescription = desc,
+                      )
+                  }
+                  // Delete node.
+                  IconButton(onClick = {
+                      val prevCount = vm.selectedEditPath?.nodes?.size ?: 0
+                      vm.deleteSelectedNode(selectedNodeIndex)
+                      val newCount = vm.selectedEditPath?.nodes?.size ?: 0
+                      // If the index is now out of bounds, adjust the selection.
+                      if (newCount < prevCount) {
+                          selectedNodeIndex = if (selectedNodeIndex >= newCount) newCount - 1 else selectedNodeIndex
+                          if (selectedNodeIndex < 0) selectedNodeIndex = -1
+                      }
+                  }) {
+                      Icon(
+                          Icons.Default.Delete,
+                          contentDescription = androidx.compose.ui.res.stringResource(de.knutwurst.knutcut.R.string.ui_node_delete),
+                      )
+                  }
+              }
           }
       }
     }
