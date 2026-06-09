@@ -30,6 +30,8 @@ import de.knutwurst.knutcut.data.display
 import de.knutwurst.knutcut.data.PlotterModel
 import de.knutwurst.knutcut.data.PlotterSvgItem
 import de.knutwurst.knutcut.data.PlotterSvgLibrary
+import de.knutwurst.knutcut.data.DeformEngine
+import de.knutwurst.knutcut.data.DeformSpec
 import de.knutwurst.knutcut.data.Settings
 import de.knutwurst.knutcut.data.ThemeMode
 import de.knutwurst.knutcut.data.Tool
@@ -852,6 +854,48 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         pushHistory()
         layers = layers.mapIndexed { i, l -> if (i == index) l.copy(visible = !l.visible) else l }
     }
+
+    /**
+     * Apply [spec] to layer [index].  The first call preserves the layer's current geometry as the
+     * deform source; subsequent calls always re-warp from that original source, so changing the
+     * spec (e.g. a different radius) doesn't accumulate distortion.
+     *
+     * Pass [pushHistory] = false when calling repeatedly during a live drag preview; pass true (the
+     * default) to record an undoable snapshot on commit.
+     */
+    fun setLayerDeform(index: Int, spec: DeformSpec, pushHistory: Boolean = true) {
+        if (index !in layers.indices) return
+        val layer = layers[index]
+        val source = layer.deformSource ?: layer.polylines
+        val warped = DeformEngine.apply(spec, source)
+        if (pushHistory) pushHistory()
+        layers = layers.mapIndexed { i, l ->
+            if (i == index) l.copy(polylines = warped, deform = spec, deformSource = source) else l
+        }
+        pruneBoundsCache()
+    }
+
+    /** Convenience wrapper that targets the currently selected layer. */
+    fun setSelectedDeform(spec: DeformSpec, pushHistory: Boolean = true) =
+        setLayerDeform(selectedLayer, spec, pushHistory)
+
+    /**
+     * Remove the deformation from layer [index], restoring its original geometry.
+     * No-op when the layer has no active deformation.
+     */
+    fun clearLayerDeform(index: Int) {
+        if (index !in layers.indices) return
+        val layer = layers[index]
+        val src = layer.deformSource ?: return   // nothing to clear
+        pushHistory()
+        layers = layers.mapIndexed { i, l ->
+            if (i == index) l.copy(polylines = src, deform = null, deformSource = null) else l
+        }
+        pruneBoundsCache()
+    }
+
+    /** Convenience wrapper that targets the currently selected layer. */
+    fun clearSelectedDeform() = clearLayerDeform(selectedLayer)
 
     /** Bake a layer's placement into its geometry, so its coordinates already sit where it is drawn. */
     private fun bake(layer: Layer): Layer {

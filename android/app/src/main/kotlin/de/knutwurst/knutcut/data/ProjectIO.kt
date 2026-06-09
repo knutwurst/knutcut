@@ -25,7 +25,18 @@ object ProjectIO {
                 pl.points.forEach { pts.put(JSONArray().put(it.xMm).put(it.yMm)) }
                 pls.put(JSONObject().put("c", pl.closed).put("p", pts))
             }
-            o.put("polys", pls); arr.put(o)
+            o.put("polys", pls)
+            l.deform?.let { o.put("deform", serializeDeform(it)) }
+            l.deformSource?.let { src ->
+                val srcArr = JSONArray()
+                src.forEach { pl ->
+                    val pts = JSONArray()
+                    pl.points.forEach { pts.put(JSONArray().put(it.xMm).put(it.yMm)) }
+                    srcArr.put(JSONObject().put("c", pl.closed).put("p", pts))
+                }
+                o.put("deformSrc", srcArr)
+            }
+            arr.put(o)
         }
         return arr.toString()
     }
@@ -51,6 +62,21 @@ object ProjectIO {
             val pcolors = o.optJSONArray("pcolors")?.let { pc ->
                 (0 until pc.length()).map { if (pc.isNull(it)) null else pc.optInt(it) }
             }
+            val deform = o.optJSONObject("deform")?.let { deserializeDeform(it) }
+            val deformSrc = o.optJSONArray("deformSrc")?.let { srcArr ->
+                val src = ArrayList<Polyline>()
+                for (j in 0 until srcArr.length()) {
+                    val po = srcArr.optJSONObject(j) ?: continue
+                    val pts = po.optJSONArray("p") ?: JSONArray()
+                    val points = ArrayList<Pt>(pts.length())
+                    for (k in 0 until pts.length()) {
+                        val pr = pts.optJSONArray(k) ?: continue
+                        points.add(Pt(pr.optDouble(0), pr.optDouble(1)))
+                    }
+                    if (points.size >= 2) src.add(Polyline(points, po.optBoolean("c")))
+                }
+                src.takeIf { it.isNotEmpty() }
+            }
             out.add(Layer(
                 name = o.optString("name", "Ebene"),
                 polylines = polys,
@@ -62,8 +88,39 @@ object ProjectIO {
                 flipX = o.optBoolean("fx"), flipY = o.optBoolean("fy"),
                 colorArgb = if (o.has("color")) o.optInt("color") else null,
                 polylineColors = pcolors,
+                deform = deform,
+                deformSource = deformSrc,
             ))
         }
         return out
+    }
+
+    // ------------------------------------------------------------------
+    // Deform serialisation helpers
+    // ------------------------------------------------------------------
+
+    private fun serializeDeform(spec: DeformSpec): JSONObject = when (spec) {
+        is CircleDeform -> JSONObject().apply {
+            put("type", "circle")
+            put("cx", spec.centerXMm)
+            put("cy", spec.centerYMm)
+            put("r", spec.radiusMm)
+            put("start", spec.startAngleDeg)
+            put("cw", spec.clockwise)
+            put("base", spec.baseline.name)
+        }
+    }
+
+    private fun deserializeDeform(o: JSONObject): DeformSpec? = when (o.optString("type")) {
+        "circle" -> CircleDeform(
+            centerXMm = o.optDouble("cx", 0.0),
+            centerYMm = o.optDouble("cy", 0.0),
+            radiusMm = o.optDouble("r", 50.0),
+            startAngleDeg = o.optDouble("start", 0.0),
+            clockwise = o.optBoolean("cw", false),
+            baseline = runCatching { DeformBaseline.valueOf(o.optString("base")) }
+                .getOrDefault(DeformBaseline.BOTTOM),
+        )
+        else -> null
     }
 }

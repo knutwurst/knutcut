@@ -24,6 +24,16 @@ data class Layer(
     /** Per-polyline colour (packed ARGB) for merged layers that hold shapes of different colours,
      *  aligned 1:1 with [polylines]. Null means every polyline uses [colorArgb]. */
     val polylineColors: List<Int?>? = null,
+    /**
+     * Active deformation spec, or null when the geometry is not warped.
+     * Invariant: when non-null, [polylines] == DeformEngine.apply(deform, deformSource!!).
+     */
+    val deform: DeformSpec? = null,
+    /**
+     * Original (pre-warp) geometry preserved so the deformation can be changed or removed without
+     * losing the source.  Non-null if and only if [deform] is non-null.
+     */
+    val deformSource: List<Polyline>? = null,
 ) {
     /** Colour of each polyline, expanding the single [colorArgb] when no per-polyline list is set. */
     fun colorList(): List<Int?> = polylineColors ?: List(polylines.size) { colorArgb }
