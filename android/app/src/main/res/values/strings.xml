@@ -300,4 +300,7 @@
     <string name="ui_deform_remove">Remove warp</string>
     <string name="ui_deform_arc">Arc</string>
     <string name="ui_deform_curvature">Curvature (mm)</string>
+    <string name="ui_draw_mode">Draw</string>
+    <string name="ui_draw_mode_desc">Freehand draw mode</string>
+    <string name="ui_draw_layer_name">Drawing</string>
 </resources>

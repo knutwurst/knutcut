@@ -1,5 +1,6 @@
 package de.knutwurst.knutcut.data
 
+import de.knutwurst.knutcut.svgcore.EditablePath
 import de.knutwurst.knutcut.svgcore.PathNode
 import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Pt
@@ -37,6 +38,7 @@ object ProjectIO {
                 }
                 o.put("deformSrc", srcArr)
             }
+            l.editPath?.let { o.put("editPath", serializeEditPath(it)) }
             arr.put(o)
         }
         return arr.toString()
@@ -78,6 +80,7 @@ object ProjectIO {
                 }
                 src.takeIf { it.isNotEmpty() }
             }
+            val editPath = o.optJSONObject("editPath")?.let { deserializeEditPath(it) }
             out.add(Layer(
                 name = o.optString("name", "Ebene"),
                 polylines = polys,
@@ -91,6 +94,7 @@ object ProjectIO {
                 polylineColors = pcolors,
                 deform = deform,
                 deformSource = deformSrc,
+                editPath = editPath,
             ))
         }
         return out
@@ -99,6 +103,37 @@ object ProjectIO {
     // ------------------------------------------------------------------
     // Deform serialisation helpers
     // ------------------------------------------------------------------
+
+    // ------------------------------------------------------------------
+    // EditablePath serialisation helpers (for drawn layers)
+    // ------------------------------------------------------------------
+
+    private fun serializeEditPath(path: EditablePath): JSONObject {
+        val nodes = JSONArray()
+        path.nodes.forEach { node ->
+            val n = JSONObject()
+            n.put("ax", node.anchor.xMm)
+            n.put("ay", node.anchor.yMm)
+            node.handleIn?.let  { n.put("inx",  it.xMm); n.put("iny",  it.yMm) }
+            node.handleOut?.let { n.put("outx", it.xMm); n.put("outy", it.yMm) }
+            nodes.put(n)
+        }
+        return JSONObject().put("nodes", nodes).put("closed", path.closed)
+    }
+
+    private fun deserializeEditPath(o: JSONObject): EditablePath? {
+        val nodesArr = o.optJSONArray("nodes") ?: return null
+        val nodes = ArrayList<PathNode>(nodesArr.length())
+        for (i in 0 until nodesArr.length()) {
+            val n = nodesArr.optJSONObject(i) ?: continue
+            val anchor = Pt(n.optDouble("ax"), n.optDouble("ay"))
+            val handleIn  = if (n.has("inx"))  Pt(n.optDouble("inx"),  n.optDouble("iny"))  else null
+            val handleOut = if (n.has("outx")) Pt(n.optDouble("outx"), n.optDouble("outy")) else null
+            nodes.add(PathNode(anchor, handleIn, handleOut))
+        }
+        if (nodes.isEmpty()) return null
+        return EditablePath(nodes, o.optBoolean("closed", false))
+    }
 
     private fun serializeDeform(spec: DeformSpec): JSONObject = when (spec) {
         is CircleDeform -> JSONObject().apply {

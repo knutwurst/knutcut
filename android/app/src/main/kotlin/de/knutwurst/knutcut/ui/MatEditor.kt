@@ -43,6 +43,10 @@ import de.knutwurst.knutcut.svgcore.Pt
 import kotlin.math.atan2
 import kotlin.math.min
 
+// Minimum spacing between sampled stroke points (px) — avoids storing thousands of nearly-identical
+// positions when the finger barely moves.
+private const val DRAW_MIN_DIST_PX = 4f
+
 private sealed interface Drag {
     /** Handle 0-3 = corners TL,TR,BR,BL (uniform scale); 4-7 = sides top,right,bottom,left (one axis). */
     data class Resize(val handle: Int) : Drag
@@ -69,6 +73,8 @@ private val GUIDE_COLOR = Color(0xFFFF4081)
 @Composable
 fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     var sizePx by remember { mutableStateOf(IntSize.Zero) }
+    // World-space points collected during a DRAW gesture; empty when not drawing.
+    var liveStroke by remember { mutableStateOf<List<Pt>>(emptyList()) }
 
     // Derive the grid/ruler tones from the theme so they stay visible on both light and dark.
     val colorMode = vm.colorMode == ColorMode.COLOR
@@ -95,6 +101,48 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 var ppm = ppmFor(sizePx, vm.mat, vm.camScale)
                 if (ppm <= 0f) return@awaitEachGesture
                 var origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
+
+                // ---- DRAW mode: single-finger collects stroke; two-finger still pans/zooms ----
+                if (vm.editorTool == EditorTool.DRAW) {
+                    val stroke = mutableListOf(screenToWorld(down.position, origin, ppm))
+                    liveStroke = stroke.toList()
+                    var lastScreenPt = down.position
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val pressed = event.changes.filter { it.pressed }
+                        if (pressed.isEmpty()) break
+                        if (pressed.size >= 2) {
+                            // Two-finger: pan/zoom the camera even in DRAW mode.
+                            val p0 = pressed[0]; val p1 = pressed[1]
+                            val prevC = (p0.previousPosition + p1.previousPosition) / 2f
+                            val curC  = (p0.position + p1.position) / 2f
+                            val prevD = (p0.previousPosition - p1.previousPosition).getDistance()
+                            val curD  = (p0.position - p1.position).getDistance()
+                            val z = if (prevD > 0f) curD / prevD else 1f
+                            vm.camOffset = curC - (prevC - vm.camOffset) * z
+                            vm.camScale *= z
+                            event.changes.forEach { it.consume() }
+                            // Recalculate projection after the zoom so subsequent points land right.
+                            ppm = ppmFor(sizePx, vm.mat, vm.camScale)
+                            origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
+                        } else {
+                            val p = pressed[0]
+                            val screenPt = p.position
+                            val moved = (screenPt - lastScreenPt).getDistance()
+                            if (moved >= DRAW_MIN_DIST_PX) {
+                                stroke.add(screenToWorld(screenPt, origin, ppm))
+                                liveStroke = stroke.toList()
+                                lastScreenPt = screenPt
+                            }
+                            p.consume()
+                        }
+                    }
+                    // Commit: convert the stroke to a smooth path layer.
+                    vm.addDrawnPath(stroke)
+                    liveStroke = emptyList()
+                    return@awaitEachGesture
+                }
+                // ---- SELECT mode (default): move / resize / rotate / pan ----
 
                 val handlesScreen = handleWorldPoints(vm.placedCorners()).map { worldToScreen(it, origin, ppm) }
                 val cornersScreen = vm.placedCorners().map { worldToScreen(it, origin, ppm) }
@@ -259,6 +307,16 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 val stroke = if (pl.points.any { vm.isOutsideMat(it) }) offMatColor else outlineColor
                 drawPath(paths[idx], stroke, style = Stroke(width = 2.5f))
             }
+        }
+
+        // Live stroke preview in DRAW mode: draw the collected points as a thin polyline.
+        val stroke = liveStroke
+        if (stroke.size >= 2) {
+            val strokePath = Path().apply {
+                val f = s(stroke.first()); moveTo(f.x, f.y)
+                for (k in 1 until stroke.size) { val q = s(stroke[k]); lineTo(q.x, q.y) }
+            }
+            drawPath(strokePath, penColor, style = Stroke(width = 2f))
         }
 
         // selection box + handles

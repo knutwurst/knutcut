@@ -1,5 +1,6 @@
 package de.knutwurst.knutcut.data
 
+import de.knutwurst.knutcut.svgcore.EditablePath
 import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Pt
 
@@ -34,6 +35,12 @@ data class Layer(
      * losing the source.  Non-null if and only if [deform] is non-null.
      */
     val deformSource: List<Polyline>? = null,
+    /**
+     * Editable Bézier path for freehand-drawn layers.  When non-null,
+     * [polylines] == listOf(editPath.toPolyline()); [polylines] remains the single source of truth
+     * for rendering and cutting.
+     */
+    val editPath: EditablePath? = null,
 ) {
     /** Colour of each polyline, expanding the single [colorArgb] when no per-polyline list is set. */
     fun colorList(): List<Int?> = polylineColors ?: List(polylines.size) { colorArgb }

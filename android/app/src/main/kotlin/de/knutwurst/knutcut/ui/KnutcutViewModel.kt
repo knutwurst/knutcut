@@ -37,6 +37,8 @@ import de.knutwurst.knutcut.data.ThemeMode
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Bounds
 import de.knutwurst.knutcut.svgcore.CutOrder
+import de.knutwurst.knutcut.svgcore.simplifyRdp
+import de.knutwurst.knutcut.svgcore.smoothToPath
 import de.knutwurst.knutcut.svgcore.DragKnife
 import de.knutwurst.knutcut.svgcore.Handshake
 import de.knutwurst.knutcut.svgcore.History
@@ -75,6 +77,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** Editor interaction mode: normal SELECT/move/resize, or freehand DRAW. */
+enum class EditorTool { SELECT, DRAW }
 
 class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -148,6 +153,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var material by mutableStateOf<Material>(Materials.default); private set
     var tool by mutableStateOf(Tool.KNIFE); private set
     var force by mutableStateOf(Materials.default.force); private set
+
+    /** Freehand draw mode toggle; SELECT is the default (normal move/resize interaction). */
+    var editorTool by mutableStateOf(EditorTool.SELECT)
     var penForce by mutableStateOf(15); private set
 
     // Connection.
@@ -646,6 +654,45 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         layers = layers + layer
         selectedLayer = layers.lastIndex
         markedLayers = emptySet()
+        status = s(R.string.st_shape_added, name)
+    }
+
+    /**
+     * Convert a freehand stroke (world-space mm points collected during a DRAW gesture) into a
+     * smooth, editable PEN layer placed exactly where the stroke was drawn.
+     *
+     * The stroke is first simplified with RDP (~0.6 mm tolerance) to remove redundant samples
+     * and then fitted to a Catmull–Rom–derived cubic Bézier path.  The resulting [Layer] stores
+     * the flattened polyline in [Layer.polylines] (the render/cut source of truth) and the editable
+     * Bézier path in [Layer.editPath].
+     *
+     * No-op when fewer than 2 distinct points are supplied.
+     */
+    fun addDrawnPath(worldPoints: List<Pt>, closed: Boolean = false) {
+        // Drop duplicates at the list head so the RDP start/end invariant is meaningful.
+        val distinct = worldPoints.distinctBy { it.xMm to it.yMm }
+        if (distinct.size < 2) return
+
+        val simplified = simplifyRdp(distinct, RDP_TOLERANCE_MM)
+        val path = smoothToPath(simplified, closed)
+        val poly = path.toPolyline()
+        if (poly.points.size < 2) return
+
+        val center = centerOf(poly.points)
+        val name = s(R.string.ui_draw_layer_name)
+        pushHistory()
+        val layer = Layer(
+            name = name,
+            polylines = listOf(poly),
+            tool = Tool.PEN,
+            visible = true,
+            centerMm = center,
+            editPath = path,
+        )
+        layers = layers + layer
+        selectedLayer = layers.lastIndex
+        markedLayers = emptySet()
+        pruneBoundsCache()
         status = s(R.string.st_shape_added, name)
     }
 
@@ -1617,5 +1664,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         const val MATERIAL_POLL_MS = 700L   // load-gate polling: ~168 s total
         const val START_POLL_ATTEMPTS = 150
         const val START_POLL_MS = 800L      // start-gate polling: ~120 s total
+        // RDP simplification tolerance for freehand strokes (mm).
+        const val RDP_TOLERANCE_MM = 0.6
     }
 }

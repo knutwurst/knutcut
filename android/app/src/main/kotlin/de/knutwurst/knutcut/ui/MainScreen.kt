@@ -150,6 +150,7 @@ import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Bounds
 import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Shapes
+import de.knutwurst.knutcut.ui.EditorTool
 import java.util.Locale
 import kotlin.math.min
 import kotlinx.coroutines.Dispatchers
@@ -222,6 +223,17 @@ fun MainScreen(vm: KnutcutViewModel) {
                 }
                 IconButton(onClick = { vm.redo() }, enabled = vm.canRedo && !vm.cutting) {
                     Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = stringResource(R.string.ui_redo))
+                }
+                // DRAW mode toggle: active = filled/tinted button, inactive = plain icon button.
+                val inDrawMode = vm.editorTool == EditorTool.DRAW
+                if (inDrawMode) {
+                    FilledTonalIconButton(onClick = { vm.editorTool = EditorTool.SELECT }) {
+                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.ui_draw_mode_desc))
+                    }
+                } else {
+                    IconButton(onClick = { vm.editorTool = EditorTool.DRAW }) {
+                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.ui_draw_mode_desc))
+                    }
                 }
                 Box {
                     IconButton(onClick = { showAdd = true }) {
