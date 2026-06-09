@@ -897,6 +897,16 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Convenience wrapper that targets the currently selected layer. */
     fun clearSelectedDeform() = clearLayerDeform(selectedLayer)
 
+    /**
+     * Bounds of the selected layer's deform source geometry (original, pre-warp), or its current
+     * polylines when no deform is active. Returns null when no layer is selected or it has no points.
+     */
+    fun selectedDeformSourceBounds(): Bounds? {
+        val layer = layers.getOrNull(selectedLayer) ?: return null
+        val src = layer.deformSource ?: layer.polylines
+        return Bounds.ofOrNull(src.flatMap { it.points })
+    }
+
     /** Bake a layer's placement into its geometry, so its coordinates already sit where it is drawn. */
     private fun bake(layer: Layer): Layer {
         val m = layerMatrix(layer)

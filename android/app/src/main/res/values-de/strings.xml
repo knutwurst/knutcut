@@ -287,4 +287,13 @@
     <string name="ui_donate_paypal">Mit PayPal spenden</string>
     <string name="ui_changelog">Änderungsverlauf</string>
     <string name="ui_open">Datei/Projekt öffnen</string>
+    <string name="ui_deform">Verformen</string>
+    <string name="ui_deform_circle">Auf Kreis</string>
+    <string name="ui_deform_radius_mm">Radius (mm)</string>
+    <string name="ui_deform_start_angle">Startwinkel (°)</string>
+    <string name="ui_deform_direction">Richtung</string>
+    <string name="ui_deform_inside">Innen</string>
+    <string name="ui_deform_outside">Außen</string>
+    <string name="ui_deform_baseline">Grundlinie</string>
+    <string name="ui_deform_remove">Verformung entfernen</string>
 </resources>

@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import de.knutwurst.knutcut.data.CircleDeform
 import de.knutwurst.knutcut.data.Mat
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Pt
@@ -80,6 +81,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     val handleColor = MaterialTheme.colorScheme.tertiary
     val offMatColor = MaterialTheme.colorScheme.error
     val guideColor = GUIDE_COLOR
+    val deformGuideColor = MaterialTheme.colorScheme.outlineVariant
     val readout = vm.selectionReadout() ?: vm.overallReadout()
     val matSummary = readout?.let { "Arbeitsfläche: $it" } ?: "Arbeitsfläche, Matte ausgewählt"
 
@@ -286,6 +288,19 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
         vm.alignGuideY?.let { gy ->
             val y = s(Pt(0.0, gy)).y
             drawLine(guideColor, Offset(s(Pt(0.0, 0.0)).x, y), Offset(s(Pt(vm.mat.widthMm, 0.0)).x, y), strokeWidth = 1.5f)
+        }
+
+        // Deform guide circle: drawn for the selected layer when it has an active CircleDeform.
+        val deform = vm.layers.getOrNull(vm.selectedLayer)?.deform
+        if (deform is CircleDeform) {
+            val screenCenter = s(Pt(deform.centerXMm, deform.centerYMm))
+            val radiusPx = (deform.radiusMm * ppm).toFloat()
+            drawCircle(
+                color = deformGuideColor,
+                radius = radiusPx,
+                center = screenCenter,
+                style = Stroke(width = 1.5f),
+            )
         }
       }
 

@@ -289,4 +289,13 @@
     <string name="ui_donate_paypal">Donate with PayPal</string>
     <string name="ui_changelog">Changelog</string>
     <string name="ui_open">Open file/project</string>
+    <string name="ui_deform">Warp</string>
+    <string name="ui_deform_circle">On circle</string>
+    <string name="ui_deform_radius_mm">Radius (mm)</string>
+    <string name="ui_deform_start_angle">Start angle (°)</string>
+    <string name="ui_deform_direction">Direction</string>
+    <string name="ui_deform_inside">Inside</string>
+    <string name="ui_deform_outside">Outside</string>
+    <string name="ui_deform_baseline">Baseline</string>
+    <string name="ui_deform_remove">Remove warp</string>
 </resources>

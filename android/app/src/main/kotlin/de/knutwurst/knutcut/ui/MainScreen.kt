@@ -54,6 +54,7 @@ import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -129,6 +130,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import de.knutwurst.knutcut.BuildConfig
 import de.knutwurst.knutcut.R
+import de.knutwurst.knutcut.data.CircleDeform
+import de.knutwurst.knutcut.data.DeformBaseline
+import de.knutwurst.knutcut.data.circleDeformDefault
 import de.knutwurst.knutcut.data.Devices
 import de.knutwurst.knutcut.data.DisplayUnit
 import de.knutwurst.knutcut.data.Materials
@@ -165,6 +169,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     var showNewConfirm by remember { mutableStateOf(false) }
     var showText by remember { mutableStateOf(false) }
     var showLibrary by remember { mutableStateOf(false) }
+    var showDeform by remember { mutableStateOf(false) }
     val fontRepo = remember(context) { FontRepository(context) }
     var showChangelog by remember { mutableStateOf(false) }
     val changelogText = remember { runCatching { context.assets.open("changelog.md").bufferedReader().use { it.readText() } }.getOrDefault("") }
@@ -251,6 +256,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                     onMaterial = { showMaterial = true },
                     onConnectOrCut = { if (vm.connected) showCut = true else openDevices() },
                     onDelete = { showDeleteConfirm = true },
+                    onDeform = { showDeform = true },
                 )
             }
         }
@@ -337,6 +343,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     if (showCut && vm.hasDesign) CutSheet(vm, onDismiss = { showCut = false })
     if (showText) TextDialog(vm, fontRepo, onDismiss = { showText = false })
     if (showLibrary) LibrarySheet(vm, onDismiss = { showLibrary = false })
+    if (showDeform && !vm.matSelected) DeformSheet(vm, onDismiss = { showDeform = false })
 }
 
 /** Add a text layer: type the text, pick a font (outline or single-stroke), choose a height. */
@@ -703,6 +710,7 @@ private fun EditingBar(
     onMaterial: () -> Unit,
     onConnectOrCut: () -> Unit,
     onDelete: () -> Unit,
+    onDeform: () -> Unit,
 ) {
     // Per-layer actions only make sense with a layer selected; greyed out when the mat is selected.
     val perLayer = !vm.matSelected
@@ -717,6 +725,7 @@ private fun EditingBar(
         IconAction(stringResource(R.string.ui_flip_h), Icons.Default.Flip, enabled = perLayer) { vm.mirrorSelectedHorizontal() }
         IconAction(stringResource(R.string.ui_flip_v), Icons.Default.Flip, rotate = 90f, enabled = perLayer) { vm.mirrorSelectedVertical() }
         IconAction(stringResource(R.string.ui_duplicate), Icons.Default.ContentCopy, enabled = perLayer) { vm.duplicateSelected() }
+        IconAction(stringResource(R.string.ui_deform), Icons.Default.AutoFixHigh, enabled = perLayer, onClick = onDeform)
         IconAction(stringResource(R.string.ui_delete), Icons.Default.Delete, enabled = perLayer, onClick = onDelete)
         IconAction(
             if (vm.matSelected) stringResource(R.string.ui_reset_all) else stringResource(R.string.ui_reset_layer),
@@ -756,6 +765,132 @@ private fun AlignmentControls(vm: KnutcutViewModel) {
             OutlinedIconButton(onClick = { vm.alignVertical(-1) }) { Icon(Icons.Default.VerticalAlignTop, stringResource(R.string.ui_top)) }
             OutlinedIconButton(onClick = { vm.alignVertical(0) }) { Icon(Icons.Default.VerticalAlignCenter, stringResource(R.string.ui_center)) }
             OutlinedIconButton(onClick = { vm.alignVertical(1) }) { Icon(Icons.Default.VerticalAlignBottom, stringResource(R.string.ui_bottom)) }
+        }
+    }
+}
+
+/**
+ * Sheet for non-destructive geometric deformation of the selected layer. Currently supports
+ * circle warp; structured so a second mode (path) can be added as a tab later without a rewrite.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DeformSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
+    val sourceBounds = vm.selectedDeformSourceBounds() ?: return
+
+    // Initialise from the layer's existing CircleDeform, or compute sensible defaults.
+    val existingDeform = vm.layers.getOrNull(vm.selectedLayer)?.deform as? CircleDeform
+    val initial = existingDeform ?: circleDeformDefault(sourceBounds)
+
+    var radius by remember { mutableStateOf(initial.radiusMm.toInt().coerceIn(5, 500)) }
+    var startAngle by remember { mutableStateOf(initial.startAngleDeg.toInt().coerceIn(0, 359)) }
+    var clockwise by remember { mutableStateOf(initial.clockwise) }
+    var baseline by remember { mutableStateOf(initial.baseline) }
+
+    // Apply the initial preview once on open: snapshot history once so a single Undo reverts all.
+    LaunchedEffect(Unit) {
+        vm.setSelectedDeform(initial, pushHistory = existingDeform == null)
+    }
+
+    fun currentSpec() = CircleDeform(
+        centerXMm = sourceBounds.let { (it.minX + it.maxX) / 2.0 },
+        centerYMm = sourceBounds.let { (it.minY + it.maxY) / 2.0 },
+        radiusMm = radius.toDouble(),
+        startAngleDeg = startAngle.toDouble(),
+        clockwise = clockwise,
+        baseline = baseline,
+    )
+
+    fun applyLive() {
+        vm.setSelectedDeform(currentSpec(), pushHistory = false)
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(
+            Modifier
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            Text(stringResource(R.string.ui_deform), style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(10.dp))
+
+            // Mode selector — "Auf Kreis" is the only mode for now; space reserved for a second tab.
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = true,
+                    onClick = {},
+                    label = { Text(stringResource(R.string.ui_deform_circle)) },
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Radius
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.ui_deform_radius_mm), Modifier.weight(1f))
+                EditableStepper(radius, 5, 500, step = 1) { radius = it; applyLive() }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Start angle
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.ui_deform_start_angle), Modifier.weight(1f))
+                EditableStepper(startAngle, 0, 359, step = 5) { startAngle = it; applyLive() }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Direction toggle (inside / outside the circle)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.ui_deform_direction), Modifier.weight(1f))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = !clockwise,
+                        onClick = { clockwise = false; applyLive() },
+                        label = { Text(stringResource(R.string.ui_deform_outside)) },
+                    )
+                    FilterChip(
+                        selected = clockwise,
+                        onClick = { clockwise = true; applyLive() },
+                        label = { Text(stringResource(R.string.ui_deform_inside)) },
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Baseline
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.ui_deform_baseline), Modifier.weight(1f))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = baseline == DeformBaseline.TOP,
+                        onClick = { baseline = DeformBaseline.TOP; applyLive() },
+                        label = { Text(stringResource(R.string.ui_top)) },
+                    )
+                    FilterChip(
+                        selected = baseline == DeformBaseline.CENTER,
+                        onClick = { baseline = DeformBaseline.CENTER; applyLive() },
+                        label = { Text(stringResource(R.string.ui_center)) },
+                    )
+                    FilterChip(
+                        selected = baseline == DeformBaseline.BOTTOM,
+                        onClick = { baseline = DeformBaseline.BOTTOM; applyLive() },
+                        label = { Text(stringResource(R.string.ui_bottom)) },
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            TextButton(
+                onClick = { vm.clearSelectedDeform(); onDismiss() },
+                modifier = Modifier.align(Alignment.Start),
+            ) {
+                Text(stringResource(R.string.ui_deform_remove))
+            }
         }
     }
 }
