@@ -1,6 +1,8 @@
 package de.knutwurst.knutcut.data
 
+import de.knutwurst.knutcut.svgcore.ArcLengthPath
 import de.knutwurst.knutcut.svgcore.Bounds
+import de.knutwurst.knutcut.svgcore.EditablePath
 import de.knutwurst.knutcut.svgcore.PathWarp
 import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Pt
@@ -26,6 +28,17 @@ object DeformEngine {
                     radiusMm = spec.radiusMm,
                     startAngleDeg = spec.startAngleDeg,
                     clockwise = spec.clockwise,
+                    baseline = spec.baseline.toSvgcore(),
+                )
+            }
+            is PathDeform -> {
+                val bounds = Bounds.of(pts)
+                val guidePoly = EditablePath(spec.guide, spec.closed).toPolyline()
+                val guide = ArcLengthPath(guidePoly)
+                PathWarp.alongPath(
+                    source = source,
+                    sourceBounds = bounds,
+                    guide = guide,
                     baseline = spec.baseline.toSvgcore(),
                 )
             }

@@ -1,6 +1,8 @@
 package de.knutwurst.knutcut.data
 
 import de.knutwurst.knutcut.svgcore.Bounds
+import de.knutwurst.knutcut.svgcore.PathNode
+import de.knutwurst.knutcut.svgcore.Pt
 import kotlin.math.PI
 
 /** Maps 1:1 to [de.knutwurst.knutcut.svgcore.PathWarp.Baseline]. */
@@ -64,4 +66,74 @@ fun circleDeformDefault(
         clockwise = true,
         baseline = baseline,
     )
+}
+
+// ---------------------------------------------------------------------------
+// PathDeform
+// ---------------------------------------------------------------------------
+
+/**
+ * Warp the source geometry onto an arbitrary Bézier guide path.
+ *
+ * The guide is stored as a list of [PathNode]s (same type as svgcore uses). On each engine run the
+ * nodes are flattened to a polyline, arc-length parameterised, and used by [PathWarp.alongPath].
+ * [closed] is normally false for a bend guide.
+ */
+data class PathDeform(
+    val guide: List<PathNode>,
+    val closed: Boolean = false,
+    val baseline: DeformBaseline,
+) : DeformSpec
+
+/**
+ * Build a [PathDeform] that bends the content along a smooth symmetric arc.
+ *
+ * The guide spans the source width horizontally, starting at the source's left edge and ending at
+ * the right, at the Y coordinate dictated by [baseline]. The midpoint of the guide is shifted
+ * perpendicular to the guide direction by [curvatureMm]:
+ *
+ * - [curvatureMm] = 0 → straight line → identity warp up to arc-length reparameterisation.
+ * - [curvatureMm] > 0 → the guide bows UPWARD (negative Y in screen/plotter coordinates where Y
+ *   increases downward), so the centre of the content lifts while the ends stay in place.
+ * - [curvatureMm] < 0 → the guide bows downward.
+ *
+ * The guide is a 3-node cubic Bézier path: start anchor, mid anchor (the apex of the arc), end
+ * anchor. Symmetric cubic handles on the start and end anchors produce a smooth, kink-free arc.
+ * The handle length is set to 1/3 of the guide width, which gives a good approximation of a
+ * circular arc for moderate curvature values.
+ */
+fun bendDeformDefault(
+    bounds: Bounds,
+    curvatureMm: Double,
+    baseline: DeformBaseline = DeformBaseline.CENTER,
+): PathDeform {
+    val baselineY = when (baseline) {
+        DeformBaseline.TOP    -> bounds.minY
+        DeformBaseline.CENTER -> (bounds.minY + bounds.maxY) / 2.0
+        DeformBaseline.BOTTOM -> bounds.maxY
+    }
+    val x0 = bounds.minX
+    val x1 = bounds.maxX
+    val xMid = (x0 + x1) / 2.0
+    val width = bounds.widthMm.coerceAtLeast(1.0)
+    // Handle length: 1/3 of the half-width gives a smooth arc without over-shooting.
+    val handleLen = width / 3.0
+
+    // Start node: anchor at (x0, baselineY), handle pointing right.
+    val start = PathNode(
+        anchor = Pt(x0, baselineY),
+        handleOut = Pt(x0 + handleLen, baselineY),
+    )
+    // Mid node: apex shifted by -curvatureMm in Y (negative because Y-down means up is negative).
+    val mid = PathNode(
+        anchor = Pt(xMid, baselineY - curvatureMm),
+        handleIn  = Pt(xMid - handleLen, baselineY - curvatureMm),
+        handleOut = Pt(xMid + handleLen, baselineY - curvatureMm),
+    )
+    // End node: anchor at (x1, baselineY), handle pointing left (mirror of start).
+    val end = PathNode(
+        anchor = Pt(x1, baselineY),
+        handleIn = Pt(x1 - handleLen, baselineY),
+    )
+    return PathDeform(guide = listOf(start, mid, end), closed = false, baseline = baseline)
 }

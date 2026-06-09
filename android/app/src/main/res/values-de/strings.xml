@@ -296,4 +296,6 @@
     <string name="ui_deform_outside">Außen</string>
     <string name="ui_deform_baseline">Grundlinie</string>
     <string name="ui_deform_remove">Verformung entfernen</string>
+    <string name="ui_deform_arc">Bogen</string>
+    <string name="ui_deform_curvature">Krümmung (mm)</string>
 </resources>

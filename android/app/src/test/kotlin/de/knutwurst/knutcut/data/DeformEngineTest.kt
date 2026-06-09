@@ -1,9 +1,11 @@
 package de.knutwurst.knutcut.data
 
+import de.knutwurst.knutcut.svgcore.Bounds
 import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Pt
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.PI
 import kotlin.math.hypot
@@ -59,5 +61,76 @@ class DeformEngineTest {
         // A polyline with empty points list has no points, so no warp should occur.
         val source = listOf(Polyline(emptyList(), closed = false))
         assertSame(source, DeformEngine.apply(spec, source))
+    }
+
+    // ---------------------------------------------------------------------------
+    // PathDeform tests
+    // ---------------------------------------------------------------------------
+
+    @Test
+    fun pathDeformZeroCurvatureBaselinePointsStayOnGuide() {
+        // With zero curvature the guide is a horizontal line at baselineY.
+        // Points exactly on the baseline (v=0) map back to the guide y — no displacement.
+        val bounds = Bounds(0.0, 0.0, 100.0, 20.0)
+        val baselineY = 10.0  // CENTER of bounds
+        val spec = bendDeformDefault(bounds, curvatureMm = 0.0, DeformBaseline.CENTER)
+        val source = listOf(
+            Polyline(listOf(Pt(0.0, baselineY), Pt(50.0, baselineY), Pt(100.0, baselineY)), closed = false),
+        )
+        val result = DeformEngine.apply(spec, source)
+        // Baseline points must land at the guide y (within reparameterisation tolerance).
+        for (p in result[0].points) {
+            assertEquals("baseline point stays on guide y", baselineY, p.yMm, 0.5)
+        }
+    }
+
+    @Test
+    fun pathDeformOffsetIsProportionalToV() {
+        // A point offset from the baseline by delta should be offset from the guide by ~delta.
+        // For a horizontal guide the normal is (0,+1) in Pt-space (Y-down), so above-baseline
+        // content (v < 0) is pushed DOWN, and below-baseline (v > 0) is pushed UP.
+        val bounds = Bounds(0.0, 0.0, 100.0, 20.0)
+        val baselineY = 10.0
+        val spec = bendDeformDefault(bounds, curvatureMm = 0.0, DeformBaseline.CENTER)
+        val delta = 4.0
+        val source = listOf(
+            // One point above baseline (y = baselineY - delta, v = -delta)
+            Polyline(listOf(Pt(50.0, baselineY - delta), Pt(50.0, baselineY - delta)), closed = false),
+            // One point below baseline (y = baselineY + delta, v = +delta)
+            Polyline(listOf(Pt(50.0, baselineY + delta), Pt(50.0, baselineY + delta)), closed = false),
+        )
+        val result = DeformEngine.apply(spec, source)
+        // Above-baseline (v = -delta) maps to guideY - normal * (-v) => guideY + delta => y = 14
+        val expectedAbove = baselineY + delta
+        // Below-baseline (v = +delta) maps to guideY - normal * (-v) => guideY - delta => y = 6
+        val expectedBelow = baselineY - delta
+        for (p in result[0].points) assertEquals("above-baseline point offset", expectedAbove, p.yMm, 0.5)
+        for (p in result[1].points) assertEquals("below-baseline point offset", expectedBelow, p.yMm, 0.5)
+    }
+
+    @Test
+    fun pathDeformPositiveCurvatureLiftsCentre() {
+        // With positive curvature the guide bows upward, so a point at the horizontal centre
+        // of the source should land above its original y position.
+        val bounds = Bounds(0.0, 0.0, 100.0, 20.0)
+        val curvature = 30.0
+        val spec = bendDeformDefault(bounds, curvatureMm = curvature, DeformBaseline.CENTER)
+        val baselineY = 10.0
+        // A single point right at the centre of the source, on the baseline.
+        val source = listOf(Polyline(listOf(Pt(0.0, baselineY), Pt(50.0, baselineY), Pt(100.0, baselineY)), closed = false))
+        val result = DeformEngine.apply(spec, source)
+        val pts = result[0].points
+        // The centre point (index 1) should be noticeably above (smaller y) the end points.
+        val yEnds = (pts.first().yMm + pts.last().yMm) / 2.0
+        val yCentre = pts[1].yMm
+        assertTrue("centre is above ends with positive curvature", yCentre < yEnds - 1.0)
+    }
+
+    @Test
+    fun pathDeformEmptySourceReturnedUnchanged() {
+        val bounds = Bounds(0.0, 0.0, 50.0, 10.0)
+        val spec = bendDeformDefault(bounds, curvatureMm = 10.0, DeformBaseline.CENTER)
+        val empty = emptyList<Polyline>()
+        assertSame(empty, DeformEngine.apply(spec, empty))
     }
 }

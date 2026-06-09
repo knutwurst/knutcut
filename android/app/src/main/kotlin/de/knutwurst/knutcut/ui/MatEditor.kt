@@ -36,7 +36,9 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import de.knutwurst.knutcut.data.CircleDeform
 import de.knutwurst.knutcut.data.Mat
+import de.knutwurst.knutcut.data.PathDeform
 import de.knutwurst.knutcut.data.Tool
+import de.knutwurst.knutcut.svgcore.EditablePath
 import de.knutwurst.knutcut.svgcore.Pt
 import kotlin.math.atan2
 import kotlin.math.min
@@ -290,17 +292,33 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
             drawLine(guideColor, Offset(s(Pt(0.0, 0.0)).x, y), Offset(s(Pt(vm.mat.widthMm, 0.0)).x, y), strokeWidth = 1.5f)
         }
 
-        // Deform guide circle: drawn for the selected layer when it has an active CircleDeform.
+        // Deform guide: drawn for the selected layer when it has an active deform spec.
         val deform = vm.layers.getOrNull(vm.selectedLayer)?.deform
-        if (deform is CircleDeform) {
-            val screenCenter = s(Pt(deform.centerXMm, deform.centerYMm))
-            val radiusPx = (deform.radiusMm * ppm).toFloat()
-            drawCircle(
-                color = deformGuideColor,
-                radius = radiusPx,
-                center = screenCenter,
-                style = Stroke(width = 1.5f),
-            )
+        when (deform) {
+            is CircleDeform -> {
+                val screenCenter = s(Pt(deform.centerXMm, deform.centerYMm))
+                val radiusPx = (deform.radiusMm * ppm).toFloat()
+                drawCircle(
+                    color = deformGuideColor,
+                    radius = radiusPx,
+                    center = screenCenter,
+                    style = Stroke(width = 1.5f),
+                )
+            }
+            is PathDeform -> {
+                val guidePts = EditablePath(deform.guide, deform.closed).toPolyline().points
+                if (guidePts.size >= 2) {
+                    for (i in 0 until guidePts.size - 1) {
+                        drawLine(
+                            color = deformGuideColor,
+                            start = s(guidePts[i]),
+                            end = s(guidePts[i + 1]),
+                            strokeWidth = 1.5f,
+                        )
+                    }
+                }
+            }
+            else -> Unit
         }
       }
 

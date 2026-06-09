@@ -132,6 +132,8 @@ import de.knutwurst.knutcut.BuildConfig
 import de.knutwurst.knutcut.R
 import de.knutwurst.knutcut.data.CircleDeform
 import de.knutwurst.knutcut.data.DeformBaseline
+import de.knutwurst.knutcut.data.PathDeform
+import de.knutwurst.knutcut.data.bendDeformDefault
 import de.knutwurst.knutcut.data.circleDeformDefault
 import de.knutwurst.knutcut.data.Devices
 import de.knutwurst.knutcut.data.DisplayUnit
@@ -769,40 +771,78 @@ private fun AlignmentControls(vm: KnutcutViewModel) {
     }
 }
 
+private enum class DeformMode { CIRCLE, ARC }
+
 /**
- * Sheet for non-destructive geometric deformation of the selected layer. Currently supports
- * circle warp; structured so a second mode (path) can be added as a tab later without a rewrite.
+ * Sheet for non-destructive geometric deformation of the selected layer. Supports circle warp
+ * and arc/bend warp; structured so additional modes can be added as tabs without a full rewrite.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+@Suppress("NAME_SHADOWING")
 private fun DeformSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
     val sourceBounds = vm.selectedDeformSourceBounds() ?: return
 
-    // Initialise from the layer's existing CircleDeform, or compute sensible defaults.
-    val existingDeform = vm.layers.getOrNull(vm.selectedLayer)?.deform as? CircleDeform
-    val initial = existingDeform ?: circleDeformDefault(sourceBounds)
+    val existingDeform = vm.layers.getOrNull(vm.selectedLayer)?.deform
 
-    var radius by remember { mutableStateOf(initial.radiusMm.toInt().coerceIn(5, 500)) }
-    var startAngle by remember { mutableStateOf(initial.startAngleDeg.toInt().coerceIn(0, 359)) }
-    var clockwise by remember { mutableStateOf(initial.clockwise) }
-    var baseline by remember { mutableStateOf(initial.baseline) }
-
-    // Apply the initial preview once on open: snapshot history once so a single Undo reverts all.
-    LaunchedEffect(Unit) {
-        vm.setSelectedDeform(initial, pushHistory = existingDeform == null)
+    // Determine the opening mode and seed control values from the existing spec (if any).
+    val openMode = when (existingDeform) {
+        is PathDeform -> DeformMode.ARC
+        else          -> DeformMode.CIRCLE
     }
 
-    fun currentSpec() = CircleDeform(
-        centerXMm = sourceBounds.let { (it.minX + it.maxX) / 2.0 },
-        centerYMm = sourceBounds.let { (it.minY + it.maxY) / 2.0 },
+    var mode by remember { mutableStateOf(openMode) }
+
+    // Circle controls
+    val circleInitial = (existingDeform as? CircleDeform) ?: circleDeformDefault(sourceBounds)
+    var radius by remember { mutableStateOf(circleInitial.radiusMm.toInt().coerceIn(5, 500)) }
+    var startAngle by remember { mutableStateOf(circleInitial.startAngleDeg.toInt().coerceIn(0, 359)) }
+    var clockwise by remember { mutableStateOf(circleInitial.clockwise) }
+
+    // Arc controls
+    val arcInitial = (existingDeform as? PathDeform)
+    var curvature by remember { mutableStateOf(arcInitial?.let {
+        // Recover the curvature from the midpoint node offset.
+        val baselineY = when (it.baseline) {
+            DeformBaseline.TOP    -> sourceBounds.minY
+            DeformBaseline.CENTER -> (sourceBounds.minY + sourceBounds.maxY) / 2.0
+            DeformBaseline.BOTTOM -> sourceBounds.maxY
+        }
+        val midAnchorY = it.guide.getOrNull(1)?.anchor?.yMm ?: baselineY
+        // curvatureMm = baselineY - midAnchorY (positive = bows up)
+        (baselineY - midAnchorY).toInt()
+    } ?: 0) }
+
+    // Shared baseline state — seeded from whichever spec is active.
+    var baseline by remember {
+        mutableStateOf(
+            (existingDeform as? CircleDeform)?.baseline
+                ?: (existingDeform as? PathDeform)?.baseline
+                ?: DeformBaseline.CENTER
+        )
+    }
+
+    fun circleSpec() = CircleDeform(
+        centerXMm = (sourceBounds.minX + sourceBounds.maxX) / 2.0,
+        centerYMm = (sourceBounds.minY + sourceBounds.maxY) / 2.0,
         radiusMm = radius.toDouble(),
         startAngleDeg = startAngle.toDouble(),
         clockwise = clockwise,
         baseline = baseline,
     )
 
-    fun applyLive() {
-        vm.setSelectedDeform(currentSpec(), pushHistory = false)
+    fun arcSpec() = bendDeformDefault(sourceBounds, curvature.toDouble(), baseline)
+
+    fun currentSpec() = when (mode) {
+        DeformMode.CIRCLE -> circleSpec()
+        DeformMode.ARC    -> arcSpec()
+    }
+
+    fun applyLive() { vm.setSelectedDeform(currentSpec(), pushHistory = false) }
+
+    // Push one history snapshot on open (so a single Undo reverts all changes from this sheet).
+    LaunchedEffect(Unit) {
+        vm.setSelectedDeform(currentSpec(), pushHistory = existingDeform == null)
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
@@ -815,53 +855,70 @@ private fun DeformSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             Text(stringResource(R.string.ui_deform), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(10.dp))
 
-            // Mode selector — "Auf Kreis" is the only mode for now; space reserved for a second tab.
+            // Mode selector: "Auf Kreis" / "Bogen"
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
-                    selected = true,
-                    onClick = {},
+                    selected = mode == DeformMode.CIRCLE,
+                    onClick = { if (mode != DeformMode.CIRCLE) { mode = DeformMode.CIRCLE; applyLive() } },
                     label = { Text(stringResource(R.string.ui_deform_circle)) },
+                )
+                FilterChip(
+                    selected = mode == DeformMode.ARC,
+                    onClick = { if (mode != DeformMode.ARC) { mode = DeformMode.ARC; applyLive() } },
+                    label = { Text(stringResource(R.string.ui_deform_arc)) },
                 )
             }
 
             Spacer(Modifier.height(12.dp))
 
-            // Radius
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.ui_deform_radius_mm), Modifier.weight(1f))
-                EditableStepper(radius, 5, 500, step = 1) { radius = it; applyLive() }
-            }
+            when (mode) {
+                DeformMode.CIRCLE -> {
+                    // Radius
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.ui_deform_radius_mm), Modifier.weight(1f))
+                        EditableStepper(radius, 5, 500, step = 1) { radius = it; applyLive() }
+                    }
 
-            Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(8.dp))
 
-            // Start angle
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.ui_deform_start_angle), Modifier.weight(1f))
-                EditableStepper(startAngle, 0, 359, step = 5) { startAngle = it; applyLive() }
-            }
+                    // Start angle
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.ui_deform_start_angle), Modifier.weight(1f))
+                        EditableStepper(startAngle, 0, 359, step = 5) { startAngle = it; applyLive() }
+                    }
 
-            Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(8.dp))
 
-            // Direction toggle (inside / outside the circle)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.ui_deform_direction), Modifier.weight(1f))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = !clockwise,
-                        onClick = { clockwise = false; applyLive() },
-                        label = { Text(stringResource(R.string.ui_deform_outside)) },
-                    )
-                    FilterChip(
-                        selected = clockwise,
-                        onClick = { clockwise = true; applyLive() },
-                        label = { Text(stringResource(R.string.ui_deform_inside)) },
-                    )
+                    // Direction toggle (inside / outside the circle)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.ui_deform_direction), Modifier.weight(1f))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = !clockwise,
+                                onClick = { clockwise = false; applyLive() },
+                                label = { Text(stringResource(R.string.ui_deform_outside)) },
+                            )
+                            FilterChip(
+                                selected = clockwise,
+                                onClick = { clockwise = true; applyLive() },
+                                label = { Text(stringResource(R.string.ui_deform_inside)) },
+                            )
+                        }
+                    }
+                }
+
+                DeformMode.ARC -> {
+                    // Curvature slider: -200..200 mm, 0 = straight.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.ui_deform_curvature), Modifier.weight(1f))
+                        EditableStepper(curvature, -200, 200, step = 5) { curvature = it; applyLive() }
+                    }
                 }
             }
 
             Spacer(Modifier.height(8.dp))
 
-            // Baseline
+            // Shared baseline chips
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.ui_deform_baseline), Modifier.weight(1f))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

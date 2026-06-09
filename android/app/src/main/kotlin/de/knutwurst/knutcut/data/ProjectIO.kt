@@ -1,5 +1,6 @@
 package de.knutwurst.knutcut.data
 
+import de.knutwurst.knutcut.svgcore.PathNode
 import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Pt
 import org.json.JSONArray
@@ -109,6 +110,40 @@ object ProjectIO {
             put("cw", spec.clockwise)
             put("base", spec.baseline.name)
         }
+        is PathDeform -> JSONObject().apply {
+            put("type", "path")
+            put("closed", spec.closed)
+            put("base", spec.baseline.name)
+            val nodes = JSONArray()
+            spec.guide.forEach { node ->
+                val n = JSONObject()
+                n.put("ax", node.anchor.xMm)
+                n.put("ay", node.anchor.yMm)
+                node.handleIn?.let  { n.put("inx",  it.xMm); n.put("iny",  it.yMm) }
+                node.handleOut?.let { n.put("outx", it.xMm); n.put("outy", it.yMm) }
+                nodes.put(n)
+            }
+            put("nodes", nodes)
+        }
+    }
+
+    private fun deserializePathDeform(o: JSONObject): PathDeform? {
+        val nodesArr = o.optJSONArray("nodes") ?: return null
+        val nodes = ArrayList<PathNode>(nodesArr.length())
+        for (i in 0 until nodesArr.length()) {
+            val n = nodesArr.optJSONObject(i) ?: continue
+            val anchor = Pt(n.optDouble("ax"), n.optDouble("ay"))
+            val handleIn  = if (n.has("inx"))  Pt(n.optDouble("inx"),  n.optDouble("iny"))  else null
+            val handleOut = if (n.has("outx")) Pt(n.optDouble("outx"), n.optDouble("outy")) else null
+            nodes.add(PathNode(anchor, handleIn, handleOut))
+        }
+        if (nodes.isEmpty()) return null
+        return PathDeform(
+            guide = nodes,
+            closed = o.optBoolean("closed", false),
+            baseline = runCatching { DeformBaseline.valueOf(o.optString("base")) }
+                .getOrDefault(DeformBaseline.CENTER),
+        )
     }
 
     private fun deserializeDeform(o: JSONObject): DeformSpec? = when (o.optString("type")) {
@@ -121,6 +156,7 @@ object ProjectIO {
             baseline = runCatching { DeformBaseline.valueOf(o.optString("base")) }
                 .getOrDefault(DeformBaseline.BOTTOM),
         )
+        "path" -> deserializePathDeform(o)
         else -> null
     }
 }
