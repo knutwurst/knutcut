@@ -17,6 +17,8 @@ data class PathNode(
     val anchor: Pt,
     val handleIn: Pt? = null,
     val handleOut: Pt? = null,
+    /** When true the handles are kept collinear (C1-smooth). Default false = corner. */
+    val smooth: Boolean = false,
 )
 
 /**
