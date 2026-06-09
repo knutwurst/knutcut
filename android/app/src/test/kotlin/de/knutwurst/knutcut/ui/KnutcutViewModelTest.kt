@@ -124,6 +124,19 @@ class KnutcutViewModelTest {
     }
 
     @Test
+    fun addLibrarySvgClosesAllContoursSoTheyAreCuttable() {
+        val vm = vm()
+        // "Ab Testing" has subpaths without a trailing Z (inner counters): they must still be
+        // imported as closed contours, otherwise the plotter cuts open lines.
+        val abTesting = PlotterSvgLibrary.items.first { it.id == "mdi-ab-testing" }
+
+        vm.addLibrarySvg(abTesting.name, abTesting.svg)
+
+        assertEquals(1, vm.layers.size)
+        assertTrue("every contour must be closed for cutting", vm.layers[0].polylines.all { it.closed })
+    }
+
+    @Test
     fun cutCopiesIsClamped() {
         val vm = vm()
         vm.changeCutCopies(0)

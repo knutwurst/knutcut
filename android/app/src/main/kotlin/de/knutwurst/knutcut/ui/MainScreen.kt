@@ -115,7 +115,6 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -579,7 +578,7 @@ private fun LibraryItem(item: PlotterSvgItem, onClick: () -> Unit) {
     val polylines by produceState(initialValue = emptyList<Polyline>(), item.id) {
         value = withContext(Dispatchers.Default) { PlotterSvgPreviewCache.preview(item.id, item.svg) }
     }
-    val fill = MaterialTheme.colorScheme.onSurface
+    val stroke = MaterialTheme.colorScheme.primary
     Surface(
         shape = RoundedCornerShape(8.dp),
         tonalElevation = 1.dp,
@@ -593,16 +592,16 @@ private fun LibraryItem(item: PlotterSvgItem, onClick: () -> Unit) {
             Canvas(
                 modifier = Modifier.fillMaxWidth().weight(1f),
             ) {
-                drawLibraryPreview(polylines, fill)
+                drawLibraryPreview(polylines, stroke)
             }
             Text(item.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
-/** Draws the motif as it is actually cut: closed contours are filled with an even-odd rule (so
- *  interior holes show through), matching the silhouette the plotter produces, rather than thin
- *  outlines that misrepresent a filled glyph. Open contours (rare) are stroked. */
+/** Draws the motif as its outline — the toolpath the plotter actually traces. Each contour is
+ *  stroked (and closed if it is a closed contour), which mirrors the cut far better than a solid
+ *  fill: a cutter follows paths, not fills. */
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawLibraryPreview(polylines: List<Polyline>, color: Color) {
     if (polylines.isEmpty()) return
     val points = polylines.flatMap { it.points }
@@ -614,21 +613,18 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawLibraryPreview(
     val scale = min(usableW / bounds.widthMm.toFloat(), usableH / bounds.heightMm.toFloat())
     val ox = (size.width - bounds.widthMm.toFloat() * scale) / 2f - bounds.minX.toFloat() * scale
     val oy = (size.height - bounds.heightMm.toFloat() * scale) / 2f - bounds.minY.toFloat() * scale
-    val fillPath = Path().apply { fillType = PathFillType.EvenOdd }
-    val strokePath = Path()
     for (pl in polylines) {
         if (pl.points.size < 2) continue
-        val target = if (pl.closed) fillPath else strokePath
+        val path = Path()
         val first = pl.points.first()
-        target.moveTo(first.xMm.toFloat() * scale + ox, first.yMm.toFloat() * scale + oy)
+        path.moveTo(first.xMm.toFloat() * scale + ox, first.yMm.toFloat() * scale + oy)
         for (i in 1 until pl.points.size) {
             val p = pl.points[i]
-            target.lineTo(p.xMm.toFloat() * scale + ox, p.yMm.toFloat() * scale + oy)
+            path.lineTo(p.xMm.toFloat() * scale + ox, p.yMm.toFloat() * scale + oy)
         }
-        if (pl.closed) target.close()
+        if (pl.closed) path.close()
+        drawPath(path, color, style = Stroke(width = 2.4f))
     }
-    drawPath(fillPath, color)
-    drawPath(strokePath, color, style = Stroke(width = 2.4f))
 }
 
 @Composable

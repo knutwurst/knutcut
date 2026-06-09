@@ -3,6 +3,13 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.55.1
+- Fix: library motifs now cut as closed contours. Filled icons (Material Design Icons) often omit
+  the closing command on inner shapes because the fill closes them implicitly; those contours were
+  being cut as open lines (e.g. the counters in "Ab Testing"). Every motif contour is now closed.
+- Library previews are back to outlines (the path the plotter traces) instead of filled silhouettes,
+  which also makes open contours visible at a glance.
+
 ## 0.55.0
 - New SVG motif library: 7,600+ offline motifs (Material Design Icons, Apache-2.0, via Iconify),
   searchable with categories and previews; a chosen motif is inserted as one grouped layer.

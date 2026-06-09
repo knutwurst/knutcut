@@ -21,10 +21,13 @@ object PlotterSvgPreviewCache {
     @Synchronized private fun get(id: String): List<Polyline>? = cache[id]
     @Synchronized private fun put(id: String, value: List<Polyline>) { cache[id] = value }
 
-    /** Parsed polylines for [svg], cached by [id]. Safe to call from a background thread. */
+    /** Parsed polylines for [svg], cached by [id]. Safe to call from a background thread.
+     *  Contours are force-closed to match how the motif is cut (filled glyphs close implicitly;
+     *  see KnutcutViewModel.mergeLibraryLayers), so the outline preview shows the real cut path. */
     fun preview(id: String, svg: String): List<Polyline> {
         get(id)?.let { return it }
         val parsed = runCatching { SvgParser.parse(svg) }.getOrDefault(emptyList())
+            .map { if (it.closed) it else it.copy(closed = true) }
         put(id, parsed)
         return parsed
     }

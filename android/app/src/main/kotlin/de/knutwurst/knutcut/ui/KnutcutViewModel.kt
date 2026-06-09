@@ -513,7 +513,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     private class ParsedDesign(val layers: List<Layer>, val skipped: Int)
 
     private fun mergeLibraryLayers(name: String, parsedLayers: List<Layer>): Layer {
-        val polylines = parsedLayers.flatMap { it.polylines }
+        // Library motifs are filled glyphs (fill, no stroke): SVG closes each subpath implicitly when
+        // filling, so authors often omit the trailing "Z". For cutting we must close every contour,
+        // otherwise the plotter leaves open lines (e.g. the inner counters of "Ab Testing").
+        val polylines = parsedLayers.flatMap { it.polylines }.map { if (it.closed) it else it.copy(closed = true) }
         val colors = parsedLayers.flatMap { it.colorList() }
         val singleColor = colors.firstOrNull()?.takeIf { c -> colors.all { it == c } }
         return Layer(
