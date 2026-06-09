@@ -115,6 +115,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -492,6 +493,7 @@ private fun LibrarySheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                             items(items, key = { it.id }) { item ->
                                 LibraryItem(
                                     item = item,
+                                    filled = vm.colorMode == ColorMode.COLOR,
                                     onClick = {
                                         vm.addLibrarySvg(item.name, item.svg)
                                         onDismiss()
@@ -573,12 +575,14 @@ private fun LibraryGridScrollbar(state: LazyGridState, modifier: Modifier = Modi
 }
 
 @Composable
-private fun LibraryItem(item: PlotterSvgItem, onClick: () -> Unit) {
+private fun LibraryItem(item: PlotterSvgItem, filled: Boolean, onClick: () -> Unit) {
     // Parse off the main thread and memoise; scrolling never blocks the UI or re-parses a seen item.
     val polylines by produceState(initialValue = emptyList<Polyline>(), item.id) {
         value = withContext(Dispatchers.Default) { PlotterSvgPreviewCache.preview(item.id, item.svg) }
     }
-    val stroke = MaterialTheme.colorScheme.primary
+    // Follows the global display toggle: "Farbig" → filled silhouette, "Nur Outline" → toolpath.
+    // The motifs carry no colour of their own (currentColor), so the fill uses a neutral theme tint.
+    val color = if (filled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary
     Surface(
         shape = RoundedCornerShape(8.dp),
         tonalElevation = 1.dp,
@@ -592,17 +596,18 @@ private fun LibraryItem(item: PlotterSvgItem, onClick: () -> Unit) {
             Canvas(
                 modifier = Modifier.fillMaxWidth().weight(1f),
             ) {
-                drawLibraryPreview(polylines, stroke)
+                drawLibraryPreview(polylines, color, filled)
             }
             Text(item.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
-/** Draws the motif as its outline — the toolpath the plotter actually traces. Each contour is
- *  stroked (and closed if it is a closed contour), which mirrors the cut far better than a solid
- *  fill: a cutter follows paths, not fills. */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawLibraryPreview(polylines: List<Polyline>, color: Color) {
+/** Renders the motif following the global display mode. [filled] (the "Farbig" setting) shows the
+ *  silhouette filled with an even-odd rule so interior holes carve through, matching the cut-out
+ *  piece; otherwise each contour is stroked — the toolpath the plotter traces. Open contours are
+ *  always stroked. */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawLibraryPreview(polylines: List<Polyline>, color: Color, filled: Boolean) {
     if (polylines.isEmpty()) return
     val points = polylines.flatMap { it.points }
     val bounds = Bounds.ofOrNull(points) ?: return
@@ -613,17 +618,32 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawLibraryPreview(
     val scale = min(usableW / bounds.widthMm.toFloat(), usableH / bounds.heightMm.toFloat())
     val ox = (size.width - bounds.widthMm.toFloat() * scale) / 2f - bounds.minX.toFloat() * scale
     val oy = (size.height - bounds.heightMm.toFloat() * scale) / 2f - bounds.minY.toFloat() * scale
-    for (pl in polylines) {
-        if (pl.points.size < 2) continue
-        val path = Path()
+
+    fun Path.trace(pl: Polyline) {
         val first = pl.points.first()
-        path.moveTo(first.xMm.toFloat() * scale + ox, first.yMm.toFloat() * scale + oy)
+        moveTo(first.xMm.toFloat() * scale + ox, first.yMm.toFloat() * scale + oy)
         for (i in 1 until pl.points.size) {
             val p = pl.points[i]
-            path.lineTo(p.xMm.toFloat() * scale + ox, p.yMm.toFloat() * scale + oy)
+            lineTo(p.xMm.toFloat() * scale + ox, p.yMm.toFloat() * scale + oy)
         }
-        if (pl.closed) path.close()
-        drawPath(path, color, style = Stroke(width = 2.4f))
+        if (pl.closed) close()
+    }
+
+    if (filled) {
+        val fillPath = Path().apply { fillType = PathFillType.EvenOdd }
+        val openPath = Path()
+        for (pl in polylines) {
+            if (pl.points.size < 2) continue
+            (if (pl.closed) fillPath else openPath).trace(pl)
+        }
+        drawPath(fillPath, color)
+        drawPath(openPath, color, style = Stroke(width = 2.4f))
+    } else {
+        for (pl in polylines) {
+            if (pl.points.size < 2) continue
+            val path = Path().apply { trace(pl) }
+            drawPath(path, color, style = Stroke(width = 2.4f))
+        }
     }
 }
 

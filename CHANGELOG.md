@@ -3,6 +3,11 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.55.2
+- Library previews follow the display setting: "Farbig" shows a filled silhouette, "Nur Outline"
+  shows the outline (the toolpath). The motifs have no colour of their own, so the fill uses a
+  neutral tint.
+
 ## 0.55.1
 - Fix: library motifs now cut as closed contours. Filled icons (Material Design Icons) often omit
   the closing command on inner shapes because the fill closes them implicitly; those contours were
