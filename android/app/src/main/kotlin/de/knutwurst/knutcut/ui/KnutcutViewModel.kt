@@ -32,6 +32,7 @@ import de.knutwurst.knutcut.data.PlotterSvgItem
 import de.knutwurst.knutcut.data.PlotterSvgLibrary
 import de.knutwurst.knutcut.data.DeformEngine
 import de.knutwurst.knutcut.data.DeformSpec
+import de.knutwurst.knutcut.data.EnvelopeDeform
 import de.knutwurst.knutcut.data.Settings
 import de.knutwurst.knutcut.data.ThemeMode
 import de.knutwurst.knutcut.data.Tool
@@ -87,8 +88,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Editor interaction mode: normal SELECT/move/resize, freehand DRAW, or node editor NODES. */
-enum class EditorTool { SELECT, DRAW, NODES }
+/** Editor interaction mode: normal SELECT/move/resize, freehand DRAW, node editor NODES, or ENVELOPE cage warp. */
+enum class EditorTool { SELECT, DRAW, NODES, ENVELOPE }
 
 class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -747,6 +748,37 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      * the continuous drag updates don't add more steps.
      */
     fun beginNodeEdit() { pushHistory() }
+
+    /**
+     * Snapshot history once at the start of a deform-edit gesture (envelope corner drag, etc.).
+     * Identical to [beginNodeEdit] but named for clarity at the call site.
+     */
+    fun beginDeformEdit() { pushHistory() }
+
+    // -------------------------------------------------------------------------
+    // Envelope editor (EditorTool.ENVELOPE)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Move one corner of the selected layer's [EnvelopeDeform] to [toLocal] (layer-local coords).
+     *
+     * [corner] 0 = TL, 1 = TR, 2 = BR, 3 = BL.  No-op when the selected layer has no
+     * [EnvelopeDeform] active, the index is out of range, or no layer is selected.
+     * Does NOT push history — call [beginDeformEdit] once at the start of the drag gesture.
+     */
+    fun moveEnvelopeCorner(corner: Int, toLocal: Pt) {
+        val i = selectedLayer
+        if (i !in layers.indices) return
+        val spec = layers[i].deform as? EnvelopeDeform ?: return
+        val updated = when (corner) {
+            0 -> spec.copy(tl = toLocal)
+            1 -> spec.copy(tr = toLocal)
+            2 -> spec.copy(br = toLocal)
+            3 -> spec.copy(bl = toLocal)
+            else -> return
+        }
+        setLayerDeform(i, updated, pushHistory = false)
+    }
 
     /** Move anchor [i] to [toLocal] (local coords). Does not push history — caller does that. */
     fun moveSelectedAnchor(i: Int, toLocal: Pt) {

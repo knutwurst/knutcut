@@ -133,9 +133,12 @@ import de.knutwurst.knutcut.BuildConfig
 import de.knutwurst.knutcut.R
 import de.knutwurst.knutcut.data.CircleDeform
 import de.knutwurst.knutcut.data.DeformBaseline
+import de.knutwurst.knutcut.data.DeformSpec
+import de.knutwurst.knutcut.data.EnvelopeDeform
 import de.knutwurst.knutcut.data.PathDeform
 import de.knutwurst.knutcut.data.bendDeformDefault
 import de.knutwurst.knutcut.data.circleDeformDefault
+import de.knutwurst.knutcut.data.envelopeDeformDefault
 import de.knutwurst.knutcut.data.Devices
 import de.knutwurst.knutcut.data.DisplayUnit
 import de.knutwurst.knutcut.data.Materials
@@ -804,7 +807,7 @@ private fun AlignmentControls(vm: KnutcutViewModel) {
     }
 }
 
-private enum class DeformMode { CIRCLE, ARC }
+private enum class DeformMode { CIRCLE, ARC, ENVELOPE }
 
 /**
  * Sheet for non-destructive geometric deformation of the selected layer. Supports circle warp
@@ -820,8 +823,9 @@ private fun DeformSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
 
     // Determine the opening mode and seed control values from the existing spec (if any).
     val openMode = when (existingDeform) {
-        is PathDeform -> DeformMode.ARC
-        else          -> DeformMode.CIRCLE
+        is PathDeform     -> DeformMode.ARC
+        is EnvelopeDeform -> DeformMode.ENVELOPE
+        else              -> DeformMode.CIRCLE
     }
 
     var mode by remember { mutableStateOf(openMode) }
@@ -866,16 +870,20 @@ private fun DeformSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
 
     fun arcSpec() = bendDeformDefault(sourceBounds, curvature.toDouble(), baseline)
 
-    fun currentSpec() = when (mode) {
-        DeformMode.CIRCLE -> circleSpec()
-        DeformMode.ARC    -> arcSpec()
+    fun currentSpec(): DeformSpec? = when (mode) {
+        DeformMode.CIRCLE   -> circleSpec()
+        DeformMode.ARC      -> arcSpec()
+        DeformMode.ENVELOPE -> null  // envelope is applied on mode-select, not here
     }
 
-    fun applyLive() { vm.setSelectedDeform(currentSpec(), pushHistory = false) }
+    fun applyLive() { val spec = currentSpec(); if (spec != null) vm.setSelectedDeform(spec, pushHistory = false) }
 
     // Push one history snapshot on open (so a single Undo reverts all changes from this sheet).
     LaunchedEffect(Unit) {
-        vm.setSelectedDeform(currentSpec(), pushHistory = existingDeform == null)
+        if (mode != DeformMode.ENVELOPE) {
+            val spec = currentSpec()
+            if (spec != null) vm.setSelectedDeform(spec, pushHistory = existingDeform == null)
+        }
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
@@ -888,7 +896,7 @@ private fun DeformSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             Text(stringResource(R.string.ui_deform), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(10.dp))
 
-            // Mode selector: "Auf Kreis" / "Bogen"
+            // Mode selector: "Auf Kreis" / "Bogen" / "Hülle"
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
                     selected = mode == DeformMode.CIRCLE,
@@ -899,6 +907,20 @@ private fun DeformSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                     selected = mode == DeformMode.ARC,
                     onClick = { if (mode != DeformMode.ARC) { mode = DeformMode.ARC; applyLive() } },
                     label = { Text(stringResource(R.string.ui_deform_arc)) },
+                )
+                FilterChip(
+                    selected = mode == DeformMode.ENVELOPE,
+                    onClick = {
+                        if (mode != DeformMode.ENVELOPE) {
+                            // Apply the identity envelope, switch the editor tool, and close the sheet
+                            // so the user can drag the corners directly on the canvas.
+                            val defaultEnvelope = envelopeDeformDefault(sourceBounds)
+                            vm.setSelectedDeform(defaultEnvelope, pushHistory = true)
+                            vm.editorTool = EditorTool.ENVELOPE
+                            onDismiss()
+                        }
+                    },
+                    label = { Text(stringResource(R.string.ui_deform_envelope)) },
                 )
             }
 
@@ -947,36 +969,51 @@ private fun DeformSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                         EditableStepper(curvature, -200, 200, step = 5) { curvature = it; applyLive() }
                     }
                 }
+
+                DeformMode.ENVELOPE -> {
+                    // Envelope mode uses the canvas directly; just show the hint.
+                    Text(
+                        stringResource(R.string.ui_deform_envelope_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
-            Spacer(Modifier.height(8.dp))
+            if (mode != DeformMode.ENVELOPE) {
+                Spacer(Modifier.height(8.dp))
 
-            // Shared baseline chips
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.ui_deform_baseline), Modifier.weight(1f))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = baseline == DeformBaseline.TOP,
-                        onClick = { baseline = DeformBaseline.TOP; applyLive() },
-                        label = { Text(stringResource(R.string.ui_top)) },
-                    )
-                    FilterChip(
-                        selected = baseline == DeformBaseline.CENTER,
-                        onClick = { baseline = DeformBaseline.CENTER; applyLive() },
-                        label = { Text(stringResource(R.string.ui_center)) },
-                    )
-                    FilterChip(
-                        selected = baseline == DeformBaseline.BOTTOM,
-                        onClick = { baseline = DeformBaseline.BOTTOM; applyLive() },
-                        label = { Text(stringResource(R.string.ui_bottom)) },
-                    )
+                // Shared baseline chips (not applicable to envelope mode)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.ui_deform_baseline), Modifier.weight(1f))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = baseline == DeformBaseline.TOP,
+                            onClick = { baseline = DeformBaseline.TOP; applyLive() },
+                            label = { Text(stringResource(R.string.ui_top)) },
+                        )
+                        FilterChip(
+                            selected = baseline == DeformBaseline.CENTER,
+                            onClick = { baseline = DeformBaseline.CENTER; applyLive() },
+                            label = { Text(stringResource(R.string.ui_center)) },
+                        )
+                        FilterChip(
+                            selected = baseline == DeformBaseline.BOTTOM,
+                            onClick = { baseline = DeformBaseline.BOTTOM; applyLive() },
+                            label = { Text(stringResource(R.string.ui_bottom)) },
+                        )
+                    }
                 }
             }
 
             Spacer(Modifier.height(16.dp))
 
             TextButton(
-                onClick = { vm.clearSelectedDeform(); onDismiss() },
+                onClick = {
+                    vm.clearSelectedDeform()
+                    if (vm.editorTool == EditorTool.ENVELOPE) vm.editorTool = EditorTool.SELECT
+                    onDismiss()
+                },
                 modifier = Modifier.align(Alignment.Start),
             ) {
                 Text(stringResource(R.string.ui_deform_remove))

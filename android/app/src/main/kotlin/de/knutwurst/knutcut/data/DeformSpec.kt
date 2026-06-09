@@ -5,6 +5,35 @@ import de.knutwurst.knutcut.svgcore.PathNode
 import de.knutwurst.knutcut.svgcore.Pt
 import kotlin.math.PI
 
+// ---------------------------------------------------------------------------
+// EnvelopeDeform (Phase 5: 4-corner cage / bilinear warp)
+// ---------------------------------------------------------------------------
+
+/**
+ * Warp the source geometry by dragging the four corners of a bounding quad.
+ *
+ * Corners are stored in the layer's local (pre-transform) coordinate space.
+ * Corner order: [tl] top-left, [tr] top-right, [br] bottom-right, [bl] bottom-left.
+ * When the four corners match the source bounding box the mapping is the identity.
+ */
+data class EnvelopeDeform(
+    val tl: Pt,
+    val tr: Pt,
+    val br: Pt,
+    val bl: Pt,
+) : DeformSpec
+
+/**
+ * Build an [EnvelopeDeform] whose corners equal the bounding box of [bounds].
+ * Applying this via [DeformEngine] returns geometry identical to the source (identity warp).
+ */
+fun envelopeDeformDefault(bounds: Bounds): EnvelopeDeform = EnvelopeDeform(
+    tl = Pt(bounds.minX, bounds.minY),
+    tr = Pt(bounds.maxX, bounds.minY),
+    br = Pt(bounds.maxX, bounds.maxY),
+    bl = Pt(bounds.minX, bounds.maxY),
+)
+
 /** Maps 1:1 to [de.knutwurst.knutcut.svgcore.PathWarp.Baseline]. */
 enum class DeformBaseline { TOP, CENTER, BOTTOM }
 

@@ -133,4 +133,55 @@ class DeformEngineTest {
         val empty = emptyList<Polyline>()
         assertSame(empty, DeformEngine.apply(spec, empty))
     }
+
+    // ---------------------------------------------------------------------------
+    // EnvelopeDeform tests
+    // ---------------------------------------------------------------------------
+
+    private val EPS = 1e-9
+
+    @Test
+    fun envelopeDeformIdentityReproducesSource() {
+        val source = listOf(
+            Polyline(listOf(Pt(10.0, 5.0), Pt(90.0, 45.0)), closed = false),
+        )
+        // The identity spec must use the ACTUAL source bounds (same as DeformEngine computes internally).
+        val bounds = Bounds.of(source.flatMap { it.points })
+        val spec = envelopeDeformDefault(bounds)
+        val result = DeformEngine.apply(spec, source)
+        val srcPts = source.first().points
+        val resPts = result.first().points
+        for (i in srcPts.indices) {
+            assertEquals("x[$i]", srcPts[i].xMm, resPts[i].xMm, EPS)
+            assertEquals("y[$i]", srcPts[i].yMm, resPts[i].yMm, EPS)
+        }
+    }
+
+    @Test
+    fun envelopeDeformSkewMovesCornerPoints() {
+        // Shift bottom corners rightward by 20mm; the top-right source corner must land on TR.
+        val source = listOf(Polyline(listOf(Pt(0.0, 0.0), Pt(100.0, 0.0)), closed = false))
+        val bounds = Bounds(0.0, 0.0, 100.0, 50.0)
+        val spec = EnvelopeDeform(
+            tl = Pt(0.0, 0.0),
+            tr = Pt(100.0, 0.0),
+            br = Pt(120.0, 50.0),
+            bl = Pt(20.0, 50.0),
+        )
+        val result = DeformEngine.apply(spec, source)
+        val pts = result.first().points
+        // Source (0,0) = TL → maps to TL (0,0)
+        assertEquals(0.0, pts[0].xMm, EPS)
+        assertEquals(0.0, pts[0].yMm, EPS)
+        // Source (100,0) = TR → maps to TR (100,0)
+        assertEquals(100.0, pts[1].xMm, EPS)
+        assertEquals(0.0, pts[1].yMm, EPS)
+    }
+
+    @Test
+    fun envelopeDeformEmptySourceReturnedUnchanged() {
+        val spec = envelopeDeformDefault(Bounds(0.0, 0.0, 10.0, 10.0))
+        val empty = emptyList<Polyline>()
+        assertSame(empty, DeformEngine.apply(spec, empty))
+    }
 }

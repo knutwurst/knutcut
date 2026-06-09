@@ -3,6 +3,7 @@ package de.knutwurst.knutcut.data
 import de.knutwurst.knutcut.svgcore.ArcLengthPath
 import de.knutwurst.knutcut.svgcore.Bounds
 import de.knutwurst.knutcut.svgcore.EditablePath
+import de.knutwurst.knutcut.svgcore.EnvelopeWarp
 import de.knutwurst.knutcut.svgcore.PathWarp
 import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Pt
@@ -41,6 +42,10 @@ object DeformEngine {
                     guide = guide,
                     baseline = spec.baseline.toSvgcore(),
                 )
+            }
+            is EnvelopeDeform -> {
+                val bounds = Bounds.of(pts)
+                EnvelopeWarp.bilinear(source, bounds, spec.tl, spec.tr, spec.br, spec.bl)
             }
         }
     }

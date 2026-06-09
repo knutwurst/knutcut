@@ -2,13 +2,18 @@ package de.knutwurst.knutcut.ui
 
 import de.knutwurst.knutcut.data.CircleDeform
 import de.knutwurst.knutcut.data.DeformBaseline
+import de.knutwurst.knutcut.data.EnvelopeDeform
 import de.knutwurst.knutcut.data.Layer
 import de.knutwurst.knutcut.data.Tool
+import de.knutwurst.knutcut.data.envelopeDeformDefault
+import de.knutwurst.knutcut.svgcore.Bounds
 import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Pt
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -144,5 +149,138 @@ class DeformViewModelTest {
         vm.clearSelectedDeform()
 
         assertEquals(original, vm.layers[0].polylines)
+    }
+
+    // ---------------------------------------------------------------------------
+    // moveEnvelopeCorner + beginDeformEdit
+    // ---------------------------------------------------------------------------
+
+    private fun rectLayer(): Layer {
+        // A simple rectangle in local space: (0,0)-(100,50)
+        val polys = listOf(
+            Polyline(
+                listOf(Pt(0.0, 0.0), Pt(100.0, 0.0), Pt(100.0, 50.0), Pt(0.0, 50.0), Pt(0.0, 0.0)),
+                closed = true,
+            )
+        )
+        return Layer("Rect", polys, Tool.KNIFE, visible = true)
+    }
+
+    @Test
+    fun moveEnvelopeCornerUpdatesTLCorner() {
+        val vm = vm()
+        val layer = rectLayer()
+        vm.addLayer(layer.name, layer.polylines, layer.tool)
+        vm.selectLayer(0)
+
+        val bounds = Bounds(0.0, 0.0, 100.0, 50.0)
+        vm.setSelectedDeform(envelopeDeformDefault(bounds))
+
+        // Move TL corner to a new position.
+        val newTL = Pt(10.0, 8.0)
+        vm.moveEnvelopeCorner(0, newTL)
+
+        val updated = vm.layers[0].deform as? EnvelopeDeform
+        assertNotNull(updated)
+        assertEquals(newTL.xMm, updated!!.tl.xMm, 1e-9)
+        assertEquals(newTL.yMm, updated.tl.yMm, 1e-9)
+        // Other corners unchanged
+        assertEquals(100.0, updated.tr.xMm, 1e-9)
+        assertEquals(0.0,   updated.tr.yMm, 1e-9)
+    }
+
+    @Test
+    fun moveEnvelopeCornerUpdatesBRCorner() {
+        val vm = vm()
+        val layer = rectLayer()
+        vm.addLayer(layer.name, layer.polylines, layer.tool)
+        vm.selectLayer(0)
+
+        val bounds = Bounds(0.0, 0.0, 100.0, 50.0)
+        vm.setSelectedDeform(envelopeDeformDefault(bounds))
+
+        val newBR = Pt(120.0, 60.0)
+        vm.moveEnvelopeCorner(2, newBR)
+
+        val updated = vm.layers[0].deform as? EnvelopeDeform
+        assertNotNull(updated)
+        assertEquals(newBR.xMm, updated!!.br.xMm, 1e-9)
+        assertEquals(newBR.yMm, updated.br.yMm, 1e-9)
+    }
+
+    @Test
+    fun moveEnvelopeCornerIsNoOpWhenDeformIsNotEnvelope() {
+        val vm = vm()
+        val layer = stripLayer(40.0)
+        vm.addLayer(layer.name, layer.polylines, layer.tool)
+        vm.selectLayer(0)
+
+        // Apply a circle deform, then call moveEnvelopeCorner — should not crash or change anything.
+        vm.setSelectedDeform(specForRadius(40.0))
+        val beforePolys = vm.layers[0].polylines
+        vm.moveEnvelopeCorner(0, Pt(99.0, 99.0))
+        assertEquals("polylines unchanged when deform is not envelope", beforePolys, vm.layers[0].polylines)
+    }
+
+    @Test
+    fun moveEnvelopeCornerOutOfRangeIsNoOp() {
+        val vm = vm()
+        val layer = rectLayer()
+        vm.addLayer(layer.name, layer.polylines, layer.tool)
+        vm.selectLayer(0)
+        val bounds = Bounds(0.0, 0.0, 100.0, 50.0)
+        vm.setSelectedDeform(envelopeDeformDefault(bounds))
+        val specBefore = vm.layers[0].deform
+        vm.moveEnvelopeCorner(4, Pt(99.0, 99.0))  // index 4 is out of range
+        assertEquals("spec unchanged for out-of-range corner", specBefore, vm.layers[0].deform)
+    }
+
+    @Test
+    fun moveEnvelopeCornerRewarpsPolylines() {
+        val vm = vm()
+        val layer = rectLayer()
+        vm.addLayer(layer.name, layer.polylines, layer.tool)
+        vm.selectLayer(0)
+
+        val bounds = Bounds(0.0, 0.0, 100.0, 50.0)
+        vm.setSelectedDeform(envelopeDeformDefault(bounds))
+
+        val polysBefore = vm.layers[0].polylines
+
+        // Move TR corner to a different position — the warped polylines must change.
+        vm.moveEnvelopeCorner(1, Pt(80.0, 5.0))
+        val polysAfter = vm.layers[0].polylines
+
+        assertNotEquals("polylines must change after corner move", polysBefore, polysAfter)
+    }
+
+    @Test
+    fun moveEnvelopeCornerIsOneUndoStepViaBeginDeformEdit() {
+        val vm = vm()
+        val layer = rectLayer()
+        vm.addLayer(layer.name, layer.polylines, layer.tool)
+        vm.selectLayer(0)
+
+        val bounds = Bounds(0.0, 0.0, 100.0, 50.0)
+        vm.setSelectedDeform(envelopeDeformDefault(bounds))
+
+        // Simulate one drag gesture: beginDeformEdit once, then several corner moves.
+        vm.beginDeformEdit()
+        vm.moveEnvelopeCorner(0, Pt(5.0, 2.0))
+        vm.moveEnvelopeCorner(0, Pt(8.0, 4.0))
+        vm.moveEnvelopeCorner(0, Pt(12.0, 6.0))
+
+        val tlAfter = (vm.layers[0].deform as? EnvelopeDeform)?.tl
+        assertNotNull(tlAfter)
+        assertEquals(12.0, tlAfter!!.xMm, 1e-9)
+
+        // One undo should revert to the state before beginDeformEdit.
+        assertTrue(vm.canUndo)
+        vm.undo()
+        val tlAfterUndo = (vm.layers[0].deform as? EnvelopeDeform)?.tl
+        // After undo the TL should be back to the default (0,0).
+        assertNotNull(tlAfterUndo)
+        assertEquals(0.0, tlAfterUndo!!.xMm, 1e-9)
+        assertEquals(0.0, tlAfterUndo.yMm, 1e-9)
     }
 }

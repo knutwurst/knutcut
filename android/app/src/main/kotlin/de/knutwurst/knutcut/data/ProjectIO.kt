@@ -160,6 +160,13 @@ object ProjectIO {
             }
             put("nodes", nodes)
         }
+        is EnvelopeDeform -> JSONObject().apply {
+            put("type", "envelope")
+            put("tl", JSONObject().put("x", spec.tl.xMm).put("y", spec.tl.yMm))
+            put("tr", JSONObject().put("x", spec.tr.xMm).put("y", spec.tr.yMm))
+            put("br", JSONObject().put("x", spec.br.xMm).put("y", spec.br.yMm))
+            put("bl", JSONObject().put("x", spec.bl.xMm).put("y", spec.bl.yMm))
+        }
     }
 
     private fun deserializePathDeform(o: JSONObject): PathDeform? {
@@ -192,6 +199,20 @@ object ProjectIO {
                 .getOrDefault(DeformBaseline.BOTTOM),
         )
         "path" -> deserializePathDeform(o)
+        "envelope" -> deserializeEnvelopeDeform(o)
         else -> null
+    }
+
+    private fun readPt(parent: JSONObject, key: String): Pt? {
+        val obj = parent.optJSONObject(key) ?: return null
+        return Pt(obj.optDouble("x", 0.0), obj.optDouble("y", 0.0))
+    }
+
+    private fun deserializeEnvelopeDeform(o: JSONObject): EnvelopeDeform? {
+        val tl = readPt(o, "tl") ?: return null
+        val tr = readPt(o, "tr") ?: return null
+        val br = readPt(o, "br") ?: return null
+        val bl = readPt(o, "bl") ?: return null
+        return EnvelopeDeform(tl, tr, br, bl)
     }
 }

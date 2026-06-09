@@ -174,4 +174,58 @@ class DeformProjectIOTest {
         assertEquals(1, layers.size)
         assertNull("unknown deform type must deserialise to null", layers[0].deform)
     }
+
+    // ---------------------------------------------------------------------------
+    // EnvelopeDeform round-trip tests
+    // ---------------------------------------------------------------------------
+
+    private fun envelopeSpec() = EnvelopeDeform(
+        tl = de.knutwurst.knutcut.svgcore.Pt(5.0, 3.0),
+        tr = de.knutwurst.knutcut.svgcore.Pt(95.0, 7.0),
+        br = de.knutwurst.knutcut.svgcore.Pt(100.0, 52.0),
+        bl = de.knutwurst.knutcut.svgcore.Pt(2.0, 48.0),
+    )
+
+    @Test
+    fun roundTripPreservesEnvelopeDeformCorners() {
+        val spec = envelopeSpec()
+        val layer = Layer(
+            name = "Cage",
+            polylines = polylines(),
+            tool = Tool.KNIFE,
+            visible = true,
+            deform = spec,
+            deformSource = polylines(),
+        )
+        val back = ProjectIO.fromJson(ProjectIO.toJson(listOf(layer)))
+        assertEquals(1, back.size)
+        val restored = back[0].deform as? EnvelopeDeform
+        assertNotNull("deform must be an EnvelopeDeform", restored)
+        restored!!
+        val eps = 1e-9
+        assertEquals("tl.x", spec.tl.xMm, restored.tl.xMm, eps)
+        assertEquals("tl.y", spec.tl.yMm, restored.tl.yMm, eps)
+        assertEquals("tr.x", spec.tr.xMm, restored.tr.xMm, eps)
+        assertEquals("tr.y", spec.tr.yMm, restored.tr.yMm, eps)
+        assertEquals("br.x", spec.br.xMm, restored.br.xMm, eps)
+        assertEquals("br.y", spec.br.yMm, restored.br.yMm, eps)
+        assertEquals("bl.x", spec.bl.xMm, restored.bl.xMm, eps)
+        assertEquals("bl.y", spec.bl.yMm, restored.bl.yMm, eps)
+    }
+
+    @Test
+    fun envelopeDeformBackCompatWithLegacyFile() {
+        // A layer JSON without a deform block must load with deform = null (back-compat).
+        val json = ProjectIO.toJson(listOf(Layer("Plain", polylines(), Tool.KNIFE, true)))
+        val back = ProjectIO.fromJson(json)
+        assertNull("legacy layer must have null deform", back[0].deform)
+    }
+
+    @Test
+    fun envelopeDeformJsonContainsEnvelopeType() {
+        val spec = envelopeSpec()
+        val layer = Layer("E", polylines(), Tool.KNIFE, true, deform = spec)
+        val json = ProjectIO.toJson(listOf(layer))
+        assert(json.contains("\"envelope\"")) { "serialised JSON must contain type=envelope" }
+    }
 }

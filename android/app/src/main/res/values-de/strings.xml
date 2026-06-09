@@ -298,6 +298,8 @@
     <string name="ui_deform_remove">Verformung entfernen</string>
     <string name="ui_deform_arc">Bogen</string>
     <string name="ui_deform_curvature">Krümmung (mm)</string>
+    <string name="ui_deform_envelope">Hülle</string>
+    <string name="ui_deform_envelope_hint">Ecken auf der Fläche ziehen</string>
     <string name="ui_draw_mode">Zeichnen</string>
     <string name="ui_draw_mode_desc">Freihand-Zeichnen</string>
     <string name="ui_draw_layer_name">Zeichnung</string>
