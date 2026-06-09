@@ -81,6 +81,11 @@ object ProjectIO {
                 src.takeIf { it.isNotEmpty() }
             }
             val editPath = o.optJSONObject("editPath")?.let { deserializeEditPath(it) }
+            // Enforce invariant: deform is non-null iff deformSource is non-null. A file written with
+            // a deform but without a deformSrc (e.g. a degenerate 1-point source that was dropped on
+            // load) would leave the layer in a broken state where the next warp double-applies.
+            val safeDeform = if (deform != null && deformSrc != null) deform else null
+            val safeDeformSrc = if (deform != null && deformSrc != null) deformSrc else null
             out.add(Layer(
                 name = o.optString("name", "Ebene"),
                 polylines = polys,
@@ -92,8 +97,8 @@ object ProjectIO {
                 flipX = o.optBoolean("fx"), flipY = o.optBoolean("fy"),
                 colorArgb = if (o.has("color")) o.optInt("color") else null,
                 polylineColors = pcolors,
-                deform = deform,
-                deformSource = deformSrc,
+                deform = safeDeform,
+                deformSource = safeDeformSrc,
                 editPath = editPath,
             ))
         }

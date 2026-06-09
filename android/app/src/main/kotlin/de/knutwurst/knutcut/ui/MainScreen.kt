@@ -876,13 +876,33 @@ private fun DeformSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
         DeformMode.ENVELOPE -> null  // envelope is applied on mode-select, not here
     }
 
-    fun applyLive() { val spec = currentSpec(); if (spec != null) vm.setSelectedDeform(spec, pushHistory = false) }
+    // Track whether the user has made any change in this sheet session. The first change pushes a
+    // history snapshot; subsequent changes update it without creating extra undo steps.
+    // This also prevents a no-op deform from being applied when the sheet is dismissed unchanged.
+    var appliedHistory by remember { mutableStateOf(false) }
 
-    // Push one history snapshot on open (so a single Undo reverts all changes from this sheet).
+    fun applyLive() {
+        val spec = currentSpec() ?: return
+        if (!appliedHistory) {
+            // First real change: push history so one Undo reverts everything from this session.
+            vm.setSelectedDeform(spec, pushHistory = true)
+            appliedHistory = true
+        } else {
+            vm.setSelectedDeform(spec, pushHistory = false)
+        }
+    }
+
+    // On open: if the layer already has a matching deform, the controls are already seeded from it
+    // (see circleInitial / arcInitial above) — do NOT re-apply, as that would silently discard the
+    // user's earlier manually-set parameters and add a spurious undo step.
+    // Only apply a default spec immediately if there is no existing deform of the current mode.
     LaunchedEffect(Unit) {
-        if (mode != DeformMode.ENVELOPE) {
+        if (mode != DeformMode.ENVELOPE && existingDeform == null) {
             val spec = currentSpec()
-            if (spec != null) vm.setSelectedDeform(spec, pushHistory = existingDeform == null)
+            if (spec != null) {
+                vm.setSelectedDeform(spec, pushHistory = true)
+                appliedHistory = true
+            }
         }
     }
 

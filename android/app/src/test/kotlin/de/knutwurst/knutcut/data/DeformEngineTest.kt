@@ -120,10 +120,11 @@ class DeformEngineTest {
         val source = listOf(Polyline(listOf(Pt(0.0, baselineY), Pt(50.0, baselineY), Pt(100.0, baselineY)), closed = false))
         val result = DeformEngine.apply(spec, source)
         val pts = result[0].points
-        // The centre point (index 1) should be noticeably above (smaller y) the end points.
+        // Robust to the warp densifying the polyline: the apex (smallest y) is the lifted centre,
+        // and it must sit well above the end points, which stay near the baseline.
         val yEnds = (pts.first().yMm + pts.last().yMm) / 2.0
-        val yCentre = pts[1].yMm
-        assertTrue("centre is above ends with positive curvature", yCentre < yEnds - 1.0)
+        val yApex = pts.minOf { it.yMm }
+        assertTrue("centre is above ends with positive curvature", yApex < yEnds - 1.0)
     }
 
     @Test

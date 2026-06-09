@@ -96,16 +96,14 @@ class CircleDeformDefaultTest {
 
         val result = DeformEngine.apply(spec, source)
         val pts = result.first().points
-
-        // pts[2] was at y=5 (mid-row), pts[3] was at y=10 (baseline)
-        val pMid = pts[2]; val pBase = pts[3]
         val cxs = spec.centerXMm; val cys = spec.centerYMm
+        val dists = pts.map { hypot(it.xMm - cxs, it.yMm - cys) }
 
-        val distBase = hypot(pBase.xMm - cxs, pBase.yMm - cys)
-        val distMid  = hypot(pMid.xMm - cxs, pMid.yMm - cys)
-
-        // The baseline (y = maxY) lands on the circle; points above the baseline are pushed outward.
-        assertEquals("baseline point lands at radius", radius, distBase, 1.5)
-        assertTrue("above-baseline point is farther from center (outer side)", distMid > distBase)
+        // Asserted on aggregate distance from the centre (robust to the warp densifying the
+        // polyline): the baseline edge (y = maxY, v = 0) lands ON the circle, so the closest
+        // point sits at the radius; the top edge (10 mm above the baseline) is pushed to the
+        // outer side, so the farthest point sits at radius + strip height.
+        assertEquals("baseline edge lands on the circle", radius, dists.min(), 1.5)
+        assertEquals("top edge is pushed to the outer arc", radius + 10.0, dists.max(), 1.5)
     }
 }

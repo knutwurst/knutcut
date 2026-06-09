@@ -147,4 +147,62 @@ class PathSimplifyTest {
         val path = smoothToPath(emptyList(), closed = false)
         assertTrue(path.nodes.isEmpty())
     }
+
+    // -----------------------------------------------------------------------
+    // Bug #6: smoothToPath 2-point closed path — tangent fallback in the
+    //         general Catmull-Rom loop (triggered for >=3 points when tangent
+    //         length is near zero because prev == next).
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun smoothToPathThreePointClosedVerticalDoesNotProduceFigureEight() {
+        // Three nearly-vertical points in a closed path so that for the middle node
+        // prev and next are the same (both neighbours are the endpoints, which are
+        // the same y distance away). The Catmull-Rom tangent (next - prev)/2 could
+        // approach zero if next ≈ prev, giving the (1,0) fallback.
+        //
+        // Here: (0,0), (0,10), (0,20) closed.  For node 0:
+        //   prev = pts[2] = (0,20), next = pts[1] = (0,10)
+        //   tx = (0-0)/2 = 0, ty = (10-20)/2 = -5  → tLen > 0, tangent = (0,-1)
+        // For node 2: prev = (0,10), next = (0,0) → tx=0, ty=-5 → tangent = (0,-1)
+        // No fallback needed in this case, but with symmetry the x handles should be 0.
+        // We just verify no large x deviation.
+        val pts = listOf(Pt(0.0, 0.0), Pt(0.0, 10.0), Pt(0.0, 20.0))
+        val path = smoothToPath(pts, closed = true)
+        val poly = path.toPolyline(0.05)
+        val maxX = poly.points.maxOf { kotlin.math.abs(it.xMm) }
+        assertTrue("vertical closed path has large x deviation ($maxX mm)", maxX < 2.0)
+    }
+
+    @Test
+    fun smoothToPathTwoCollinearPointsClosedZeroTangentFallback() {
+        // Force the zero-tangent fallback: 3 collinear points where for node 0,
+        // prev == next → tangent = (0,0). Should fall back to the segment direction
+        // (towards the next neighbour) rather than (1,0).
+        //
+        // Arrange: points at (0,0), (0,5), (0,0) — the first and third are coincident,
+        // making prev == curr == next for node 1 also. For node 0:
+        //   prev = (0,0), next = (0,5) → tangent non-zero → ok
+        // For a really zero-tangent case use three points in a right-angle where the
+        // middle node has equidistant prev and next in opposite direction — symmetry
+        // makes their average zero:
+        //   pts = (0,0), (10,0), (0,0)   closed
+        // Node 1 (10,0): prev=(0,0), next=(0,0) → tx=(0-0)/2=0, ty=0 → zero tangent
+        // Fallback (1,0) would produce handleOut at (10+dist,0) → handle in +x direction.
+        // Correct fallback: unit vec from node to next neighbour = (0-10,0-0) = (-10,0) → (-1,0)
+        // OR unit vec towards any neighbour that is not the anchor itself.
+        // Either way, a handle pointing left (-x) avoids the figure-8 produced by (1,0).
+        val pts = listOf(Pt(0.0, 0.0), Pt(10.0, 0.0), Pt(0.0, 0.0))
+        val path = smoothToPath(pts, closed = true)
+        // The middle node (10,0) with zero Catmull-Rom tangent must get a handle that
+        // does NOT place the handleOut at a position with xMm > 10 (which would be the
+        // (1,0) fallback direction pointing to the right — away from both neighbours).
+        val midNode = path.nodes[1]
+        if (midNode.handleOut != null) {
+            assertTrue(
+                "handleOut of zero-tangent middle node should point toward neighbours (x <= anchor.x), got ${midNode.handleOut}",
+                midNode.handleOut!!.xMm <= midNode.anchor.xMm + 1e-6
+            )
+        }
+    }
 }

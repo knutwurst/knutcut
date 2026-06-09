@@ -586,4 +586,141 @@ class PathEditTest {
         val path = EditablePath(listOf(PathNode(Pt(0.0, 0.0))))
         assertNull(path.nearestSegment(Pt(0.0, 0.0), 100.0))
     }
+
+    // -----------------------------------------------------------------------
+    // Bug #1: insertNode on a closed path with out-of-range segmentIndex
+    // -----------------------------------------------------------------------
+
+    @Test(expected = IllegalArgumentException::class)
+    fun insertNodeClosedOutOfRangeThrowsIllegalArgument() {
+        // 3-node closed path has valid segment indices 0, 1, 2.
+        // Index 100 must throw IllegalArgumentException (from require), not IOOBE.
+        val nodes = listOf(
+            PathNode(Pt(0.0, 0.0)),
+            PathNode(Pt(10.0, 0.0)),
+            PathNode(Pt(5.0, 5.0)),
+        )
+        val path = EditablePath(nodes, closed = true)
+        path.insertNode(100, 0.5)
+    }
+
+    // -----------------------------------------------------------------------
+    // Bug #2: insertNode at t=0 / t=1 must not create duplicate nodes or
+    //         non-null handles equal to the anchor
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun insertNodeAtTZeroDoesNotCreateDegenerateHandle() {
+        val nodes = listOf(
+            PathNode(Pt(0.0, 0.0), handleOut = Pt(3.0, 5.0)),
+            PathNode(Pt(10.0, 0.0), handleIn = Pt(7.0, 5.0)),
+        )
+        val path = EditablePath(nodes)
+        val after = path.insertNode(0, 0.0)
+        // Should not gain more than one extra node.
+        assertEquals(3, after.nodes.size)
+        // The inserted node must not have a handle exactly equal to its anchor.
+        val inserted = after.nodes[1]
+        if (inserted.handleIn != null) {
+            val same = inserted.handleIn!!.xMm == inserted.anchor.xMm &&
+                       inserted.handleIn!!.yMm == inserted.anchor.yMm
+            assertTrue("handleIn must not equal anchor at t=0", !same)
+        }
+        if (inserted.handleOut != null) {
+            val same = inserted.handleOut!!.xMm == inserted.anchor.xMm &&
+                       inserted.handleOut!!.yMm == inserted.anchor.yMm
+            assertTrue("handleOut must not equal anchor at t=0", !same)
+        }
+    }
+
+    @Test
+    fun insertNodeAtTOneDoesNotCreateDegenerateHandle() {
+        val nodes = listOf(
+            PathNode(Pt(0.0, 0.0), handleOut = Pt(3.0, 5.0)),
+            PathNode(Pt(10.0, 0.0), handleIn = Pt(7.0, 5.0)),
+        )
+        val path = EditablePath(nodes)
+        val after = path.insertNode(0, 1.0)
+        assertEquals(3, after.nodes.size)
+        val inserted = after.nodes[1]
+        if (inserted.handleIn != null) {
+            val same = inserted.handleIn!!.xMm == inserted.anchor.xMm &&
+                       inserted.handleIn!!.yMm == inserted.anchor.yMm
+            assertTrue("handleIn must not equal anchor at t=1", !same)
+        }
+        if (inserted.handleOut != null) {
+            val same = inserted.handleOut!!.xMm == inserted.anchor.xMm &&
+                       inserted.handleOut!!.yMm == inserted.anchor.yMm
+            assertTrue("handleOut must not equal anchor at t=1", !same)
+        }
+    }
+
+    @Test
+    fun insertNodeNullHandleSideStaysNull() {
+        // Segment with handleOut on "from" node but handleIn null on "to" node.
+        // After insert the side that was null must remain null in the adjacent nodes.
+        val nodes = listOf(
+            PathNode(Pt(0.0, 0.0), handleOut = Pt(3.0, 5.0)),
+            PathNode(Pt(10.0, 0.0)),  // handleIn is null
+        )
+        val path = EditablePath(nodes)
+        val after = path.insertNode(0, 0.5)
+        assertEquals(3, after.nodes.size)
+        // The to-node's handleIn was null and de Casteljau on null side should keep null or preserve straight
+        // For a partially-straight segment (one handle null, other non-null): the current contract
+        // is that the segment is treated as cubic (null handle -> anchor used). We just verify no crash
+        // and that shape is roughly preserved.
+        val before = path.toPolyline(0.1)
+        val afterPoly = after.toPolyline(0.1)
+        val d = polylineDist(before, afterPoly)
+        assertTrue("shape changed too much: $d mm", d < 1.0)
+    }
+
+    // -----------------------------------------------------------------------
+    // Bug #3: deleteNode with out-of-range index must be a no-op
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun deleteNodeOutOfRangeHighIsNoOp() {
+        val nodes = listOf(
+            PathNode(Pt(0.0, 0.0)), PathNode(Pt(5.0, 0.0)), PathNode(Pt(10.0, 0.0))
+        )
+        val path = EditablePath(nodes)
+        val after = path.deleteNode(99)
+        assertEquals(3, after.nodes.size)
+    }
+
+    @Test
+    fun deleteNodeOutOfRangeNegativeIsNoOp() {
+        val nodes = listOf(
+            PathNode(Pt(0.0, 0.0)), PathNode(Pt(5.0, 0.0)), PathNode(Pt(10.0, 0.0))
+        )
+        val path = EditablePath(nodes)
+        val after = path.deleteNode(-1)
+        assertEquals(3, after.nodes.size)
+    }
+
+    // -----------------------------------------------------------------------
+    // Bug #7: Matrix.inverse relative determinant threshold
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun matrixInverseVerySmallScaleInverts() {
+        // A scale of 1e-4 is tiny but valid; its determinant is 1e-8,
+        // which was below the old absolute threshold of 1e-12 but should be
+        // invertible with a relative check.
+        val small = 1e-4
+        val m = Matrix.scale(small, small)
+        val inv = m.inverse()
+        // Must NOT return null; must correctly invert.
+        assertNotNull("tiny-but-valid scale must be invertible", inv)
+        val p = Pt(small, small * 2)
+        assertPtEq(p, inv!!.apply(m.apply(p)), 1e-6)
+    }
+
+    @Test
+    fun matrixInverseTrueZeroScaleStillReturnsNull() {
+        val m = Matrix.scale(0.0, 1.0)
+        assertNull(m.inverse())
+    }
 }

@@ -179,18 +179,41 @@ object PathWarp {
         val baselineY = baselineY(sourceBounds, baseline)
         val width = sourceBounds.widthMm.takeIf { it > 1e-12 } ?: 1.0
 
+        // Maximum guide-arc span per densified sub-segment.  Capped at 0.5 mm absolute so
+        // that tight curves (small radius) don't produce visible chords.
+        val maxArcStep = (guide.length / 512.0).coerceAtMost(0.5)
+
+        fun warpPoint(p: Pt): Pt {
+            val u = (p.xMm - sourceBounds.minX) / width
+            val s = u * guide.length
+            val v = p.yMm - baselineY
+            val origin = guide.pointAt(s)
+            val normal = guide.normalAt(s)
+            return Pt(origin.xMm + normal.xMm * (-v), origin.yMm + normal.yMm * (-v))
+        }
+
         return source.map { poly ->
-            val warped = poly.points.map { p ->
-                val u = (p.xMm - sourceBounds.minX) / width
-                val s = u * guide.length
-                val v = p.yMm - baselineY
-                val origin = guide.pointAt(s)
-                val normal = guide.normalAt(s)
-                // v > 0: below baseline → inner side (negative normal direction)
-                // v < 0: above baseline → outer side (positive normal direction)
-                Pt(origin.xMm + normal.xMm * (-v), origin.yMm + normal.yMm * (-v))
+            if (poly.points.size < 2) {
+                Polyline(poly.points.map { warpPoint(it) }, poly.closed)
+            } else {
+                // Densify: for each consecutive pair of source points, subdivide the
+                // segment into steps whose guide-arc span is at most maxArcStep.
+                val dense = mutableListOf<Pt>()
+                dense.add(poly.points.first())
+                for (k in 0 until poly.points.size - 1) {
+                    val a = poly.points[k]
+                    val b = poly.points[k + 1]
+                    val uA = (a.xMm - sourceBounds.minX) / width
+                    val uB = (b.xMm - sourceBounds.minX) / width
+                    val arcSpan = kotlin.math.abs(uB - uA) * guide.length
+                    val steps = (arcSpan / maxArcStep).toInt().coerceAtLeast(1)
+                    for (j in 1..steps) {
+                        val frac = j.toDouble() / steps
+                        dense.add(Pt(a.xMm + frac * (b.xMm - a.xMm), a.yMm + frac * (b.yMm - a.yMm)))
+                    }
+                }
+                Polyline(dense.map { warpPoint(it) }, poly.closed)
             }
-            Polyline(warped, poly.closed)
         }
     }
 

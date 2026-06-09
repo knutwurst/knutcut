@@ -307,6 +307,73 @@ class DeformTest {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // Bug #4: ArcLengthPath with zero-length guide must not produce NaN
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun arcLengthZeroLengthGuideDoesNotProduceNaN() {
+        // Two coincident points: total length == 0. pointAt / normalAt must not return NaN.
+        val pt = Pt(5.0, 3.0)
+        val guide = Polyline(listOf(pt, pt), closed = false)
+        val alp = ArcLengthPath(guide)
+        val p = alp.pointAt(0.0)
+        val n = alp.normalAt(0.0)
+        assertTrue("pointAt must not be NaN", !p.xMm.isNaN() && !p.yMm.isNaN())
+        assertTrue("normalAt must not be NaN", !n.xMm.isNaN() && !n.yMm.isNaN())
+        assertTrue("normalAt must not be Infinite", !n.xMm.isInfinite() && !n.yMm.isInfinite())
+    }
+
+    @Test
+    fun arcLengthZeroLengthGuidePointAtReturnsThePoint() {
+        val pt = Pt(7.0, 2.0)
+        val guide = Polyline(listOf(pt, Pt(7.0 + 1e-11, 2.0)), closed = false)
+        val alp = ArcLengthPath(guide)
+        val p = alp.pointAt(42.0)
+        assertTrue("should return a finite point", !p.xMm.isNaN() && !p.yMm.isNaN())
+    }
+
+    // -----------------------------------------------------------------------
+    // Bug #5: PathWarp.alongPath densification — no long chords on tight curves
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun warpAlongPathDensifiesOnTightCircle() {
+        // A single straight horizontal source segment (only 2 source points) warped onto a
+        // small circle (radius = 15 mm). The source y equals the baseline (v = 0), so every
+        // warped point lands exactly on the guide arc at distance `radius` from the center.
+        //
+        // Without densification the output is just 2 points — a chord that cuts through the
+        // circle. With densification the output is a dense polyline that hugs the circle, so
+        // the output count must exceed 2 AND every point must be within 0.05 mm of `radius`.
+        val radius = 15.0
+        val center = Pt(0.0, 0.0)
+        val circum = 2 * PI * radius
+
+        // Build a circle guide (256 segments).
+        val circlePoints = (0..256).map { i ->
+            val a = (i.toDouble() / 256) * 2 * PI
+            Pt(center.xMm + radius * cos(a), center.yMm + radius * sin(a))
+        }
+        val guide = ArcLengthPath(Polyline(circlePoints, closed = true))
+
+        // Source: a single 2-point segment spanning the full circumference, at the baseline (v=0).
+        val source = listOf(Polyline(listOf(Pt(0.0, 10.0), Pt(circum, 10.0)), closed = false))
+        val bounds = Bounds(0.0, 0.0, circum, 10.0)
+        val result = PathWarp.alongPath(source, bounds, guide, PathWarp.Baseline.BOTTOM)
+
+        // Densification must produce more than 2 output points.
+        val outPts = result.flatMap { it.points }
+        assertTrue("output must be densified (got ${outPts.size} points)", outPts.size > 2)
+
+        // Every output point must lie within 0.05 mm of the circle (v=0 → no offset from arc).
+        val tolerance = 0.05
+        for (p in outPts) {
+            val dist = hypot(p.xMm - center.xMm, p.yMm - center.yMm)
+            assertEquals("point dist from center ($dist) not near $radius", radius, dist, tolerance)
+        }
+    }
+
     @Test
     fun warpOnCircleFullCircleMapsBackToStart() {
         val radius = 20.0

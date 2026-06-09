@@ -18,6 +18,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -104,6 +105,13 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     // Index of the node currently selected in NODES mode (-1 = none).
     var selectedNodeIndex by remember { mutableStateOf(-1) }
 
+    // Fix 1: reset selected node when the selected layer or the layer count changes, so
+    // selectedNodeIndex can never point at a node that no longer exists.
+    LaunchedEffect(vm.selectedLayer, vm.layers.size) { selectedNodeIndex = -1 }
+
+    // Fix 3: clear the live stroke preview when the user leaves DRAW mode mid-stroke.
+    LaunchedEffect(vm.editorTool) { if (vm.editorTool != EditorTool.DRAW) liveStroke = emptyList() }
+
     // Derive the grid/ruler tones from the theme so they stay visible on both light and dark.
     val colorMode = vm.colorMode == ColorMode.COLOR
     val onSurface = MaterialTheme.colorScheme.onSurface
@@ -178,11 +186,15 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 if (vm.editorTool == EditorTool.NODES) {
                     val editPath = vm.selectedEditPath
                     if (editPath == null) {
-                        // No editable path — fall through to camera pan.
+                        // No editable path: reset to SELECT so subsequent taps are not trapped.
+                        vm.editorTool = EditorTool.SELECT
+                        // Fall through to camera/selection handling below.
                     } else {
                         val layerIdx = vm.selectedLayer
                         // Hit-radius in mm: convert constant px to mm at the current zoom.
-                        val hitMm = (NODE_HIT_PX / ppm).toDouble()
+                        // Cap to 6 mm so that at low zoom levels the radius doesn't grow to tens of mm
+                        // and cause every empty-space tap to match a segment (stalling in double-tap wait).
+                        val hitMm = min(NODE_HIT_PX / ppm, 6f).toDouble()
                         val downWorld = screenToWorld(down.position, origin, ppm)
                         val downLocal = vm.worldToLayerLocal(layerIdx, downWorld) ?: downWorld
 
@@ -251,7 +263,9 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                         }
 
                         // Touched empty space — check for double-tap on a segment (insert node).
-                        val segHit = editPath.nearestSegment(downLocal, hitMm * 2)
+                        // Use a slightly wider radius for segments, independently capped.
+                        val segHitMm = min(NODE_HIT_PX * 2 / ppm, 10f).toDouble()
+                        val segHit = editPath.nearestSegment(downLocal, segHitMm)
                         if (segHit != null) {
                             // Wait briefly for a possible second tap.
                             val tapTime = System.currentTimeMillis()
@@ -266,10 +280,12 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                                     val down2 = awaitFirstDown(requireUnconsumed = false)
                                     val elapsed2 = System.currentTimeMillis() - tapTime
                                     if (elapsed2 <= DOUBLE_TAP_MS) {
-                                        // Second tap: insert node.
+                                        // Second tap: insert node. Use the editPath pinned at gesture
+                                        // start, not vm.selectedEditPath, to avoid inserting into the
+                                        // wrong layer if the selection changed between the two taps.
                                         val w2 = screenToWorld(down2.position, origin, ppm)
                                         val l2 = vm.worldToLayerLocal(layerIdx, w2) ?: w2
-                                        val seg2 = vm.selectedEditPath?.nearestSegment(l2, hitMm * 2)
+                                        val seg2 = editPath.nearestSegment(l2, segHitMm)
                                         if (seg2 != null) {
                                             vm.insertSelectedNode(seg2.segmentIndex, seg2.t)
                                             gotSecondTap = true
@@ -331,7 +347,12 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 if (vm.editorTool == EditorTool.ENVELOPE) {
                     val layerIdx = vm.selectedLayer
                     val envDeform = vm.layers.getOrNull(layerIdx)?.deform as? EnvelopeDeform
-                    if (envDeform != null) {
+                    if (envDeform == null) {
+                        // Layer no longer has an EnvelopeDeform (e.g. deleted/changed): reset to
+                        // SELECT so the user is not trapped in a mode that does nothing.
+                        vm.editorTool = EditorTool.SELECT
+                        // Fall through to normal SELECT/pan handling.
+                    } else {
                         // Build screen positions for corners (local -> world -> screen).
                         val cornersLocal = listOf(envDeform.tl, envDeform.tr, envDeform.br, envDeform.bl)
                         val cornersScreen = cornersLocal.mapNotNull { lp ->

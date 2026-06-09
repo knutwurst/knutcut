@@ -196,6 +196,7 @@ fun EditablePath.setSmooth(i: Int, smooth: Boolean): EditablePath {
  * open paths keep at least 2 nodes, closed paths keep at least 3.
  */
 fun EditablePath.deleteNode(i: Int): EditablePath {
+    if (i !in nodes.indices) return this
     val minNodes = if (closed) 3 else 2
     if (nodes.size <= minNodes) return this
     return EditablePath(nodes.toMutableList().also { it.removeAt(i) }, closed)
@@ -215,6 +216,7 @@ fun EditablePath.deleteNode(i: Int): EditablePath {
  */
 fun EditablePath.insertNode(segmentIndex: Int, t: Double): EditablePath {
     val n = nodes.size
+    require(segmentIndex in nodes.indices) { "segmentIndex out of range" }
     val fromIdx = segmentIndex
     val toIdx = if (closed) (segmentIndex + 1) % n else segmentIndex + 1
     require(toIdx in nodes.indices) { "segmentIndex out of range" }
@@ -232,6 +234,9 @@ fun EditablePath.insertNode(segmentIndex: Int, t: Double): EditablePath {
 
     // de Casteljau one level at a time.
     fun lerp(a: Pt, b: Pt, u: Double) = Pt(a.xMm + u * (b.xMm - a.xMm), a.yMm + u * (b.yMm - a.yMm))
+    // Suppress a computed handle if it coincides exactly with the anchor (zero-length handle).
+    fun nonDegenerate(h: Pt, anchor: Pt): Pt? =
+        if (h.xMm == anchor.xMm && h.yMm == anchor.yMm) null else h
 
     val p01  = lerp(p0, p1, t)
     val p12  = lerp(p1, p2, t)
@@ -240,13 +245,14 @@ fun EditablePath.insertNode(segmentIndex: Int, t: Double): EditablePath {
     val p123 = lerp(p12, p23, t)
     val p0123 = lerp(p012, p123, t)  // new anchor
 
-    // New node handles. For straight segments suppress handles (keep them null).
-    val newHandleIn  = if (straight) null else p012
-    val newHandleOut = if (straight) null else p123
+    // New node handles. For fully straight segments suppress all handles.  Also drop any
+    // handle that de Casteljau collapsed to exactly the anchor (degenerate t=0 / t=1 case).
+    val newHandleIn  = if (straight) null else nonDegenerate(p012, p0123)
+    val newHandleOut = if (straight) null else nonDegenerate(p123, p0123)
 
     // Update from-node's handleOut and to-node's handleIn.
-    val newFromHandleOut = if (straight) null else p01
-    val newToHandleIn    = if (straight) null else p23
+    val newFromHandleOut = if (straight) null else nonDegenerate(p01, from.anchor)
+    val newToHandleIn    = if (straight) null else nonDegenerate(p23, to.anchor)
 
     val newFrom = from.copy(handleOut = newFromHandleOut)
     val mid     = PathNode(p0123, handleIn = newHandleIn, handleOut = newHandleOut)

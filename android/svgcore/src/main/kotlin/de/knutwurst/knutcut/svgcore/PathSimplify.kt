@@ -97,7 +97,15 @@ fun smoothToPath(points: List<Pt>, closed: Boolean = false): EditablePath {
 
         // Normalise tangent then scale to distNeighbour/3.
         val tLen = hypot(tx, ty)
-        val (ux, uy) = if (tLen > 1e-12) (tx / tLen) to (ty / tLen) else (1.0 to 0.0)
+        val (ux, uy) = if (tLen > 1e-12) {
+            (tx / tLen) to (ty / tLen)
+        } else {
+            // Zero Catmull-Rom tangent (prev == next).  Fall back to the direction
+            // from curr toward the nearest distinct neighbour.
+            val ndx = next.xMm - curr.xMm; val ndy = next.yMm - curr.yMm
+            val nd = hypot(ndx, ndy)
+            if (nd > 1e-12) (ndx / nd) to (ndy / nd) else (1.0 to 0.0)
+        }
 
         val hOut = if (distOut > 1e-12) Pt(curr.xMm + ux * distOut / 3.0, curr.yMm + uy * distOut / 3.0) else null
         val hIn  = if (distIn  > 1e-12) Pt(curr.xMm - ux * distIn  / 3.0, curr.yMm - uy * distIn  / 3.0) else null

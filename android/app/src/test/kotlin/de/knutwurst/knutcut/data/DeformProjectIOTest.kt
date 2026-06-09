@@ -154,7 +154,9 @@ class DeformProjectIOTest {
             closed = false,
             baseline = DeformBaseline.TOP,
         )
-        val layer = Layer("Straight", polylines(), Tool.PEN, true, deform = spec)
+        // deformSource must be set (invariant: deform != null iff deformSource != null).
+        val src = polylines()
+        val layer = Layer("Straight", polylines(), Tool.PEN, true, deform = spec, deformSource = src)
         val back = ProjectIO.fromJson(ProjectIO.toJson(listOf(layer)))
         val restored = back[0].deform as? PathDeform
         assertNotNull(restored)

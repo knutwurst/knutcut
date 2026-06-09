@@ -627,6 +627,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         layers = emptyList()
         selectedLayer = -1
         markedLayers = emptySet()
+        // A node-edit or deform mode must not survive the loss of all layers.
+        editorTool = EditorTool.SELECT
         pruneBoundsCache()
         camScale = 1f
         camOffset = Offset.Zero
@@ -732,13 +734,14 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return layerMatrix(layer).apply(p)
     }
 
-    /** Apply a new editPath to the selected layer and keep [polylines] in sync. */
+    /** Apply a new editPath to the selected layer and keep [polylines] in sync.
+     *  Node editing bakes away any active warp: deform and deformSource are cleared. */
     private fun applyEditPath(newPath: EditablePath) {
         val i = selectedLayer
         if (i !in layers.indices) return
         val poly = newPath.toPolyline()
         layers = layers.mapIndexed { idx, l ->
-            if (idx == i) l.copy(editPath = newPath, polylines = listOf(poly)) else l
+            if (idx == i) l.copy(editPath = newPath, polylines = listOf(poly), deform = null, deformSource = null) else l
         }
         pruneBoundsCache()
     }
@@ -806,16 +809,20 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         applyEditPath(path.setSmooth(i, !path.nodes[i].smooth))
     }
 
-    /** Delete node [i]. No-op when too few nodes remain (EditablePath.deleteNode handles the guard). Pushes one undo step. */
+    /** Delete node [i]. No-op when the index is out of range or too few nodes remain. Pushes one undo step. */
     fun deleteSelectedNode(i: Int) {
         val path = selectedEditPath ?: return
+        if (i !in path.nodes.indices) return   // bounds guard: out-of-range index is a no-op
         pushHistory()
         applyEditPath(path.deleteNode(i))
     }
 
     /**
      * Convert the selected layer's single polyline to an editable path.
-     * No-op when the layer already has an editPath, has no polylines, or has more than one polyline.
+     *
+     * No-op when the layer already has an editPath, or has more than one polyline.
+     * When the layer has an active deform the current (warped) geometry is baked into the editable
+     * path and the deform is dropped — the warp becomes permanent node positions.
      * Pushes one undo step on success.
      */
     fun convertSelectedToEditablePath() {
@@ -826,7 +833,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         pushHistory()
         val newPath = layer.polylines[0].toEditablePath()
         layers = layers.mapIndexed { idx, l ->
-            if (idx == i) l.copy(editPath = newPath) else l
+            // Bake away any active warp: the node positions come from the warped polyline.
+            if (idx == i) l.copy(editPath = newPath, deform = null, deformSource = null) else l
         }
     }
 
@@ -855,6 +863,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         layers = layers.filterIndexed { idx, _ -> idx != i }
         selectedLayer = selectedLayer.coerceIn(0, (layers.size - 1).coerceAtLeast(0))
         markedLayers = emptySet()
+        // A node-edit or deform mode must not outlive the layer it was editing.
+        editorTool = EditorTool.SELECT
         pruneBoundsCache()
     }
 
@@ -1051,7 +1061,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val warped = DeformEngine.apply(spec, source)
         if (pushHistory) pushHistory()
         layers = layers.mapIndexed { i, l ->
-            if (i == index) l.copy(polylines = warped, deform = spec, deformSource = source) else l
+            // Deform and node-editing are mutually exclusive: clear editPath when a deform is set.
+            if (i == index) l.copy(polylines = warped, deform = spec, deformSource = source, editPath = null) else l
         }
         pruneBoundsCache()
     }
@@ -1088,13 +1099,16 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return Bounds.ofOrNull(src.flatMap { it.points })
     }
 
-    /** Bake a layer's placement into its geometry, so its coordinates already sit where it is drawn. */
+    /** Bake a layer's placement into its geometry, so its coordinates already sit where it is drawn.
+     *  Also clears deform, deformSource, and editPath: the baked coordinates are the new source of
+     *  truth, and keeping stale pre-bake data would cause double-warping if a deform is reapplied. */
     private fun bake(layer: Layer): Layer {
         val m = layerMatrix(layer)
         val baked = layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
         return layer.copy(
             polylines = baked, centerMm = centerOf(baked.flatMap { it.points }),
             scaleX = 1.0, scaleY = 1.0, rotationDeg = 0.0, flipX = false, flipY = false,
+            deform = null, deformSource = null, editPath = null,
         )
     }
 
