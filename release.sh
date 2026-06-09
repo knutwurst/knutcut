@@ -59,7 +59,10 @@ with open(path, "w", encoding="utf-8") as f:
     f.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
 PY
 
-( cd "$TMP/rel" && git add -A && git commit -q -m "Release $VERSION_NAME" && git push -q )
+( cd "$TMP/rel" \
+    && git config user.name "Knutwurst" \
+    && git config user.email "36196269+knutwurst@users.noreply.github.com" \
+    && git add -A && git commit -q -m "Release $VERSION_NAME" && git push -q )
 
 echo "==> Published $APK_NAME + latest.json to knutcut-releases."
 echo "    Devices on an older version will be offered v$VERSION_NAME."

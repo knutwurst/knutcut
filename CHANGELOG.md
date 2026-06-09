@@ -3,20 +3,17 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
-## 0.54.6
-- Expanded the SVG library to more than 7,600 offline motifs.
-- Replaced the multi-row category chips with a compact category picker.
-- Added a visible scrollbar to the library list.
-
-## 0.54.5
-- Expanded the SVG library to nearly one thousand offline motifs from Material Design Icons via
-  Iconify, with additional categories.
-- Start screen: short, equal-width buttons for file, library, and shape.
-- Library opens as a tall sheet with more visible content instead of a small half-height panel.
-
-## 0.54.4
-- SVG library: searchable motif picker with categories, previews, and direct insertion into the
-  editor. Motifs are available offline and are placed as one grouped layer.
+## 0.55.0
+- New SVG motif library: 7,600+ offline motifs (Material Design Icons, Apache-2.0, via Iconify),
+  searchable with categories and previews; a chosen motif is inserted as one grouped layer.
+- Search matches motif names and tags only, so common letters or words no longer return the whole
+  library.
+- The library list is built off the main thread (no freeze on first open), and previews are parsed
+  in the background and cached, so scrolling stays smooth.
+- Previews are filled silhouettes that match what the plotter actually cuts, instead of thin
+  outlines.
+- Compact category picker and a slim scrollbar for the list.
+- Removed the "test cut 20 mm" entry from the add menu; add a square from the same menu if you need one.
 
 ## 0.54.3
 - Fix: sharing a design from another app a second time (after cancelling the first) no longer silently

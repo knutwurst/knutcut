@@ -89,6 +89,7 @@
     <string name="ui_clear_search">Suche löschen</string>
     <string name="ui_library_empty">Keine passenden Motive.</string>
     <string name="ui_library_count">%1$d Motive</string>
+    <string name="ui_library_source">Material Design Icons (Apache-2.0) · über Iconify</string>
     <string name="ui_category">Kategorie</string>
     <string name="ui_all">Alle</string>
     <string name="ui_lib_cat_basics">Basics</string>
@@ -100,7 +101,6 @@
     <string name="ui_lib_cat_vehicles">Fahrzeuge</string>
     <string name="ui_lib_cat_labels">Etiketten</string>
     <string name="ui_text_menu">Text…</string>
-    <string name="ui_test_cut">Probeschnitt 20 mm</string>
     <string name="ui_square">Quadrat</string>
     <string name="ui_rect">Rechteck</string>
     <string name="ui_circle">Kreis</string>

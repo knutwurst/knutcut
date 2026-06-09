@@ -77,6 +77,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -102,6 +103,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -113,6 +115,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -135,14 +138,16 @@ import de.knutwurst.knutcut.data.ColorMode
 import de.knutwurst.knutcut.data.PlotterSvgCategory
 import de.knutwurst.knutcut.data.PlotterSvgItem
 import de.knutwurst.knutcut.data.PlotterSvgLibrary
+import de.knutwurst.knutcut.data.PlotterSvgPreviewCache
 import de.knutwurst.knutcut.data.ThemeMode
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Bounds
 import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Shapes
-import de.knutwurst.knutcut.svgcore.SvgParser
 import java.util.Locale
 import kotlin.math.min
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun MainScreen(vm: KnutcutViewModel) {
@@ -414,7 +419,6 @@ private fun AddMenu(
         DropdownMenuItem(text = { Text(stringResource(R.string.ui_text_menu)) }, onClick = onText)
         HorizontalDivider()
         listOf(
-            stringResource(R.string.ui_test_cut) to Shapes.rect(20.0, 20.0),
             stringResource(R.string.ui_square) to Shapes.rect(40.0, 40.0),
             stringResource(R.string.ui_rect) to Shapes.rect(60.0, 40.0),
             stringResource(R.string.ui_circle) to Shapes.circle(40.0),
@@ -432,10 +436,11 @@ private fun LibrarySheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
     var query by remember { mutableStateOf("") }
     var category by remember { mutableStateOf<PlotterSvgCategory?>(null) }
     val gridState = rememberLazyGridState()
-    val items = remember(query, category) {
-        PlotterSvgLibrary.items
-            .filter { category == null || it.category == category }
-            .filter { it.matches(query) }
+    // The motif list is built on a background thread the first time the sheet opens.
+    LaunchedEffect(Unit) { vm.loadLibrary() }
+    val all = vm.libraryItems
+    val items = remember(query, category, all) {
+        all.filter { (category == null || it.category == category) && it.matches(query) }
     }
     LaunchedEffect(query, category) { gridState.scrollToItem(0) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
@@ -459,42 +464,52 @@ private fun LibrarySheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             )
             Spacer(Modifier.height(8.dp))
             LibraryCategoryPicker(category = category, onCategory = { category = it })
-            Text(
-                stringResource(R.string.ui_library_count, items.size),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-            Spacer(Modifier.height(10.dp))
-            if (items.isEmpty()) {
+            if (all.isNotEmpty()) {
                 Text(
-                    stringResource(R.string.ui_library_empty),
+                    stringResource(R.string.ui_library_count, items.size),
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
-                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
-            } else {
-                Box(Modifier.fillMaxWidth().weight(1f)) {
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(minSize = 132.dp),
-                        state = gridState,
-                        modifier = Modifier.fillMaxSize().padding(end = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        items(items, key = { it.id }) { item ->
-                            LibraryItem(
-                                item = item,
-                                onClick = {
-                                    vm.addLibrarySvg(item.name, item.svg)
-                                    onDismiss()
-                                },
-                            )
+            }
+            Spacer(Modifier.height(10.dp))
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                when {
+                    all.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    items.isEmpty() -> Text(
+                        stringResource(R.string.ui_library_empty),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.Center).padding(vertical = 20.dp),
+                        textAlign = TextAlign.Center,
+                    )
+                    else -> {
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = 132.dp),
+                            state = gridState,
+                            modifier = Modifier.fillMaxSize().padding(end = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            items(items, key = { it.id }) { item ->
+                                LibraryItem(
+                                    item = item,
+                                    onClick = {
+                                        vm.addLibrarySvg(item.name, item.svg)
+                                        onDismiss()
+                                    },
+                                )
+                            }
                         }
+                        LibraryGridScrollbar(gridState, Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(6.dp))
                     }
-                    LibraryGridScrollbar(gridState, Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(6.dp))
                 }
             }
+            Text(
+                stringResource(R.string.ui_library_source),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp),
+            )
         }
     }
 }
@@ -549,7 +564,7 @@ private fun LibraryGridScrollbar(state: LazyGridState, modifier: Modifier = Modi
         val thumbHeight = (size.height * visibleCount / total).coerceIn(24f, size.height)
         val travel = (size.height - thumbHeight).coerceAtLeast(0f)
         val maxFirst = (total - visibleCount).coerceAtLeast(1)
-        val top = travel * (first.toFloat() / maxFirst)
+        val top = travel * (first.toFloat() / maxFirst).coerceIn(0f, 1f)
         val barWidth = size.width.coerceAtMost(5f)
         val left = (size.width - barWidth) / 2f
         val radius = CornerRadius(barWidth / 2f, barWidth / 2f)
@@ -560,12 +575,15 @@ private fun LibraryGridScrollbar(state: LazyGridState, modifier: Modifier = Modi
 
 @Composable
 private fun LibraryItem(item: PlotterSvgItem, onClick: () -> Unit) {
-    val polylines = remember(item.id) { runCatching { SvgParser.parse(item.svg) }.getOrDefault(emptyList()) }
-    val stroke = MaterialTheme.colorScheme.primary
+    // Parse off the main thread and memoise; scrolling never blocks the UI or re-parses a seen item.
+    val polylines by produceState(initialValue = emptyList<Polyline>(), item.id) {
+        value = withContext(Dispatchers.Default) { PlotterSvgPreviewCache.preview(item.id, item.svg) }
+    }
+    val fill = MaterialTheme.colorScheme.onSurface
     Surface(
         shape = RoundedCornerShape(8.dp),
         tonalElevation = 1.dp,
-        modifier = Modifier.fillMaxWidth().height(148.dp).border(
+        modifier = Modifier.fillMaxWidth().height(128.dp).border(
             1.dp,
             MaterialTheme.colorScheme.outlineVariant,
             RoundedCornerShape(8.dp),
@@ -573,23 +591,20 @@ private fun LibraryItem(item: PlotterSvgItem, onClick: () -> Unit) {
     ) {
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Canvas(
-                modifier = Modifier.fillMaxWidth().height(72.dp),
+                modifier = Modifier.fillMaxWidth().weight(1f),
             ) {
-                drawLibraryPreview(polylines, stroke)
+                drawLibraryPreview(polylines, fill)
             }
             Text(item.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                item.source,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
         }
     }
 }
 
+/** Draws the motif as it is actually cut: closed contours are filled with an even-odd rule (so
+ *  interior holes show through), matching the silhouette the plotter produces, rather than thin
+ *  outlines that misrepresent a filled glyph. Open contours (rare) are stroked. */
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawLibraryPreview(polylines: List<Polyline>, color: Color) {
+    if (polylines.isEmpty()) return
     val points = polylines.flatMap { it.points }
     val bounds = Bounds.ofOrNull(points) ?: return
     if (bounds.widthMm <= 0.0 || bounds.heightMm <= 0.0) return
@@ -599,18 +614,21 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawLibraryPreview(
     val scale = min(usableW / bounds.widthMm.toFloat(), usableH / bounds.heightMm.toFloat())
     val ox = (size.width - bounds.widthMm.toFloat() * scale) / 2f - bounds.minX.toFloat() * scale
     val oy = (size.height - bounds.heightMm.toFloat() * scale) / 2f - bounds.minY.toFloat() * scale
+    val fillPath = Path().apply { fillType = PathFillType.EvenOdd }
+    val strokePath = Path()
     for (pl in polylines) {
-        if (pl.points.isEmpty()) continue
-        val path = Path()
+        if (pl.points.size < 2) continue
+        val target = if (pl.closed) fillPath else strokePath
         val first = pl.points.first()
-        path.moveTo(first.xMm.toFloat() * scale + ox, first.yMm.toFloat() * scale + oy)
+        target.moveTo(first.xMm.toFloat() * scale + ox, first.yMm.toFloat() * scale + oy)
         for (i in 1 until pl.points.size) {
             val p = pl.points[i]
-            path.lineTo(p.xMm.toFloat() * scale + ox, p.yMm.toFloat() * scale + oy)
+            target.lineTo(p.xMm.toFloat() * scale + ox, p.yMm.toFloat() * scale + oy)
         }
-        if (pl.closed) path.close()
-        drawPath(path, color, style = Stroke(width = 2.4f))
+        if (pl.closed) target.close()
     }
+    drawPath(fillPath, color)
+    drawPath(strokePath, color, style = Stroke(width = 2.4f))
 }
 
 @Composable

@@ -2,6 +2,7 @@ package de.knutwurst.knutcut.data
 
 import de.knutwurst.knutcut.svgcore.SvgParser
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -29,11 +30,21 @@ class PlotterSvgLibraryTest {
     }
 
     @Test
-    fun searchMatchesNameTagsAndSource() {
+    fun searchMatchesNameAndTagsNotConstantSource() {
         val heart = PlotterSvgLibrary.items.first { it.id == "mdi-heart" }
 
         assertTrue(heart.matches("Heart"))
         assertTrue(heart.matches("heart"))
-        assertTrue(heart.matches("Iconify"))
+        // The shared source/attribution and the category id must NOT make a query match every
+        // item; otherwise common substrings ("icon", "material", single letters) flood the list.
+        assertFalse(heart.matches("Iconify"))
+        assertFalse(heart.matches("material"))
+    }
+
+    @Test
+    fun commonSubstringDoesNotReturnWholeLibrary() {
+        // "a" appears in the constant source string; with the old matcher it returned everything.
+        val hits = PlotterSvgLibrary.items.count { it.matches("a") }
+        assertTrue("query 'a' should not match the entire library", hits < PlotterSvgLibrary.items.size)
     }
 }

@@ -25,20 +25,28 @@ data class PlotterSvgItem(
     val source: String,
     val svg: String,
 ) {
+    /** Name + tags, lowercased once at construction. Deliberately excludes [source] (the same
+     *  constant string for every item) and the category id (already filtered separately in the
+     *  picker): matching against either made common substrings like "a", "icon" or "material"
+     *  return the entire library. */
+    private val haystack: String = buildString {
+        append(name.lowercase())
+        for (t in tags) { append(' '); append(t.lowercase()) }
+    }
+
     fun matches(query: String): Boolean {
         val q = query.trim().lowercase()
-        if (q.isEmpty()) return true
-        return name.lowercase().contains(q) ||
-            category.id.contains(q) ||
-            tags.any { it.lowercase().contains(q) } ||
-            source.lowercase().contains(q)
+        return q.isEmpty() || haystack.contains(q)
     }
 }
 
 object PlotterSvgLibrary {
     val categories: List<PlotterSvgCategory> = PlotterSvgCategory.entries
 
-    val items: List<PlotterSvgItem> by lazy(LazyThreadSafetyMode.NONE) {
+    // SYNCHRONIZED (not NONE): the list is built on a background dispatcher (see
+    // KnutcutViewModel.loadLibrary) while the picker enum may be read from the UI thread, so the
+    // one-time build must be safe under concurrent first access.
+    val items: List<PlotterSvgItem> by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         buildList(7608) {
             addAll(chunk0())
             addAll(chunk1())

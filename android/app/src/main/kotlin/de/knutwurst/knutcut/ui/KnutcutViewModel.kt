@@ -28,6 +28,8 @@ import de.knutwurst.knutcut.data.Material
 import de.knutwurst.knutcut.data.Materials
 import de.knutwurst.knutcut.data.display
 import de.knutwurst.knutcut.data.PlotterModel
+import de.knutwurst.knutcut.data.PlotterSvgItem
+import de.knutwurst.knutcut.data.PlotterSvgLibrary
 import de.knutwurst.knutcut.data.Settings
 import de.knutwurst.knutcut.data.ThemeMode
 import de.knutwurst.knutcut.data.Tool
@@ -434,7 +436,26 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         loadDesignContent(text, replace = false)
     }
 
+    // --- SVG motif library (large, fully offline) ---------------------------------------------
+    /** The motif list, published once it has been built off the main thread. Empty until then. */
+    var libraryItems by mutableStateOf<List<PlotterSvgItem>>(emptyList()); private set
+    var libraryLoading by mutableStateOf(false); private set
+
+    /** Build the 7,600+ item list once, off the main thread, then publish it. Idempotent, so the
+     *  library sheet can call it on every open without rebuilding or freezing the UI. */
+    fun loadLibrary() {
+        if (libraryItems.isNotEmpty() || libraryLoading) return
+        libraryLoading = true
+        viewModelScope.launch {
+            val built = withContext(Dispatchers.Default) { PlotterSvgLibrary.items }
+            libraryItems = built
+            libraryLoading = false
+        }
+    }
+
     fun addLibrarySvg(name: String, svg: String) {
+        // One motif's SVG is small; parsing on tap is quick (the grid's per-cell parsing during
+        // scroll — the real cost — is handled off-thread in the picker).
         val parsed = parseDesign(svg)
         if (parsed == null || parsed.layers.isEmpty()) { status = s(R.string.st_no_cuttable_paths); return }
         val layer = mergeLibraryLayers(name, parsed.layers)
