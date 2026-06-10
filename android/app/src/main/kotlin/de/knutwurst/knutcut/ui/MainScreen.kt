@@ -238,6 +238,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                         onOpenFile = { showAdd = false; openFile() },
                         onLibrary = { showAdd = false; showLibrary = true },
                         onText = { showAdd = false; showText = true },
+                        onDraw = { showAdd = false; vm.editorTool = EditorTool.DRAW },
                         onShape = { vm.addLayer(it.first, listOf(it.second)); showAdd = false },
                     )
                 }
@@ -429,6 +430,7 @@ private fun AddMenu(
     onOpenFile: () -> Unit,
     onLibrary: () -> Unit,
     onText: () -> Unit,
+    onDraw: () -> Unit,
     onShape: (Pair<String, de.knutwurst.knutcut.svgcore.Polyline>) -> Unit,
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
@@ -437,6 +439,7 @@ private fun AddMenu(
         DropdownMenuItem(text = { Text(stringResource(R.string.ui_open_svg_plt)) }, onClick = onOpenFile)
         DropdownMenuItem(text = { Text(stringResource(R.string.ui_library_menu)) }, onClick = onLibrary)
         DropdownMenuItem(text = { Text(stringResource(R.string.ui_text_menu)) }, onClick = onText)
+        DropdownMenuItem(text = { Text(stringResource(R.string.ui_mode_draw)) }, onClick = onDraw)
         HorizontalDivider()
         listOf(
             stringResource(R.string.ui_square) to Shapes.rect(40.0, 40.0),
