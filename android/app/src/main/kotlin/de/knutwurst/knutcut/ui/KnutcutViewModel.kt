@@ -451,6 +451,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             layers = ls
             selectedLayer = 0
             markedLayers = emptySet()
+            editorTool = EditorTool.SELECT      // a load always starts in a clean SELECT state
+            bendingText = false
             pruneBoundsCache()
             projectName = displayNameOf(uri)
             status = qty(R.plurals.st_project_loaded, ls.size, ls.size)
@@ -546,6 +548,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             layers = proj
             selectedLayer = 0
             markedLayers = emptySet()
+            editorTool = EditorTool.SELECT
+            bendingText = false
             pruneBoundsCache()
             status = qty(R.plurals.st_project_loaded, proj.size, proj.size)
             return true
@@ -556,6 +560,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         if (replace || layers.isEmpty()) {
             layers = placeAtHome(parsed.layers)
             selectedLayer = 0
+            editorTool = EditorTool.SELECT
+            bendingText = false
             camScale = 1f
             camOffset = Offset.Zero
         } else {

@@ -445,11 +445,19 @@ fun MatEditor(
                                 if (pressed.isEmpty()) break
 
                                 if (pressed.size >= 2) {
-                                    if (moving) vm.undo()   // cancel the partial move, hand off to camera
+                                    // Hand off to the camera, keeping the partial move (same as Select).
+                                    // Drain camera events until all fingers lift, so the pinch tracks fully.
                                     cancelledByTwoFinger = true
                                     val (np, no) = applyTwoFingerCamera(pressed[0], pressed[1], ppm, origin)
                                     ppm = np; origin = no
                                     event.changes.forEach { it.consume() }
+                                    while (true) {
+                                        val ev2 = awaitPointerEvent()
+                                        val pr2 = ev2.changes.filter { it.pressed }
+                                        if (pr2.isEmpty()) break
+                                        if (pr2.size >= 2) { val (a, b) = applyTwoFingerCamera(pr2[0], pr2[1], ppm, origin); ppm = a; origin = b }
+                                        ev2.changes.forEach { it.consume() }
+                                    }
                                     break
                                 }
 
