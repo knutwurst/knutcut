@@ -231,6 +231,24 @@ class DrawToolTest {
     }
 
     @Test
+    fun editOriginRoundTripsAndIsAbsentForPlainLayers() {
+        val vm = vm()
+        vm.addDrawnPath(listOf(Pt(0.0, 0.0), Pt(20.0, 10.0), Pt(40.0, 0.0), Pt(60.0, 10.0)))
+        val origin = vm.layers[0].editOriginMm
+        assertNotNull("a drawn layer carries a frozen edit origin", origin)
+
+        val restored = ProjectIO.fromJson(ProjectIO.toJson(vm.layers))
+        val r = restored[0].editOriginMm
+        assertNotNull("edit origin must survive the round-trip", r)
+        assertEquals("edit origin x", origin!!.xMm, r!!.xMm, 1e-9)
+        assertEquals("edit origin y", origin.yMm, r.yMm, 1e-9)
+
+        // A plain layer (no editPath) must not gain an edit origin.
+        val plain = Layer("Plain", listOf(de.knutwurst.knutcut.svgcore.Polyline(listOf(Pt(0.0, 0.0), Pt(10.0, 0.0)), false)), Tool.KNIFE, true)
+        assertNull("plain layer keeps editOrigin null", ProjectIO.fromJson(ProjectIO.toJson(listOf(plain)))[0].editOriginMm)
+    }
+
+    @Test
     fun editPathAbsentInOldJsonLoadsAsNull() {
         // A legacy project JSON without the editPath key must load without error.
         val json = """[{"name":"Old","tool":"PEN","visible":true,"cx":5,"cy":5,
