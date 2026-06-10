@@ -3,6 +3,10 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.56.1
+- Settings → Projekt: export the visible design as an SVG (stroked outlines at real millimetre
+  size, placement baked in), so the design opens in other vector tools and re-imports here.
+
 ## 0.56.0
 - Freehand drawing: sketch a shape on the mat with your finger. A stroke whose ends roughly meet
   closes into a cuttable shape; sharp turns stay crisp corners while curves stay round. Auto-close

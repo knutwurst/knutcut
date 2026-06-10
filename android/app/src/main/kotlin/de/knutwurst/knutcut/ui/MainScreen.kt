@@ -1285,10 +1285,13 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                 }
                 val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri -> uri?.let { vm.saveProject(it) } }
                 val loadLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.loadProject(it) } }
+                val svgLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/svg+xml")) { uri -> uri?.let { vm.exportSvg(it) } }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { loadLauncher.launch(arrayOf("*/*")) }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.ui_load), maxLines = 1) }
                     OutlinedButton(onClick = { saveLauncher.launch("knutcut.kcp") }, enabled = vm.hasDesign, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.ui_save), maxLines = 1) }
                 }
+                Spacer(Modifier.height(6.dp))
+                OutlinedButton(onClick = { svgLauncher.launch("knutcut.svg") }, enabled = vm.hasDesign, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.ui_export_svg), maxLines = 1) }
             }
 
             SettingsGroup(stringResource(R.string.ui_grp_cut)) {

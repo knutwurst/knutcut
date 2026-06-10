@@ -76,6 +76,7 @@ import de.knutwurst.knutcut.svgcore.Protocol
 import de.knutwurst.knutcut.svgcore.Pt
 import de.knutwurst.knutcut.svgcore.Query
 import de.knutwurst.knutcut.svgcore.Snap
+import de.knutwurst.knutcut.svgcore.SvgExport
 import de.knutwurst.knutcut.svgcore.SvgParser
 import de.knutwurst.knutcut.svgcore.TextArc
 import de.knutwurst.knutcut.svgcore.UNITS_PER_MM
@@ -411,6 +412,24 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             }
             if (ok) projectName = displayNameOf(uri)
             status = if (ok) s(R.string.st_project_saved) else s(R.string.st_project_save_failed)
+        }
+    }
+
+    /**
+     * Export the visible design to a plain SVG of stroked outlines (the cut/draw paths), in
+     * millimetres at its real size. Placement (scale/rotation/position) is baked in. Unlike a .kcp
+     * project this is a portable vector other tools can open.
+     */
+    fun exportSvg(uri: Uri) {
+        val strokes = placedLayers().flatMap { pl ->
+            pl.polylines.mapIndexed { i, poly -> SvgExport.Stroke(poly, pl.colors.getOrNull(i)) }
+        }
+        val svg = SvgExport.toSvg(strokes)
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching { getApplication<Application>().contentResolver.openOutputStream(uri)?.use { it.write(svg.toByteArray()) } }.isSuccess
+            }
+            status = if (ok) s(R.string.st_svg_exported) else s(R.string.st_svg_export_failed)
         }
     }
 

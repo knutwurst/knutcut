@@ -182,6 +182,7 @@
     <string name="ui_project">Projekt</string>
     <string name="ui_save">Speichern</string>
     <string name="ui_load">Laden</string>
+    <string name="ui_export_svg">Als SVG exportieren</string>
     <string name="ui_updating">Aktualisiere…</string>
     <string name="ui_check_update">Auf neue Version prüfen</string>
     <string name="ui_auto_check">Automatisch beim Start prüfen</string>
@@ -284,6 +285,8 @@
     <string name="ui_grp_updates">Updates</string>
     <string name="st_project_saved">Projekt gespeichert.</string>
     <string name="st_project_save_failed">Projekt konnte nicht gespeichert werden.</string>
+    <string name="st_svg_exported">Als SVG exportiert.</string>
+    <string name="st_svg_export_failed">SVG konnte nicht exportiert werden.</string>
     <string name="ui_grp_language">Sprache</string>
     <string name="ui_open_project">Projekt öffnen</string>
     <string name="ui_current_file">Aktuell: %1$s</string>
