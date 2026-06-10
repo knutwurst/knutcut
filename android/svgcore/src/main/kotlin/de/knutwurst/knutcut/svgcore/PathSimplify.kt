@@ -114,7 +114,7 @@ fun looksClosed(points: List<Pt>, absToleranceMm: Double = 12.0, relTolerance: D
 fun simplifyToBudget(
     points: List<Pt>,
     closed: Boolean,
-    targetNodes: Int = 10,
+    targetNodes: Int = 8,
     hardCap: Int = 40,
     minEpsMm: Double = 0.1,
     maxEpsMm: Double = 6.0,
