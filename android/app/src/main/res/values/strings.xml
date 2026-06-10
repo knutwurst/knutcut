@@ -309,6 +309,7 @@
     <string name="ui_node_delete">Delete node</string>
     <string name="ui_node_convert">Make editable</string>
     <string name="ui_done">Done</string>
+    <string name="ui_mode_select_hint">Drag to move, corner or side handles to resize, top handle to rotate.</string>
     <string name="ui_mode_draw_hint">Draw: drag with your finger. Two fingers pan and zoom.</string>
     <string name="ui_mode_nodes_hint">Shape: drag a point to bend, double-tap a line to add a point.</string>
     <!-- Mode segment -->

@@ -3,6 +3,11 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.56.3
+- The gesture hint under the mat sits in a fixed slot and wraps to two lines: it's no longer cut
+  off, and the mode buttons no longer jump up when a hint appears. The hint shows directly below the
+  mat for every mode (including a Select-mode tip).
+
 ## 0.56.2
 - Drawn shapes close less eagerly, so an open line isn't turned into a cut contour by accident (the
   node editor's Open/Close button still closes one on demand).

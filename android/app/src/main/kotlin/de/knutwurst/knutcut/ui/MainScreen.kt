@@ -264,7 +264,13 @@ fun MainScreen(vm: KnutcutViewModel) {
                 vm.cutting -> CuttingBar(vm)
                 !vm.hasDesign -> EmptyState(onOpen = { openFile() }, onLibrary = { showLibrary = true }, onAddShape = { showAdd = true })
                 else -> {
+                    // Fixed-height hint directly under the mat, then the mode segment, then the
+                    // actions. The hint slot is always reserved so entering a mode never shifts the
+                    // buttons.
+                    EditorHintBar(vm)
+                    Spacer(Modifier.height(6.dp))
                     ModeSegment(vm)
+                    Spacer(Modifier.height(8.dp))
                     EditingBar(
                         vm,
                         onSize = { showTransform = true },
@@ -755,39 +761,69 @@ private fun CuttingBar(vm: KnutcutViewModel) {
 }
 
 /**
- * Mode segment row + slim gesture hint below it. Shown only when a design is on the mat.
- * "Auswählen" always resets to SELECT. "Knoten" is available only when the selected layer
- * can be node-edited; tapping it converts the layer if needed and enters NODES mode.
+ * Fixed-height hint strip shown directly under the mat. Its height is reserved, so showing or
+ * changing the hint never reflows the mode segment or the editing bar below it. The text wraps to
+ * two lines instead of being cut off. The mode's contextual action sits on the right: Open/Close in
+ * the shape editor, Fertig while bending.
+ */
+@Composable
+private fun EditorHintBar(vm: KnutcutViewModel) {
+    val hint = when {
+        vm.bendingText -> stringResource(R.string.ui_bend_hint)
+        vm.editorTool == EditorTool.DRAW -> stringResource(R.string.ui_mode_draw_hint)
+        vm.editorTool == EditorTool.NODES -> stringResource(R.string.ui_mode_nodes_hint)
+        else -> stringResource(R.string.ui_mode_select_hint)
+    }
+    Row(
+        // Reserve room for two lines so the layout never jumps as the hint changes.
+        modifier = Modifier.fillMaxWidth().height(56.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.primaryContainer,
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+        ) {
+            Box(
+                Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 6.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Text(
+                    hint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        // Contextual action for the active mode.
+        when {
+            vm.bendingText ->
+                OutlinedButton(onClick = { vm.stopBendingText() }) { Text(stringResource(R.string.ui_done), maxLines = 1) }
+            vm.editorTool == EditorTool.NODES && vm.selectedEditPath != null ->
+                OutlinedButton(
+                    onClick = { vm.toggleSelectedPathClosed() },
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        stringResource(if (vm.selectedPathClosed) R.string.ui_path_open else R.string.ui_path_close),
+                        maxLines = 1,
+                    )
+                }
+        }
+    }
+}
+
+/**
+ * Mode segment row (Auswählen / Zeichnen / Formen). Shown only when a design is on the mat.
+ * "Formen" is enabled only when the selected layer can be node-edited; tapping it converts the layer
+ * if needed. Any choice also leaves the on-mat bend mode.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ModeSegment(vm: KnutcutViewModel) {
-    // While bending text on the mat, the segment is replaced by a focused bend bar.
-    if (vm.bendingText) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(
-                    stringResource(R.string.ui_bend_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            OutlinedButton(onClick = { vm.stopBendingText() }) { Text(stringResource(R.string.ui_done), maxLines = 1) }
-        }
-        return
-    }
-
     val layer = vm.layers.getOrNull(vm.selectedLayer)
     val canEditNodes = !vm.matSelected && layer != null &&
         (layer.editPath != null || layer.polylines.size == 1)
@@ -797,21 +833,23 @@ private fun ModeSegment(vm: KnutcutViewModel) {
         stringResource(R.string.ui_mode_draw),
         stringResource(R.string.ui_mode_nodes),
     )
-    val selectedIndex = when (vm.editorTool) {
+    // No segment is selected while bending — bend isn't one of the three modes.
+    val selectedIndex = if (vm.bendingText) -1 else when (vm.editorTool) {
         EditorTool.SELECT -> 0
         EditorTool.DRAW   -> 1
         EditorTool.NODES  -> 2
     }
 
-    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
         options.forEachIndexed { i, label ->
             val enabled = when (i) {
-                2 -> canEditNodes   // Knoten only when a compatible layer is selected
+                2 -> canEditNodes   // Formen only when a compatible layer is selected
                 else -> true
             }
             SegmentedButton(
                 shape = SegmentedButtonDefaults.itemShape(index = i, count = options.size),
                 onClick = {
+                    vm.stopBendingText()   // choosing a mode leaves the on-mat bend
                     when (i) {
                         0 -> vm.editorTool = EditorTool.SELECT
                         1 -> vm.editorTool = EditorTool.DRAW
@@ -825,48 +863,6 @@ private fun ModeSegment(vm: KnutcutViewModel) {
                 enabled = enabled,
             ) {
                 Text(label, maxLines = 1)
-            }
-        }
-    }
-
-    // Slim one-line gesture hint, shown only when a non-SELECT mode is active.
-    val hint = when (vm.editorTool) {
-        EditorTool.DRAW  -> stringResource(R.string.ui_mode_draw_hint)
-        EditorTool.NODES -> stringResource(R.string.ui_mode_nodes_hint)
-        else -> null
-    }
-    if (hint != null) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(
-                    hint,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            // In the node editor: flip the path between open and closed (the manual override for
-            // the freehand auto-close, so any shape can be made cleanly cuttable or opened back up).
-            if (vm.editorTool == EditorTool.NODES && vm.selectedEditPath != null) {
-                OutlinedButton(
-                    onClick = { vm.toggleSelectedPathClosed() },
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                ) {
-                    Text(
-                        stringResource(if (vm.selectedPathClosed) R.string.ui_path_open else R.string.ui_path_close),
-                        maxLines = 1,
-                    )
-                }
             }
         }
     }
