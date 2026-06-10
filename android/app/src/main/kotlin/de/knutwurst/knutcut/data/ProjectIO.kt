@@ -143,6 +143,7 @@ object ProjectIO {
             n.put("ay", node.anchor.yMm)
             node.handleIn?.let  { n.put("inx",  it.xMm); n.put("iny",  it.yMm) }
             node.handleOut?.let { n.put("outx", it.xMm); n.put("outy", it.yMm) }
+            if (node.smooth) n.put("sm", true)
             nodes.put(n)
         }
         return JSONObject().put("nodes", nodes).put("closed", path.closed)
@@ -156,7 +157,7 @@ object ProjectIO {
             val anchor = Pt(n.optDouble("ax"), n.optDouble("ay"))
             val handleIn  = if (n.has("inx"))  Pt(n.optDouble("inx"),  n.optDouble("iny"))  else null
             val handleOut = if (n.has("outx")) Pt(n.optDouble("outx"), n.optDouble("outy")) else null
-            nodes.add(PathNode(anchor, handleIn, handleOut))
+            nodes.add(PathNode(anchor, handleIn, handleOut, smooth = n.optBoolean("sm", false)))
         }
         if (nodes.isEmpty()) return null
         return EditablePath(nodes, o.optBoolean("closed", false))
@@ -204,7 +205,7 @@ object ProjectIO {
             val anchor = Pt(n.optDouble("ax"), n.optDouble("ay"))
             val handleIn  = if (n.has("inx"))  Pt(n.optDouble("inx"),  n.optDouble("iny"))  else null
             val handleOut = if (n.has("outx")) Pt(n.optDouble("outx"), n.optDouble("outy")) else null
-            nodes.add(PathNode(anchor, handleIn, handleOut))
+            nodes.add(PathNode(anchor, handleIn, handleOut, smooth = n.optBoolean("sm", false)))
         }
         if (nodes.isEmpty()) return null
         return PathDeform(

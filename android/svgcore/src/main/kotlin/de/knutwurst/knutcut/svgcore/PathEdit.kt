@@ -72,61 +72,20 @@ fun EditablePath.moveAnchor(i: Int, to: Pt): EditablePath {
 /**
  * Move one control handle of node [i] to [to].
  *
- * When the node is marked smooth, the opposite handle is mirrored across the anchor:
- * its direction is reversed and its length is preserved (C1 continuity).
+ * When the node is marked smooth, the opposite handle is mirrored exactly across the anchor — same
+ * direction reversed AND the same length, so the two handles are always symmetric (equal length).
  * When the node is a corner, the opposite handle is left unchanged.
  */
 fun EditablePath.moveHandle(i: Int, which: HandleSide, to: Pt): EditablePath {
     val node = nodes[i]
     val anchor = node.anchor
 
-    fun mirrorAcrossAnchor(target: Pt): Pt {
-        // Reflect target across anchor, preserving distance from anchor.
-        val dx = anchor.xMm - target.xMm
-        val dy = anchor.yMm - target.yMm
-        return Pt(anchor.xMm + dx, anchor.yMm + dy)
-    }
+    // Reflect a handle to the opposite side of the anchor at the same distance.
+    fun mirror(target: Pt) = Pt(2 * anchor.xMm - target.xMm, 2 * anchor.yMm - target.yMm)
 
     val updated = when (which) {
-        HandleSide.OUT -> {
-            val newOut = to
-            val newIn = if (node.smooth) {
-                // Mirror: opposite length, mirrored direction.
-                // Direction from anchor to new out-handle:
-                val dox = to.xMm - anchor.xMm
-                val doy = to.yMm - anchor.yMm
-                val dist = hypot(dox, doy)
-                // Keep the in-handle's original distance from anchor if it exists.
-                val oldIn = node.handleIn
-                if (oldIn != null && dist > 1e-12) {
-                    val oldInDist = hypot(oldIn.xMm - anchor.xMm, oldIn.yMm - anchor.yMm)
-                    Pt(anchor.xMm - dox / dist * oldInDist, anchor.yMm - doy / dist * oldInDist)
-                } else {
-                    mirrorAcrossAnchor(to)
-                }
-            } else {
-                node.handleIn
-            }
-            node.copy(handleIn = newIn, handleOut = newOut)
-        }
-        HandleSide.IN -> {
-            val newIn = to
-            val newOut = if (node.smooth) {
-                val dix = to.xMm - anchor.xMm
-                val diy = to.yMm - anchor.yMm
-                val dist = hypot(dix, diy)
-                val oldOut = node.handleOut
-                if (oldOut != null && dist > 1e-12) {
-                    val oldOutDist = hypot(oldOut.xMm - anchor.xMm, oldOut.yMm - anchor.yMm)
-                    Pt(anchor.xMm - dix / dist * oldOutDist, anchor.yMm - diy / dist * oldOutDist)
-                } else {
-                    mirrorAcrossAnchor(to)
-                }
-            } else {
-                node.handleOut
-            }
-            node.copy(handleIn = newIn, handleOut = newOut)
-        }
+        HandleSide.OUT -> node.copy(handleOut = to, handleIn = if (node.smooth) mirror(to) else node.handleIn)
+        HandleSide.IN  -> node.copy(handleIn = to, handleOut = if (node.smooth) mirror(to) else node.handleOut)
     }
     return EditablePath(nodes.toMutableList().also { it[i] = updated }, closed)
 }
@@ -177,14 +136,16 @@ fun EditablePath.setSmooth(i: Int, smooth: Boolean): EditablePath {
         if (outDir == null) {
             node.copy(smooth = true)
         } else {
-            val newOut = if (hOut != null) {
-                val dist = hypot(hOut.xMm - anchor.xMm, hOut.yMm - anchor.yMm)
-                Pt(anchor.xMm + outDir.xMm * dist, anchor.yMm + outDir.yMm * dist)
-            } else null
-            val newIn = if (hIn != null) {
-                val dist = hypot(hIn.xMm - anchor.xMm, hIn.yMm - anchor.yMm)
-                Pt(anchor.xMm - outDir.xMm * dist, anchor.yMm - outDir.yMm * dist)
-            } else null
+            // Equal-length handles: both sit at the average distance (or the one that exists).
+            val dOut = if (hOut != null) hypot(hOut.xMm - anchor.xMm, hOut.yMm - anchor.yMm) else 0.0
+            val dIn  = if (hIn  != null) hypot(hIn.xMm - anchor.xMm,  hIn.yMm - anchor.yMm)  else 0.0
+            val len = when {
+                hIn != null && hOut != null -> (dIn + dOut) / 2.0
+                hOut != null -> dOut
+                else -> dIn
+            }
+            val newOut = if (hOut != null) Pt(anchor.xMm + outDir.xMm * len, anchor.yMm + outDir.yMm * len) else null
+            val newIn  = if (hIn  != null) Pt(anchor.xMm - outDir.xMm * len, anchor.yMm - outDir.yMm * len) else null
             node.copy(handleIn = newIn, handleOut = newOut, smooth = true)
         }
     }
@@ -459,46 +420,20 @@ fun EditablePath.dragSegment(segmentIndex: Int, t: Double, to: Pt): EditablePath
     val updatedFrom = fromNode.copy(handleOut = newP1)
     result[fromIdx] = updatedFrom
 
-    // If fromNode is smooth, mirror the opposite (handleIn) to keep C1.
+    // If fromNode is smooth, mirror the opposite (handleIn) across the anchor (equal length, keeps C1).
     if (updatedFrom.smooth) {
-        val dox = newP1.xMm - fromNode.anchor.xMm
-        val doy = newP1.yMm - fromNode.anchor.yMm
-        val dist = hypot(dox, doy)
-        val oldIn = fromNode.handleIn
-        val newIn = if (oldIn != null && dist > 1e-12) {
-            val oldInDist = hypot(oldIn.xMm - fromNode.anchor.xMm, oldIn.yMm - fromNode.anchor.yMm)
-            Pt(fromNode.anchor.xMm - dox / dist * oldInDist,
-               fromNode.anchor.yMm - doy / dist * oldInDist)
-        } else if (dist > 1e-12) {
-            Pt(fromNode.anchor.xMm - dox / dist * dist,
-               fromNode.anchor.yMm - doy / dist * dist)
-        } else {
-            fromNode.handleIn
-        }
-        result[fromIdx] = result[fromIdx].copy(handleIn = newIn)
+        val a = fromNode.anchor
+        result[fromIdx] = result[fromIdx].copy(handleIn = Pt(2 * a.xMm - newP1.xMm, 2 * a.yMm - newP1.yMm))
     }
 
     // Update toNode's handleIn.
     val updatedTo = toNode.copy(handleIn = newP2)
     result[toIdx] = updatedTo
 
-    // If toNode is smooth, mirror the opposite (handleOut) to keep C1.
+    // If toNode is smooth, mirror the opposite (handleOut) across the anchor (equal length, keeps C1).
     if (updatedTo.smooth) {
-        val dix = newP2.xMm - toNode.anchor.xMm
-        val diy = newP2.yMm - toNode.anchor.yMm
-        val dist = hypot(dix, diy)
-        val oldOut = toNode.handleOut
-        val newOut = if (oldOut != null && dist > 1e-12) {
-            val oldOutDist = hypot(oldOut.xMm - toNode.anchor.xMm, oldOut.yMm - toNode.anchor.yMm)
-            Pt(toNode.anchor.xMm - dix / dist * oldOutDist,
-               toNode.anchor.yMm - diy / dist * oldOutDist)
-        } else if (dist > 1e-12) {
-            Pt(toNode.anchor.xMm - dix / dist * dist,
-               toNode.anchor.yMm - diy / dist * dist)
-        } else {
-            toNode.handleOut
-        }
-        result[toIdx] = result[toIdx].copy(handleOut = newOut)
+        val a = toNode.anchor
+        result[toIdx] = result[toIdx].copy(handleOut = Pt(2 * a.xMm - newP2.xMm, 2 * a.yMm - newP2.yMm))
     }
 
     return EditablePath(result, closed)

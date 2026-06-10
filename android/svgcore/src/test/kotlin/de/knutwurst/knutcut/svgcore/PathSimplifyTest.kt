@@ -120,6 +120,21 @@ class PathSimplifyTest {
     }
 
     @Test
+    fun smoothToPathInteriorNodesAreSmoothWithEqualHandles() {
+        // Uneven spacing (near neighbour on the left, far on the right): the two handles of the
+        // interior node must still come out equal length, and the node must be smooth. Open-path
+        // endpoints stay corners with a single handle.
+        val pts = listOf(Pt(0.0, 0.0), Pt(10.0, 0.0), Pt(40.0, 0.0))
+        val path = smoothToPath(pts, closed = false)
+        val mid = path.nodes[1]
+        assertTrue("interior node must be smooth", mid.smooth)
+        val dIn  = hypot(mid.handleIn!!.xMm - mid.anchor.xMm,  mid.handleIn!!.yMm - mid.anchor.yMm)
+        val dOut = hypot(mid.handleOut!!.xMm - mid.anchor.xMm, mid.handleOut!!.yMm - mid.anchor.yMm)
+        assertEquals("interior handles must be equal length", dIn, dOut, 1e-9)
+        assertEquals("open-path endpoint stays a corner", false, path.nodes.first().smooth)
+    }
+
+    @Test
     fun smoothToPathClosedFlagPropagated() {
         val pts = listOf(Pt(0.0, 0.0), Pt(10.0, 0.0), Pt(5.0, 8.0))
         val open   = smoothToPath(pts, closed = false)

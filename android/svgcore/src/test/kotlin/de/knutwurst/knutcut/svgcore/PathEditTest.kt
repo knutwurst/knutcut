@@ -162,16 +162,15 @@ class PathEditTest {
     @Test
     fun moveHandleSmoothOutMirrorsIn() {
         // Smooth node at origin; in-handle at (-3,0), out at (3,0).
-        // Move out to (6,0); in should mirror to (-6,0) direction, keeping its original distance.
+        // Move out to (6,0); in must mirror to (-6,0) — opposite direction AND equal length.
         val anchor = Pt(0.0, 0.0)
         val node = PathNode(anchor, handleIn = Pt(-3.0, 0.0), handleOut = Pt(3.0, 0.0), smooth = true)
         val path = EditablePath(listOf(PathNode(Pt(-10.0, 0.0)), node, PathNode(Pt(10.0, 0.0))))
         val moved = path.moveHandle(1, HandleSide.OUT, Pt(6.0, 0.0))
         val n = moved.nodes[1]
-        // Out moved to (6, 0). In should be collinear: direction (-1,0), same distance as before (3 mm).
         assertEquals(6.0,  n.handleOut!!.xMm, 1e-9)
         assertEquals(0.0,  n.handleOut!!.yMm, 1e-9)
-        assertEquals(-3.0, n.handleIn!!.xMm,  1e-9)  // distance preserved at 3
+        assertEquals(-6.0, n.handleIn!!.xMm,  1e-9)  // equal length, mirrored
         assertEquals(0.0,  n.handleIn!!.yMm,  1e-9)
     }
 
@@ -182,10 +181,10 @@ class PathEditTest {
         val path = EditablePath(listOf(PathNode(Pt(-10.0, 0.0)), node, PathNode(Pt(10.0, 0.0))))
         val moved = path.moveHandle(1, HandleSide.IN, Pt(-8.0, 0.0))
         val n = moved.nodes[1]
-        // In moved to (-8, 0). Out should be collinear at (+1,0) direction, original distance 4 mm.
+        // In moved to (-8, 0). Out must mirror to (8, 0) — equal length, opposite direction.
         assertEquals(-8.0, n.handleIn!!.xMm,  1e-9)
         assertEquals(0.0,  n.handleIn!!.yMm,  1e-9)
-        assertEquals(4.0,  n.handleOut!!.xMm, 1e-9)
+        assertEquals(8.0,  n.handleOut!!.xMm, 1e-9)
         assertEquals(0.0,  n.handleOut!!.yMm, 1e-9)
     }
 
@@ -243,9 +242,9 @@ class PathEditTest {
     }
 
     @Test
-    fun setSmoothPreservesHandleLengths() {
+    fun setSmoothMakesHandleLengthsEqual() {
         val anchor = Pt(0.0, 0.0)
-        // Non-collinear handles at known distances.
+        // Non-collinear handles at different distances.
         val hIn  = Pt(-3.0, 0.0)  // distance 3
         val hOut = Pt( 2.0, 2.0)  // distance sqrt(8)
         val node = PathNode(anchor, handleIn = hIn, handleOut = hOut)
@@ -254,8 +253,9 @@ class PathEditTest {
         val n = smoothed.nodes[1]
         val distIn  = hypot(n.handleIn!!.xMm - anchor.xMm,  n.handleIn!!.yMm - anchor.yMm)
         val distOut = hypot(n.handleOut!!.xMm - anchor.xMm, n.handleOut!!.yMm - anchor.yMm)
-        assertEquals(3.0,            distIn,  1e-9)
-        assertEquals(hypot(2.0, 2.0), distOut, 1e-9)
+        // Both handles end up the same length: the average of the originals.
+        assertEquals("handles must be equal length", distIn, distOut, 1e-9)
+        assertEquals((3.0 + hypot(2.0, 2.0)) / 2.0, distIn, 1e-9)
     }
 
     // -----------------------------------------------------------------------
