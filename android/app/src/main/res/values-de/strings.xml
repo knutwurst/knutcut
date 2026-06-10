@@ -309,4 +309,8 @@
     <string name="ui_node_corner">Ecke</string>
     <string name="ui_node_delete">Punkt löschen</string>
     <string name="ui_node_convert">Bearbeitbar machen</string>
+    <string name="ui_done">Fertig</string>
+    <string name="ui_mode_draw_hint">Zeichnen: mit dem Finger ziehen. Zwei Finger verschieben und zoomen.</string>
+    <string name="ui_mode_nodes_hint">Punkte: ziehen zum Biegen, Linie doppeltippen fügt einen Punkt ein.</string>
+    <string name="ui_mode_envelope_hint">Hülle: die vier Ecken ziehen zum Verformen.</string>
 </resources>

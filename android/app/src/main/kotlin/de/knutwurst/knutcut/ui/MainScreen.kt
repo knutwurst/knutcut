@@ -264,6 +264,8 @@ fun MainScreen(vm: KnutcutViewModel) {
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp)),
             )
 
+            ModeBanner(vm)
+
             when {
                 vm.cutting -> CuttingBar(vm)
                 !vm.hasDesign -> EmptyState(onOpen = { openFile() }, onLibrary = { showLibrary = true }, onAddShape = { showAdd = true })
@@ -710,6 +712,39 @@ private fun CuttingBar(vm: KnutcutViewModel) {
     OutlinedButton(onClick = { vm.cancelCut() }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.ui_cancel)) }
 }
 
+/** Shown above the editing bar whenever a non-default tool (draw / nodes / envelope) is active:
+ *  names the mode, hints at its gesture, and offers a clear "Done" exit back to SELECT. This is the
+ *  single, consistent place that tells the user which mode they are in and how to leave it. */
+@Composable
+private fun ModeBanner(vm: KnutcutViewModel) {
+    val mode = vm.editorTool
+    if (mode == EditorTool.SELECT) return
+    val hint = when (mode) {
+        EditorTool.DRAW -> stringResource(R.string.ui_mode_draw_hint)
+        EditorTool.NODES -> stringResource(R.string.ui_mode_nodes_hint)
+        EditorTool.ENVELOPE -> stringResource(R.string.ui_mode_envelope_hint)
+        else -> ""
+    }
+    Surface(
+        color = MaterialTheme.colorScheme.primaryContainer,
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                hint,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.weight(1f).padding(vertical = 8.dp),
+            )
+            TextButton(onClick = { vm.editorTool = EditorTool.SELECT }) { Text(stringResource(R.string.ui_done)) }
+        }
+    }
+}
+
 /** A compact icon button used in the editing toolbar (Canva/Figma style). */
 @Composable
 private fun IconAction(label: String, icon: ImageVector, rotate: Float = 0f, enabled: Boolean = true, onClick: () -> Unit) {
@@ -751,12 +786,14 @@ private fun EditingBar(
         IconAction(stringResource(R.string.ui_deform), Icons.Default.AutoFixHigh, enabled = perLayer, onClick = onDeform)
         // Node editor toggle: enters NODES mode (converting first if needed) or returns to SELECT.
         if (inNodesMode && canEditNodes) {
-            // Active state: filled tonal button
-            androidx.compose.material3.FilledTonalIconButton(
+            // Active state: a filled (primary) button so it clearly reads as "on" versus the tonal
+            // action buttons around it. Tapping it leaves node mode.
+            androidx.compose.material3.FilledIconButton(
                 onClick = { vm.editorTool = EditorTool.SELECT },
                 enabled = canEditNodes,
+                modifier = Modifier.size(40.dp),
             ) {
-                Icon(Icons.Default.Timeline, contentDescription = stringResource(R.string.ui_nodes_desc))
+                Icon(Icons.Default.Timeline, contentDescription = stringResource(R.string.ui_nodes_desc), modifier = Modifier.size(20.dp))
             }
         } else {
             IconAction(stringResource(R.string.ui_nodes), Icons.Default.Timeline, enabled = canEditNodes) {
