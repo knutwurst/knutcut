@@ -3,6 +3,11 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.56.6
+- Spiegeln (flip) is back as its own toolbar button. The toolbar buttons now shrink on narrow screens
+  so the whole row stays on screen instead of one button getting pushed into the ⋯ menu.
+- Removed the long-press context menu on a layer (it never fired reliably); use the toolbar buttons.
+
 ## 0.56.5
 - Fixed the editor toolbar spilling off the right edge: Spiegeln (flip) moved into the ⋯ menu so the
   whole toolbar fits one row.

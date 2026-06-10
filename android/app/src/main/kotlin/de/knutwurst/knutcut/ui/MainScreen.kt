@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -58,6 +59,7 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.Gesture
 import androidx.compose.material.icons.filled.OpenWith
 import androidx.compose.material.icons.filled.Check
@@ -89,6 +91,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalMinimumInteractiveComponentEnforcement
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -108,6 +111,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -136,6 +140,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import de.knutwurst.knutcut.BuildConfig
 import de.knutwurst.knutcut.R
@@ -260,9 +265,6 @@ fun MainScreen(vm: KnutcutViewModel) {
                 Modifier.fillMaxWidth().weight(1f).padding(vertical = 8.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp)),
-                onSize = { showTransform = true },
-                onAlign = { showAlignDialog = true },
-                onDelete = { showDeleteConfirm = true },
             )
 
             when {
@@ -810,7 +812,7 @@ private fun EditorHintBar(vm: KnutcutViewModel) {
  * and sits flat/tonal when inactive. Used for Select / Draw / Magic in the toolbar.
  */
 @Composable
-private fun ModeToggle(label: String, icon: ImageVector, active: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+private fun ModeToggle(label: String, icon: ImageVector, active: Boolean, size: Dp = 40.dp, enabled: Boolean = true, onClick: () -> Unit) {
     val glow = MaterialTheme.colorScheme.primary
     if (active) {
         FilledIconButton(
@@ -818,14 +820,14 @@ private fun ModeToggle(label: String, icon: ImageVector, active: Boolean, enable
             enabled = enabled,
             colors = IconButtonDefaults.filledIconButtonColors(containerColor = glow, contentColor = MaterialTheme.colorScheme.onPrimary),
             modifier = Modifier
-                .size(40.dp)
+                .size(size)
                 .shadow(elevation = 10.dp, shape = CircleShape, clip = false, ambientColor = glow, spotColor = glow),
         ) {
-            Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = label, modifier = Modifier.size(size * 0.5f))
         }
     } else {
-        FilledTonalIconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(40.dp)) {
-            Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+        FilledTonalIconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(size)) {
+            Icon(icon, contentDescription = label, modifier = Modifier.size(size * 0.5f))
         }
     }
 }
@@ -860,9 +862,9 @@ private fun TileGridPicker(cols: Int, rows: Int, maxCols: Int, maxRows: Int, onP
 
 /** A compact icon button used in the editing toolbar (Canva/Figma style). */
 @Composable
-private fun IconAction(label: String, icon: ImageVector, rotate: Float = 0f, enabled: Boolean = true, onClick: () -> Unit) {
-    FilledTonalIconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(40.dp)) {
-        Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp).rotate(rotate))
+private fun IconAction(label: String, icon: ImageVector, size: Dp = 40.dp, rotate: Float = 0f, enabled: Boolean = true, onClick: () -> Unit) {
+    FilledTonalIconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(size)) {
+        Icon(icon, contentDescription = label, modifier = Modifier.size(size * 0.5f).rotate(rotate))
     }
 }
 
@@ -872,6 +874,7 @@ private fun IconAction(label: String, icon: ImageVector, rotate: Float = 0f, ena
  * button bends a text layer or node-edits an editable shape, and is disabled when neither applies;
  * the active mode glows. Delete lives in the ⋯ menu.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditingBar(
     vm: KnutcutViewModel,
@@ -883,6 +886,7 @@ private fun EditingBar(
     onAlign: () -> Unit,
 ) {
     val perLayer = !vm.matSelected
+    var showFlipMenu by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
 
     val sel = vm.layers.getOrNull(vm.selectedLayer)
@@ -897,46 +901,59 @@ private fun EditingBar(
         else -> stringResource(R.string.ui_magic)
     }
 
-    // Single non-wrapping row; horizontalScroll acts as a safety valve for very small screens.
-    Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        // Tool modes (round, glow when active).
-        ModeToggle(stringResource(R.string.ui_mode_select), Icons.Default.OpenWith, active = !vm.bendingText && vm.editorTool == EditorTool.SELECT) {
-            vm.stopBendingText(); vm.editorTool = EditorTool.SELECT
-        }
-        ModeToggle(stringResource(R.string.ui_mode_draw), Icons.Default.Gesture, active = vm.editorTool == EditorTool.DRAW) {
-            vm.stopBendingText(); vm.editorTool = EditorTool.DRAW
-        }
-        ModeToggle(magicLabel, Icons.Default.AutoFixHigh, active = magicActive, enabled = magicEnabled) {
-            when {
-                isTextLayer -> if (vm.bendingText) vm.stopBendingText() else vm.startBendingText()
-                canNodeEdit -> if (vm.editorTool == EditorTool.NODES) vm.editorTool = EditorTool.SELECT
-                               else { if (sel?.editPath == null) vm.convertSelectedToEditablePath(); vm.editorTool = EditorTool.NODES }
-            }
-        }
-        IconAction(stringResource(R.string.ui_size_angle), Icons.Default.AspectRatio, enabled = perLayer, onClick = onSize)
-        IconAction(stringResource(R.string.ui_rotate90), Icons.AutoMirrored.Filled.RotateRight, enabled = perLayer) { vm.rotate90() }
-        IconAction(stringResource(R.string.ui_duplicate), Icons.Default.ContentCopy, enabled = perLayer) { vm.duplicateSelected() }
-        Box {
-            IconAction(stringResource(R.string.ui_more), Icons.Default.MoreVert) { showMoreMenu = true }
-            DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
-                DropdownMenuItem(text = { Text(stringResource(R.string.ui_flip_h)) }, enabled = perLayer, onClick = { showMoreMenu = false; vm.mirrorSelectedHorizontal() })
-                DropdownMenuItem(text = { Text(stringResource(R.string.ui_flip_v)) }, enabled = perLayer, onClick = { showMoreMenu = false; vm.mirrorSelectedVertical() })
-                DropdownMenuItem(text = { Text(stringResource(R.string.ui_align)) }, onClick = { showMoreMenu = false; onAlign() })
-                DropdownMenuItem(text = { Text(stringResource(R.string.ui_reset_layer)) }, enabled = perLayer, onClick = { showMoreMenu = false; vm.resetSelectedPlacement() })
-                if (vm.matSelected) {
-                    DropdownMenuItem(text = { Text(stringResource(R.string.ui_reset_all)) }, onClick = { showMoreMenu = false; vm.resetAll() })
+    // Tools + edit actions in one row. The buttons shrink on narrow screens so the whole row always
+    // fits; the 48 dp min-touch enforcement is dropped here so the size we pick is the size used.
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val gap = 4.dp
+        val count = 8
+        val cell = ((maxWidth - gap * (count - 1)) / count).coerceIn(32.dp, 40.dp)
+        CompositionLocalProvider(LocalMinimumInteractiveComponentEnforcement provides false) {
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(gap),
+            ) {
+                // Tool modes (round, glow when active).
+                ModeToggle(stringResource(R.string.ui_mode_select), Icons.Default.OpenWith, active = !vm.bendingText && vm.editorTool == EditorTool.SELECT, size = cell) {
+                    vm.stopBendingText(); vm.editorTool = EditorTool.SELECT
                 }
-                HorizontalDivider()
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.ui_delete)) },
-                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = if (perLayer) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)) },
-                    enabled = perLayer,
-                    onClick = { showMoreMenu = false; onDelete() },
-                )
+                ModeToggle(stringResource(R.string.ui_mode_draw), Icons.Default.Gesture, active = vm.editorTool == EditorTool.DRAW, size = cell) {
+                    vm.stopBendingText(); vm.editorTool = EditorTool.DRAW
+                }
+                ModeToggle(magicLabel, Icons.Default.AutoFixHigh, active = magicActive, size = cell, enabled = magicEnabled) {
+                    when {
+                        isTextLayer -> if (vm.bendingText) vm.stopBendingText() else vm.startBendingText()
+                        canNodeEdit -> if (vm.editorTool == EditorTool.NODES) vm.editorTool = EditorTool.SELECT
+                                       else { if (sel?.editPath == null) vm.convertSelectedToEditablePath(); vm.editorTool = EditorTool.NODES }
+                    }
+                }
+                IconAction(stringResource(R.string.ui_size_angle), Icons.Default.AspectRatio, size = cell, enabled = perLayer, onClick = onSize)
+                IconAction(stringResource(R.string.ui_rotate90), Icons.AutoMirrored.Filled.RotateRight, size = cell, enabled = perLayer) { vm.rotate90() }
+                Box {
+                    IconAction(stringResource(R.string.ui_flip), Icons.Default.Flip, size = cell, enabled = perLayer) { showFlipMenu = true }
+                    DropdownMenu(expanded = showFlipMenu, onDismissRequest = { showFlipMenu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.ui_flip_h)) }, onClick = { showFlipMenu = false; vm.mirrorSelectedHorizontal() })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.ui_flip_v)) }, onClick = { showFlipMenu = false; vm.mirrorSelectedVertical() })
+                    }
+                }
+                IconAction(stringResource(R.string.ui_duplicate), Icons.Default.ContentCopy, size = cell, enabled = perLayer) { vm.duplicateSelected() }
+                Box {
+                    IconAction(stringResource(R.string.ui_more), Icons.Default.MoreVert, size = cell) { showMoreMenu = true }
+                    DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.ui_align)) }, onClick = { showMoreMenu = false; onAlign() })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.ui_reset_layer)) }, enabled = perLayer, onClick = { showMoreMenu = false; vm.resetSelectedPlacement() })
+                        if (vm.matSelected) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.ui_reset_all)) }, onClick = { showMoreMenu = false; vm.resetAll() })
+                        }
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.ui_delete)) },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = if (perLayer) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)) },
+                            enabled = perLayer,
+                            onClick = { showMoreMenu = false; onDelete() },
+                        )
+                    }
+                }
             }
         }
     }

@@ -3,7 +3,6 @@ package de.knutwurst.knutcut.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -12,9 +11,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,13 +38,10 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import de.knutwurst.knutcut.R
 import de.knutwurst.knutcut.data.CircleDeform
 import de.knutwurst.knutcut.data.Mat
 import de.knutwurst.knutcut.data.PathDeform
@@ -110,13 +103,7 @@ private const val BEND_DRAG_RANGE_MM = 80.0
  * handle above it — the design itself never changes when you zoom the view.
  */
 @Composable
-fun MatEditor(
-    vm: KnutcutViewModel,
-    modifier: Modifier = Modifier,
-    onSize: () -> Unit = {},
-    onAlign: () -> Unit = {},
-    onDelete: () -> Unit = {},
-) {
+fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     var sizePx by remember { mutableStateOf(IntSize.Zero) }
     // World-space points collected during a DRAW gesture; empty when not drawing.
     var liveStroke by remember { mutableStateOf<List<Pt>>(emptyList()) }
@@ -125,9 +112,6 @@ fun MatEditor(
     // Last anchor tap (node index + time), so a genuine double-tap on the same node toggles smooth.
     var lastTapNode by remember { mutableStateOf(-1) }
     var lastTapMs by remember { mutableStateOf(0L) }
-    // Long-press context menu (SELECT mode): the layer it targets (-1 = closed) and where to anchor it.
-    var contextMenuLayer by remember { mutableStateOf(-1) }
-    var contextMenuAt by remember { mutableStateOf(Offset.Zero) }
 
     // Fix 1: reset selected node when the selected layer or the layer count changes, so
     // selectedNodeIndex can never point at a node that no longer exists.
@@ -644,25 +628,6 @@ fun MatEditor(
                 }
                 vm.clearGuides()
             }
-        }
-        // Long-press a layer (Select mode) opens the context menu. A separate, timer-based detector
-        // so a perfectly still finger still fires it; the main gesture above doesn't consume the
-        // press, so the two coexist — a real drag cancels this, a still hold triggers it.
-        .pointerInput(vm.editorTool, vm.bendingText) {
-            if (vm.editorTool == EditorTool.SELECT && !vm.bendingText) {
-                detectTapGestures(onLongPress = { off ->
-                    val lpPpm = ppmFor(sizePx, vm.mat, vm.camScale)
-                    if (lpPpm > 0f) {
-                        val lpOrigin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
-                        val hit = vm.layerAt(screenToWorld(off, lpOrigin, lpPpm))
-                        if (hit >= 0) {
-                            vm.selectLayer(hit)
-                            contextMenuAt = off
-                            contextMenuLayer = hit
-                        }
-                    }
-                })
-            }
         },
     ) {
         sizePx = IntSize(size.width.toInt(), size.height.toInt())
@@ -941,38 +906,6 @@ fun MatEditor(
           }
       }
 
-      // Long-press context menu (SELECT mode): mirrors the toolbar actions for the touched layer.
-      if (contextMenuLayer in vm.layers.indices) {
-          val ctxLayer = vm.layers[contextMenuLayer]
-          val isText = ctxLayer.textSpec != null
-          val canNodeEdit = ctxLayer.editPath != null || ctxLayer.polylines.size == 1
-          DropdownMenu(
-              expanded = true,
-              onDismissRequest = { contextMenuLayer = -1 },
-              offset = DpOffset((contextMenuAt.x / density).dp, (contextMenuAt.y / density).dp),
-          ) {
-              DropdownMenuItem(text = { Text(stringResource(R.string.ui_size_angle)) }, onClick = { contextMenuLayer = -1; onSize() })
-              DropdownMenuItem(text = { Text(stringResource(R.string.ui_rotate90)) }, onClick = { contextMenuLayer = -1; vm.rotate90() })
-              DropdownMenuItem(text = { Text(stringResource(R.string.ui_flip_h)) }, onClick = { contextMenuLayer = -1; vm.mirrorSelectedHorizontal() })
-              DropdownMenuItem(text = { Text(stringResource(R.string.ui_flip_v)) }, onClick = { contextMenuLayer = -1; vm.mirrorSelectedVertical() })
-              DropdownMenuItem(text = { Text(stringResource(R.string.ui_duplicate)) }, onClick = { contextMenuLayer = -1; vm.duplicateSelected() })
-              when {
-                  isText -> DropdownMenuItem(text = { Text(stringResource(R.string.ui_bend)) }, onClick = { contextMenuLayer = -1; vm.startBendingText() })
-                  canNodeEdit -> DropdownMenuItem(text = { Text(stringResource(R.string.ui_mode_nodes)) }, onClick = {
-                      contextMenuLayer = -1
-                      if (ctxLayer.editPath == null) vm.convertSelectedToEditablePath()
-                      vm.editorTool = EditorTool.NODES
-                  })
-              }
-              DropdownMenuItem(text = { Text(stringResource(R.string.ui_align)) }, onClick = { contextMenuLayer = -1; onAlign() })
-              DropdownMenuItem(text = { Text(stringResource(R.string.ui_reset_layer)) }, onClick = { contextMenuLayer = -1; vm.resetSelectedPlacement() })
-              HorizontalDivider()
-              DropdownMenuItem(
-                  text = { Text(stringResource(R.string.ui_delete), color = MaterialTheme.colorScheme.error) },
-                  onClick = { contextMenuLayer = -1; onDelete() },
-              )
-          }
-      }
     }
 }
 
