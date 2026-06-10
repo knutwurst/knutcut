@@ -118,6 +118,58 @@ class DrawToolTest {
     }
 
     @Test
+    fun addDrawnPathAutoClosesARoughlyClosedLoop() {
+        val vm = vm()
+        // A loop sketched back to near the start (last point close to the first): should become a
+        // closed, plottable shape without the user having to land exactly on the start point.
+        val loop = listOf(
+            Pt(0.0, 0.0), Pt(40.0, 0.0), Pt(40.0, 40.0), Pt(0.0, 40.0), Pt(2.0, 3.0),
+        )
+        vm.addDrawnPath(loop)
+
+        val layer = vm.layers[0]
+        assertTrue("a near-closed sketch must yield a closed polyline", layer.polylines[0].closed)
+        assertTrue("the editable path must be closed too", layer.editPath!!.closed)
+    }
+
+    @Test
+    fun addDrawnPathLeavesAnOpenLineOpen() {
+        val vm = vm()
+        // An open arc: the ends sit far apart, so it must stay an open line, not snap shut.
+        val line = listOf(Pt(0.0, 0.0), Pt(20.0, 0.0), Pt(40.0, 10.0), Pt(60.0, 0.0))
+        vm.addDrawnPath(line)
+
+        val layer = vm.layers[0]
+        assertEquals("an open stroke must stay open", false, layer.polylines[0].closed)
+        assertEquals("the editable path must stay open", false, layer.editPath!!.closed)
+    }
+
+    @Test
+    fun addDrawnPathHonoursExplicitClosedFlag() {
+        val vm = vm()
+        // Forcing closed = true must win even over an open-looking stroke.
+        val line = listOf(Pt(0.0, 0.0), Pt(20.0, 0.0), Pt(40.0, 10.0), Pt(60.0, 0.0))
+        vm.addDrawnPath(line, closed = true)
+        assertTrue("explicit closed=true must close the shape", vm.layers[0].polylines[0].closed)
+    }
+
+    @Test
+    fun addDrawnPathReducesDenseStrokeToFewNodes() {
+        val vm = vm()
+        // A dense freehand circle: many samples in, a handful of editable nodes out.
+        val n = 240
+        val stroke = (0 until n).map { i ->
+            val a = 2 * Math.PI * i / n
+            Pt(40.0 + 30.0 * kotlin.math.cos(a), 40.0 + 30.0 * kotlin.math.sin(a))
+        }
+        vm.addDrawnPath(stroke)
+
+        val editPath = vm.layers[0].editPath!!
+        assertTrue("drawn shape must close into a loop", editPath.closed)
+        assertTrue("dense stroke must reduce to a small node count, got ${editPath.nodes.size}", editPath.nodes.size <= 20)
+    }
+
+    @Test
     fun addDrawnPathSelectsNewLayer() {
         val vm = vm()
         vm.addDrawnPath(listOf(Pt(0.0, 0.0), Pt(10.0, 0.0)))

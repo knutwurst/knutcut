@@ -48,9 +48,9 @@ import de.knutwurst.knutcut.svgcore.inverse
 import de.knutwurst.knutcut.svgcore.moveAnchor
 import de.knutwurst.knutcut.svgcore.moveHandle
 import de.knutwurst.knutcut.svgcore.setSmooth
+import de.knutwurst.knutcut.svgcore.looksClosed
 import de.knutwurst.knutcut.svgcore.simplifyRdp
 import de.knutwurst.knutcut.svgcore.simplifyToBudget
-import de.knutwurst.knutcut.svgcore.smoothToPath
 import de.knutwurst.knutcut.svgcore.toEditablePath
 import de.knutwurst.knutcut.svgcore.DragKnife
 import de.knutwurst.knutcut.svgcore.Handshake
@@ -692,20 +692,25 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      * Convert a freehand stroke (world-space mm points collected during a DRAW gesture) into a
      * smooth, editable PEN layer placed exactly where the stroke was drawn.
      *
-     * The stroke is first simplified with RDP (~0.6 mm tolerance) to remove redundant samples
-     * and then fitted to a Catmull–Rom–derived cubic Bézier path.  The resulting [Layer] stores
-     * the flattened polyline in [Layer.polylines] (the render/cut source of truth) and the editable
-     * Bézier path in [Layer.editPath].
+     * The stroke is de-jittered with RDP (~0.6 mm tolerance) and then reduced to a small, editable
+     * Bézier path via [simplifyToBudget] — a hand-drawn shape is easier to edit with a handful of
+     * nodes than with dozens.  The resulting [Layer] stores the flattened polyline in
+     * [Layer.polylines] (the render/cut source of truth) and the editable path in [Layer.editPath].
+     *
+     * [closed] decides whether the shape is closed: null (the default, used by the draw gesture)
+     * auto-detects via [looksClosed], so sketching a heart and lifting near the start yields a
+     * closed, plottable outline; pass true/false to force it.
      *
      * No-op when fewer than 2 distinct points are supplied.
      */
-    fun addDrawnPath(worldPoints: List<Pt>, closed: Boolean = false) {
+    fun addDrawnPath(worldPoints: List<Pt>, closed: Boolean? = null) {
         // Drop duplicates at the list head so the RDP start/end invariant is meaningful.
         val distinct = worldPoints.distinctBy { it.xMm to it.yMm }
         if (distinct.size < 2) return
 
+        val shouldClose = closed ?: looksClosed(distinct)
         val simplified = simplifyRdp(distinct, RDP_TOLERANCE_MM)
-        val path = smoothToPath(simplified, closed)
+        val path = simplifyToBudget(simplified, shouldClose)
         val poly = path.toPolyline()
         if (poly.points.size < 2) return
 

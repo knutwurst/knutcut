@@ -366,9 +366,9 @@ class NodeEditorViewModelTest {
     // -------------------------------------------------------------------------
 
     @Test
-    fun convertDensePolylineYieldsAtMost40Nodes() {
+    fun convertDensePolylineYieldsFewNodes() {
         val vm = vm()
-        // Build a 300-point single polyline (denser than the 40-node budget).
+        // Build a 300-point single polyline (far denser than the node budget).
         val points = (0 until 300).map { i -> Pt(i * 0.5, kotlin.math.sin(i * 0.1) * 10) }
         val polylines = listOf(de.knutwurst.knutcut.svgcore.Polyline(points, false))
         vm.addLayer("Dense", polylines, Tool.PEN)
@@ -379,9 +379,10 @@ class NodeEditorViewModelTest {
         val editPath = vm.layers[0].editPath
         assertNotNull("editPath created for dense layer", editPath)
         val nodeCount = editPath!!.nodes.size
-        // simplifyToBudget targets 40, hard cap 120. A 300-point input must land well under 120.
-        assertTrue("node count ≤ 120 (hard cap)", nodeCount <= 120)
-        // For a nicely-reducible sinusoidal stroke the budget of 40 should be reachable.
-        assertTrue("node count ≤ 50 (near budget)", nodeCount <= 50)
+        // simplifyToBudget targets a small node count (hard cap 40). A 300-point input must land
+        // well within the hard cap and close to the low budget — a shape should be editable with a
+        // handful of nodes, not dozens.
+        assertTrue("node count ≤ 40 (hard cap)", nodeCount <= 40)
+        assertTrue("node count ≤ 20 (near the small budget)", nodeCount <= 20)
     }
 }
