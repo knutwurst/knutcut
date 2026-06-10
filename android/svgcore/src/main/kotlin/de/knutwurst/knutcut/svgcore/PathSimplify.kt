@@ -73,10 +73,36 @@ private fun rdpRecursive(
  * and vice versa.
  */
 /**
+ * Heuristic for "did the user mean to draw a closed shape?": true when the stroke's first and last
+ * point sit close to each other relative to the stroke's overall size.  Deliberately generous —
+ * sketching a heart and lifting the finger near where it started should give a closed, cuttable
+ * outline without demanding millimetre-perfect endpoints.
+ *
+ * Closed when the end-to-end gap is at most [absToleranceMm] OR at most [relTolerance] of the
+ * stroke's bounding-box diagonal.  An open line or arc keeps its ends far apart (the gap is roughly
+ * the whole extent) and stays open.  Fewer than three points can't enclose an area → false.
+ */
+fun looksClosed(points: List<Pt>, absToleranceMm: Double = 12.0, relTolerance: Double = 0.30): Boolean {
+    if (points.size < 3) return false
+    val first = points.first()
+    val last = points.last()
+    val gap = hypot(last.xMm - first.xMm, last.yMm - first.yMm)
+    if (gap <= absToleranceMm) return true
+    val minX = points.minOf { it.xMm }; val maxX = points.maxOf { it.xMm }
+    val minY = points.minOf { it.yMm }; val maxY = points.maxOf { it.yMm }
+    val diag = hypot(maxX - minX, maxY - minY)
+    return diag > 1e-9 && gap <= relTolerance * diag
+}
+
+/**
  * Reduce a dense polyline to a smooth [EditablePath] with at most ~[targetNodes] nodes (hard cap
  * [hardCap]).  Binary-searches the RDP tolerance in [[minEpsMm]..[maxEpsMm]] mm until the node
- * count fits, then smooths.  Used when converting a warp-baked (very dense) layer to editable
- * nodes.
+ * count fits, then smooths.  Used both for freehand strokes and when converting a warp-baked (very
+ * dense) layer to editable nodes.
+ *
+ * The default budget is kept small on purpose: a hand-drawn shape is easier to edit with a handful
+ * of nodes than with dozens, and most of those nodes only carry curvature anyway.  Extra nodes can
+ * always be added by hand where more control is wanted.
  *
  * - Inputs already under budget are smoothed directly, without further simplification.
  * - If even [maxEpsMm] cannot reach [targetNodes], the result at [maxEpsMm] is used; but if that
@@ -88,10 +114,10 @@ private fun rdpRecursive(
 fun simplifyToBudget(
     points: List<Pt>,
     closed: Boolean,
-    targetNodes: Int = 40,
-    hardCap: Int = 120,
+    targetNodes: Int = 10,
+    hardCap: Int = 40,
     minEpsMm: Double = 0.1,
-    maxEpsMm: Double = 2.0,
+    maxEpsMm: Double = 6.0,
 ): EditablePath {
     // Trivial: already within budget.
     if (points.size <= targetNodes) return smoothToPath(points, closed)

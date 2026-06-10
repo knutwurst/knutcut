@@ -267,6 +267,52 @@ class PathSimplifyTest {
     }
 
     @Test
+    fun budgetDefaultKeepsNodeCountSmall() {
+        // The default budget is deliberately low so a freehand shape is editable. A 500-pt circle
+        // should land at a single-digit / low-teens node count, not dozens.
+        val pts = sampleCircle()
+        val result = simplifyToBudget(pts, closed = true)
+        assertTrue(
+            "Default budget should give few nodes for a circle, got ${result.nodes.size}",
+            result.nodes.size <= 14,
+        )
+    }
+
+    // -----------------------------------------------------------------------
+    // looksClosed
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun looksClosedTrueWhenEndsMeetRelativeToSize() {
+        // A loop drawn back to near the start: the end-to-end gap (≈14 mm) is past the absolute
+        // tolerance but well within 30 % of the ~70 mm bbox diagonal, so the relative branch closes it.
+        val loop = listOf(
+            Pt(0.0, 0.0), Pt(50.0, 0.0), Pt(50.0, 50.0), Pt(0.0, 50.0), Pt(10.0, 10.0),
+        )
+        assertTrue("near-closed loop should read as closed", looksClosed(loop))
+    }
+
+    @Test
+    fun looksClosedFalseForOpenLineOrArc() {
+        // An open zig-zag: ends sit at opposite extremes (gap ≈ full extent).
+        val open = listOf(Pt(0.0, 0.0), Pt(20.0, 15.0), Pt(40.0, 0.0), Pt(60.0, 15.0))
+        assertEquals(false, looksClosed(open))
+    }
+
+    @Test
+    fun looksClosedFalseForTooFewPoints() {
+        assertEquals(false, looksClosed(listOf(Pt(0.0, 0.0), Pt(1.0, 1.0))))
+        assertEquals(false, looksClosed(emptyList()))
+    }
+
+    @Test
+    fun looksClosedTrueForTinyGapRegardlessOfSize() {
+        // A long, narrow shape whose ends are within the absolute tolerance still counts as closed.
+        val pts = listOf(Pt(0.0, 0.0), Pt(200.0, 5.0), Pt(200.0, 10.0), Pt(2.0, 6.0))
+        assertTrue("ends within the absolute tolerance should read as closed", looksClosed(pts))
+    }
+
+    @Test
     fun smoothToPathTwoCollinearPointsClosedZeroTangentFallback() {
         // Force the zero-tangent fallback: 3 collinear points where for node 0,
         // prev == next → tangent = (0,0). Should fall back to the segment direction
