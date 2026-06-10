@@ -425,11 +425,14 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         // the UI thread — a large design can have a lot of points.
         val placed = placedLayers()
         viewModelScope.launch {
-            val ok = withContext(Dispatchers.Default) {
+            // Build the SVG on the CPU pool, write the file on the IO pool.
+            val svg = withContext(Dispatchers.Default) {
                 val strokes = placed.flatMap { pl ->
                     pl.polylines.mapIndexed { i, poly -> SvgExport.Stroke(poly, pl.colors.getOrNull(i)) }
                 }
-                val svg = SvgExport.toSvg(strokes)
+                SvgExport.toSvg(strokes)
+            }
+            val ok = withContext(Dispatchers.IO) {
                 runCatching { getApplication<Application>().contentResolver.openOutputStream(uri)?.use { it.write(svg.toByteArray()) } }.isSuccess
             }
             status = if (ok) s(R.string.st_svg_exported) else s(R.string.st_svg_export_failed)

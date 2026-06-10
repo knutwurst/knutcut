@@ -520,8 +520,6 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 var pushedHistory = false
                 // Running, un-snapped centre for the move (so snapping never swallows small drags).
                 var moveCenter = vm.centerMm
-                // Track the down time for double-tap-on-empty detection (SELECT mode).
-                val selectDownTime = System.currentTimeMillis()
 
                 while (true) {
                     val event = awaitPointerEvent()
