@@ -320,11 +320,11 @@ class PathSimplifyTest {
 
     @Test
     fun looksClosedTrueWhenEndsMeetRelativeToSize() {
-        // A loop drawn back to near the start: the end-to-end gap (≈25 mm) is past the absolute
-        // tolerance but well within the relative fraction of the ~70 mm bbox diagonal, so the
-        // relative branch closes it.
+        // A loop drawn back to near the start: the end-to-end gap (≈15.6 mm) is past the absolute
+        // tolerance but within the relative fraction of the ~70 mm bbox diagonal, so the relative
+        // branch closes it.
         val loop = listOf(
-            Pt(0.0, 0.0), Pt(50.0, 0.0), Pt(50.0, 50.0), Pt(0.0, 50.0), Pt(18.0, 17.0),
+            Pt(0.0, 0.0), Pt(50.0, 0.0), Pt(50.0, 50.0), Pt(0.0, 50.0), Pt(12.0, 10.0),
         )
         assertTrue("near-closed loop should read as closed", looksClosed(loop))
     }

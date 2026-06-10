@@ -80,15 +80,15 @@ private fun rdpRecursive(
  */
 /**
  * Heuristic for "did the user mean to draw a closed shape?": true when the stroke's first and last
- * point sit close to each other relative to the stroke's overall size.  Deliberately generous —
- * sketching a heart and lifting the finger near where it started should give a closed, cuttable
- * outline without demanding millimetre-perfect endpoints.
+ * point sit close to each other relative to the stroke's overall size.  Kept deliberately on the
+ * conservative side — for a plotter an accidental close turns an open line into a cut contour and can
+ * waste material, and the node editor's manual Open/Close button covers the cases this misses.
  *
  * Closed when the end-to-end gap is at most [absToleranceMm] OR at most [relTolerance] of the
  * stroke's bounding-box diagonal.  An open line or arc keeps its ends far apart (the gap is roughly
  * the whole extent) and stays open.  Fewer than three points can't enclose an area → false.
  */
-fun looksClosed(points: List<Pt>, absToleranceMm: Double = 18.0, relTolerance: Double = 0.45): Boolean {
+fun looksClosed(points: List<Pt>, absToleranceMm: Double = 12.0, relTolerance: Double = 0.30): Boolean {
     if (points.size < 3) return false
     val first = points.first()
     val last = points.last()
