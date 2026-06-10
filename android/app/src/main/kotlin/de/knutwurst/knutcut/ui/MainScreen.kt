@@ -37,37 +37,40 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Slider
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.FormatAlignLeft
 import androidx.compose.material.icons.automirrored.filled.FormatAlignRight
-import androidx.compose.material.icons.automirrored.filled.NoteAdd
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.AutoFixHigh
-import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.FormatAlignCenter
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VerticalAlignBottom
@@ -82,7 +85,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -132,13 +134,8 @@ import androidx.compose.ui.unit.dp
 import de.knutwurst.knutcut.BuildConfig
 import de.knutwurst.knutcut.R
 import de.knutwurst.knutcut.data.CircleDeform
-import de.knutwurst.knutcut.data.DeformBaseline
-import de.knutwurst.knutcut.data.DeformSpec
-import de.knutwurst.knutcut.data.EnvelopeDeform
-import de.knutwurst.knutcut.data.PathDeform
-import de.knutwurst.knutcut.data.bendDeformDefault
-import de.knutwurst.knutcut.data.circleDeformDefault
-import de.knutwurst.knutcut.data.envelopeDeformDefault
+import de.knutwurst.knutcut.data.bendToCircleDeform
+import de.knutwurst.knutcut.data.bendValue
 import de.knutwurst.knutcut.data.Devices
 import de.knutwurst.knutcut.data.DisplayUnit
 import de.knutwurst.knutcut.data.Materials
@@ -198,7 +195,7 @@ fun MainScreen(vm: KnutcutViewModel) {
 
     Surface(color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
-            // Top bar
+            // Top bar: logo + title/subtitle (weighted) + Undo + Redo + Add + Settings
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Image(
                     painterResource(R.drawable.logo),
@@ -209,35 +206,26 @@ fun MainScreen(vm: KnutcutViewModel) {
                 )
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Knutcut", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Knutcut",
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     Text(
                         stringResource(R.string.ui_header_sub, version),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.clickable { showChangelog = true },
                     )
-                }
-                if (vm.hasDesign) {
-                    IconButton(onClick = { showNewConfirm = true }, enabled = !vm.cutting) {
-                        Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = stringResource(R.string.ui_neu))
-                    }
                 }
                 IconButton(onClick = { vm.undo() }, enabled = vm.canUndo && !vm.cutting) {
                     Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = stringResource(R.string.ui_undo))
                 }
                 IconButton(onClick = { vm.redo() }, enabled = vm.canRedo && !vm.cutting) {
                     Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = stringResource(R.string.ui_redo))
-                }
-                // DRAW mode toggle: active = filled/tinted button, inactive = plain icon button.
-                val inDrawMode = vm.editorTool == EditorTool.DRAW
-                if (inDrawMode) {
-                    FilledTonalIconButton(onClick = { vm.editorTool = EditorTool.SELECT }) {
-                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.ui_draw_mode_desc))
-                    }
-                } else {
-                    IconButton(onClick = { vm.editorTool = EditorTool.DRAW }) {
-                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.ui_draw_mode_desc))
-                    }
                 }
                 Box {
                     IconButton(onClick = { showAdd = true }) {
@@ -246,6 +234,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                     AddMenu(
                         expanded = showAdd,
                         onDismiss = { showAdd = false },
+                        onNew = { showAdd = false; showNewConfirm = true },
                         onOpenFile = { showAdd = false; openFile() },
                         onLibrary = { showAdd = false; showLibrary = true },
                         onText = { showAdd = false; showText = true },
@@ -264,20 +253,21 @@ fun MainScreen(vm: KnutcutViewModel) {
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp)),
             )
 
-            ModeBanner(vm)
-
             when {
                 vm.cutting -> CuttingBar(vm)
                 !vm.hasDesign -> EmptyState(onOpen = { openFile() }, onLibrary = { showLibrary = true }, onAddShape = { showAdd = true })
-                else -> EditingBar(
-                    vm,
-                    onSize = { showTransform = true },
-                    onLayers = { showLayers = true },
-                    onMaterial = { showMaterial = true },
-                    onConnectOrCut = { if (vm.connected) showCut = true else openDevices() },
-                    onDelete = { showDeleteConfirm = true },
-                    onDeform = { showDeform = true },
-                )
+                else -> {
+                    ModeSegment(vm)
+                    EditingBar(
+                        vm,
+                        onSize = { showTransform = true },
+                        onLayers = { showLayers = true },
+                        onMaterial = { showMaterial = true },
+                        onConnectOrCut = { if (vm.connected) showCut = true else openDevices() },
+                        onDelete = { showDeleteConfirm = true },
+                        onDeform = { showDeform = true },
+                    )
+                }
             }
         }
     }
@@ -363,7 +353,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     if (showCut && vm.hasDesign) CutSheet(vm, onDismiss = { showCut = false })
     if (showText) TextDialog(vm, fontRepo, onDismiss = { showText = false })
     if (showLibrary) LibrarySheet(vm, onDismiss = { showLibrary = false })
-    if (showDeform && !vm.matSelected) DeformSheet(vm, onDismiss = { showDeform = false })
+    if (showDeform && !vm.matSelected) BendSheet(vm, onDismiss = { showDeform = false })
 }
 
 /** Add a text layer: type the text, pick a font (outline or single-stroke), choose a height. */
@@ -430,17 +420,20 @@ private fun TextDialog(vm: KnutcutViewModel, fonts: FontRepository, onDismiss: (
     )
 }
 
-/** Add menu: open a file, add text, open the library, or drop in a primitive shape. */
+/** Add menu: new, open a file, add text, open the library, or drop in a primitive shape. */
 @Composable
 private fun AddMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
+    onNew: () -> Unit,
     onOpenFile: () -> Unit,
     onLibrary: () -> Unit,
     onText: () -> Unit,
     onShape: (Pair<String, de.knutwurst.knutcut.svgcore.Polyline>) -> Unit,
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(text = { Text(stringResource(R.string.ui_neu)) }, onClick = onNew)
+        HorizontalDivider()
         DropdownMenuItem(text = { Text(stringResource(R.string.ui_open_svg_plt)) }, onClick = onOpenFile)
         DropdownMenuItem(text = { Text(stringResource(R.string.ui_library_menu)) }, onClick = onLibrary)
         DropdownMenuItem(text = { Text(stringResource(R.string.ui_text_menu)) }, onClick = onText)
@@ -712,35 +705,75 @@ private fun CuttingBar(vm: KnutcutViewModel) {
     OutlinedButton(onClick = { vm.cancelCut() }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.ui_cancel)) }
 }
 
-/** Shown above the editing bar whenever a non-default tool (draw / nodes / envelope) is active:
- *  names the mode, hints at its gesture, and offers a clear "Done" exit back to SELECT. This is the
- *  single, consistent place that tells the user which mode they are in and how to leave it. */
+/**
+ * Mode segment row + slim gesture hint below it. Shown only when a design is on the mat.
+ * "Auswählen" always resets to SELECT. "Knoten" is available only when the selected layer
+ * can be node-edited; tapping it converts the layer if needed and enters NODES mode.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ModeBanner(vm: KnutcutViewModel) {
-    val mode = vm.editorTool
-    if (mode == EditorTool.SELECT) return
-    val hint = when (mode) {
-        EditorTool.DRAW -> stringResource(R.string.ui_mode_draw_hint)
-        EditorTool.NODES -> stringResource(R.string.ui_mode_nodes_hint)
-        EditorTool.ENVELOPE -> stringResource(R.string.ui_mode_envelope_hint)
-        else -> ""
+private fun ModeSegment(vm: KnutcutViewModel) {
+    val layer = vm.layers.getOrNull(vm.selectedLayer)
+    val canEditNodes = !vm.matSelected && layer != null &&
+        (layer.editPath != null || layer.polylines.size == 1)
+
+    val options = listOf(
+        stringResource(R.string.ui_mode_select),
+        stringResource(R.string.ui_mode_draw),
+        stringResource(R.string.ui_mode_nodes),
+    )
+    val selectedIndex = when (vm.editorTool) {
+        EditorTool.SELECT -> 0
+        EditorTool.DRAW   -> 1
+        EditorTool.NODES  -> 2
     }
-    Surface(
-        color = MaterialTheme.colorScheme.primaryContainer,
-        shape = RoundedCornerShape(10.dp),
-        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+        options.forEachIndexed { i, label ->
+            val enabled = when (i) {
+                2 -> canEditNodes   // Knoten only when a compatible layer is selected
+                else -> true
+            }
+            SegmentedButton(
+                shape = SegmentedButtonDefaults.itemShape(index = i, count = options.size),
+                onClick = {
+                    when (i) {
+                        0 -> vm.editorTool = EditorTool.SELECT
+                        1 -> vm.editorTool = EditorTool.DRAW
+                        2 -> {
+                            if (layer?.editPath == null) vm.convertSelectedToEditablePath()
+                            vm.editorTool = EditorTool.NODES
+                        }
+                    }
+                },
+                selected = selectedIndex == i,
+                enabled = enabled,
+            ) {
+                Text(label, maxLines = 1)
+            }
+        }
+    }
+
+    // Slim one-line gesture hint, shown only when a non-SELECT mode is active.
+    val hint = when (vm.editorTool) {
+        EditorTool.DRAW  -> stringResource(R.string.ui_mode_draw_hint)
+        EditorTool.NODES -> stringResource(R.string.ui_mode_nodes_hint)
+        else -> null
+    }
+    if (hint != null) {
+        Surface(
+            color = MaterialTheme.colorScheme.primaryContainer,
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
         ) {
             Text(
                 hint,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.weight(1f).padding(vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            TextButton(onClick = { vm.editorTool = EditorTool.SELECT }) { Text(stringResource(R.string.ui_done)) }
         }
     }
 }
@@ -753,8 +786,7 @@ private fun IconAction(label: String, icon: ImageVector, rotate: Float = 0f, ena
     }
 }
 
-/** The contextual bar shown while editing: a single icon toolbar, then material + a cut summary. */
-@OptIn(ExperimentalLayoutApi::class)
+/** The contextual bar shown while editing: a single scrollable icon row, then material + cut button. */
 @Composable
 private fun EditingBar(
     vm: KnutcutViewModel,
@@ -765,48 +797,74 @@ private fun EditingBar(
     onDelete: () -> Unit,
     onDeform: () -> Unit,
 ) {
-    // Per-layer actions only make sense with a layer selected; greyed out when the mat is selected.
     val perLayer = !vm.matSelected
-    val layer = vm.layers.getOrNull(vm.selectedLayer)
-    // The nodes button is available when the selected layer has an editPath OR exactly one polyline
-    // (which can be converted on tap).
-    val canEditNodes = perLayer && layer != null && (layer.editPath != null || layer.polylines.size == 1)
-    val inNodesMode = vm.editorTool == EditorTool.NODES
-    // One toolbar row, spread across the full width (wraps to a new row if it can't fit).
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+    var showFlipMenu by remember { mutableStateOf(false) }
+    var showMoreMenu by remember { mutableStateOf(false) }
+    var showAlignDialog by remember { mutableStateOf(false) }
+
+    // Single non-wrapping row; horizontalScroll acts as a safety valve for very small screens.
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        // Größe
         IconAction(stringResource(R.string.ui_size_angle), Icons.Default.AspectRatio, enabled = perLayer, onClick = onSize)
+        // Drehen 90°
         IconAction(stringResource(R.string.ui_rotate90), Icons.AutoMirrored.Filled.RotateRight, enabled = perLayer) { vm.rotate90() }
-        IconAction(stringResource(R.string.ui_flip_h), Icons.Default.Flip, enabled = perLayer) { vm.mirrorSelectedHorizontal() }
-        IconAction(stringResource(R.string.ui_flip_v), Icons.Default.Flip, rotate = 90f, enabled = perLayer) { vm.mirrorSelectedVertical() }
-        IconAction(stringResource(R.string.ui_duplicate), Icons.Default.ContentCopy, enabled = perLayer) { vm.duplicateSelected() }
-        IconAction(stringResource(R.string.ui_deform), Icons.Default.AutoFixHigh, enabled = perLayer, onClick = onDeform)
-        // Node editor toggle: enters NODES mode (converting first if needed) or returns to SELECT.
-        if (inNodesMode && canEditNodes) {
-            // Active state: a filled (primary) button so it clearly reads as "on" versus the tonal
-            // action buttons around it. Tapping it leaves node mode.
-            androidx.compose.material3.FilledIconButton(
-                onClick = { vm.editorTool = EditorTool.SELECT },
-                enabled = canEditNodes,
-                modifier = Modifier.size(40.dp),
-            ) {
-                Icon(Icons.Default.Timeline, contentDescription = stringResource(R.string.ui_nodes_desc), modifier = Modifier.size(20.dp))
-            }
-        } else {
-            IconAction(stringResource(R.string.ui_nodes), Icons.Default.Timeline, enabled = canEditNodes) {
-                if (layer?.editPath == null) vm.convertSelectedToEditablePath()
-                vm.editorTool = EditorTool.NODES
+        // Spiegeln → small dropdown
+        Box {
+            IconAction(stringResource(R.string.ui_flip), Icons.Default.Flip, enabled = perLayer) { showFlipMenu = true }
+            DropdownMenu(expanded = showFlipMenu, onDismissRequest = { showFlipMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.ui_flip_h)) },
+                    onClick = { showFlipMenu = false; vm.mirrorSelectedHorizontal() },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.ui_flip_v)) },
+                    onClick = { showFlipMenu = false; vm.mirrorSelectedVertical() },
+                )
             }
         }
-        IconAction(stringResource(R.string.ui_delete), Icons.Default.Delete, enabled = perLayer, onClick = onDelete)
-        IconAction(
-            if (vm.matSelected) stringResource(R.string.ui_reset_all) else stringResource(R.string.ui_reset_layer),
-            Icons.Default.Refresh,
-        ) { if (vm.matSelected) vm.resetAll() else vm.resetSelectedPlacement() }
-        IconAction(stringResource(R.string.ui_reset_view), Icons.Default.CenterFocusStrong) { vm.resetView() }
+        // Duplizieren
+        IconAction(stringResource(R.string.ui_duplicate), Icons.Default.ContentCopy, enabled = perLayer) { vm.duplicateSelected() }
+        // Biegen
+        IconAction(stringResource(R.string.ui_bend), Icons.Default.AutoFixHigh, enabled = perLayer, onClick = onDeform)
+        // ⋯ Mehr
+        Box {
+            IconAction(stringResource(R.string.ui_more), Icons.Default.MoreVert) { showMoreMenu = true }
+            DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.ui_align)) },
+                    onClick = { showMoreMenu = false; showAlignDialog = true },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.ui_reset_layer)) },
+                    enabled = perLayer,
+                    onClick = { showMoreMenu = false; vm.resetSelectedPlacement() },
+                )
+                if (vm.matSelected) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.ui_reset_all)) },
+                        onClick = { showMoreMenu = false; vm.resetAll() },
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        // Löschen — error tint, pushed far right
+        FilledTonalIconButton(
+            onClick = onDelete,
+            enabled = perLayer,
+            modifier = Modifier.size(40.dp),
+        ) {
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = stringResource(R.string.ui_delete),
+                modifier = Modifier.size(20.dp),
+                tint = if (perLayer) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            )
+        }
     }
 
     Spacer(Modifier.height(8.dp))
@@ -821,6 +879,15 @@ private fun EditingBar(
                 !vm.connected -> stringResource(R.string.ui_connect_plotter)
                 else -> vm.cutActionLabel()
             }
+        )
+    }
+
+    if (showAlignDialog) {
+        AlertDialog(
+            onDismissRequest = { showAlignDialog = false },
+            title = { Text(stringResource(R.string.ui_align)) },
+            text = { AlignmentControls(vm) },
+            confirmButton = { TextButton(onClick = { showAlignDialog = false }) { Text(stringResource(R.string.ui_close)) } },
         )
     }
 }
@@ -844,102 +911,34 @@ private fun AlignmentControls(vm: KnutcutViewModel) {
     }
 }
 
-private enum class DeformMode { CIRCLE, ARC, ENVELOPE }
-
 /**
- * Sheet for non-destructive geometric deformation of the selected layer. Supports circle warp
- * and arc/bend warp; structured so additional modes can be added as tabs without a full rewrite.
+ * BendSheet: a simple one-slider sheet for bending the selected layer onto a circle arc.
+ * The slider maps -100..100 to a [CircleDeform] via [bendToCircleDeform]; values close to 0
+ * (|value| < 3) restore the straight (no-deform) state. An "Erweitert" expander reveals the
+ * start-angle stepper for users who need precise control.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-@Suppress("NAME_SHADOWING")
-private fun DeformSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
+private fun BendSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
     val sourceBounds = vm.selectedDeformSourceBounds() ?: return
+    val existingDeform = vm.layers.getOrNull(vm.selectedLayer)?.deform as? CircleDeform
 
-    val existingDeform = vm.layers.getOrNull(vm.selectedLayer)?.deform
+    // Seed slider and startAngle from the existing deform when one is active.
+    val initialValue = existingDeform?.bendValue(sourceBounds) ?: 0
+    var sliderValue by remember { mutableStateOf(initialValue.toFloat()) }
+    var startAngle by remember { mutableStateOf(existingDeform?.startAngleDeg?.toInt()?.coerceIn(0, 359) ?: 0) }
+    var advancedExpanded by remember { mutableStateOf(false) }
 
-    // Determine the opening mode and seed control values from the existing spec (if any).
-    val openMode = when (existingDeform) {
-        is PathDeform     -> DeformMode.ARC
-        is EnvelopeDeform -> DeformMode.ENVELOPE
-        else              -> DeformMode.CIRCLE
-    }
+    // Track whether the first deform of this sheet session has been pushed to history yet.
+    var pushedHistory by remember { mutableStateOf(false) }
 
-    var mode by remember { mutableStateOf(openMode) }
-
-    // Circle controls
-    val circleInitial = (existingDeform as? CircleDeform) ?: circleDeformDefault(sourceBounds)
-    var radius by remember { mutableStateOf(circleInitial.radiusMm.toInt().coerceIn(5, 500)) }
-    var startAngle by remember { mutableStateOf(circleInitial.startAngleDeg.toInt().coerceIn(0, 359)) }
-    var clockwise by remember { mutableStateOf(circleInitial.clockwise) }
-
-    // Arc controls
-    val arcInitial = (existingDeform as? PathDeform)
-    var curvature by remember { mutableStateOf(arcInitial?.let {
-        // Recover the curvature from the midpoint node offset.
-        val baselineY = when (it.baseline) {
-            DeformBaseline.TOP    -> sourceBounds.minY
-            DeformBaseline.CENTER -> (sourceBounds.minY + sourceBounds.maxY) / 2.0
-            DeformBaseline.BOTTOM -> sourceBounds.maxY
-        }
-        val midAnchorY = it.guide.getOrNull(1)?.anchor?.yMm ?: baselineY
-        // curvatureMm = baselineY - midAnchorY (positive = bows up)
-        (baselineY - midAnchorY).toInt()
-    } ?: 0) }
-
-    // Shared baseline state — seeded from whichever spec is active.
-    var baseline by remember {
-        mutableStateOf(
-            (existingDeform as? CircleDeform)?.baseline
-                ?: (existingDeform as? PathDeform)?.baseline
-                ?: DeformBaseline.CENTER
-        )
-    }
-
-    fun circleSpec() = CircleDeform(
-        centerXMm = (sourceBounds.minX + sourceBounds.maxX) / 2.0,
-        centerYMm = (sourceBounds.minY + sourceBounds.maxY) / 2.0,
-        radiusMm = radius.toDouble(),
-        startAngleDeg = startAngle.toDouble(),
-        clockwise = clockwise,
-        baseline = baseline,
-    )
-
-    fun arcSpec() = bendDeformDefault(sourceBounds, curvature.toDouble(), baseline)
-
-    fun currentSpec(): DeformSpec? = when (mode) {
-        DeformMode.CIRCLE   -> circleSpec()
-        DeformMode.ARC      -> arcSpec()
-        DeformMode.ENVELOPE -> null  // envelope is applied on mode-select, not here
-    }
-
-    // Track whether the user has made any change in this sheet session. The first change pushes a
-    // history snapshot; subsequent changes update it without creating extra undo steps.
-    // This also prevents a no-op deform from being applied when the sheet is dismissed unchanged.
-    var appliedHistory by remember { mutableStateOf(false) }
-
-    fun applyLive() {
-        val spec = currentSpec() ?: return
-        if (!appliedHistory) {
-            // First real change: push history so one Undo reverts everything from this session.
-            vm.setSelectedDeform(spec, pushHistory = true)
-            appliedHistory = true
+    fun applyBend(value: Int, angle: Int) {
+        val spec = bendToCircleDeform(sourceBounds, value, angle.toDouble())
+        if (spec == null) {
+            vm.clearSelectedDeform()
         } else {
-            vm.setSelectedDeform(spec, pushHistory = false)
-        }
-    }
-
-    // On open: if the layer already has a matching deform, the controls are already seeded from it
-    // (see circleInitial / arcInitial above) — do NOT re-apply, as that would silently discard the
-    // user's earlier manually-set parameters and add a spurious undo step.
-    // Only apply a default spec immediately if there is no existing deform of the current mode.
-    LaunchedEffect(Unit) {
-        if (mode != DeformMode.ENVELOPE && existingDeform == null) {
-            val spec = currentSpec()
-            if (spec != null) {
-                vm.setSelectedDeform(spec, pushHistory = true)
-                appliedHistory = true
-            }
+            vm.setSelectedDeform(spec, pushHistory = !pushedHistory)
+            pushedHistory = true
         }
     }
 
@@ -950,115 +949,60 @@ private fun DeformSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                 .padding(bottom = 24.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Text(stringResource(R.string.ui_deform), style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(10.dp))
+            Text(stringResource(R.string.ui_bend), style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
 
-            // Mode selector: "Auf Kreis" / "Bogen" / "Hülle"
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = mode == DeformMode.CIRCLE,
-                    onClick = { if (mode != DeformMode.CIRCLE) { mode = DeformMode.CIRCLE; applyLive() } },
-                    label = { Text(stringResource(R.string.ui_deform_circle)) },
+            // Main bend slider: -100 = full curve down, 0 = straight, +100 = full curve up.
+            Slider(
+                value = sliderValue,
+                onValueChange = { v ->
+                    sliderValue = v
+                    applyBend(v.toInt(), startAngle)
+                },
+                valueRange = -100f..100f,
+                steps = 0,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text("−100", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    stringResource(R.string.ui_bend_straight),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                FilterChip(
-                    selected = mode == DeformMode.ARC,
-                    onClick = { if (mode != DeformMode.ARC) { mode = DeformMode.ARC; applyLive() } },
-                    label = { Text(stringResource(R.string.ui_deform_arc)) },
-                )
-                FilterChip(
-                    selected = mode == DeformMode.ENVELOPE,
-                    onClick = {
-                        if (mode != DeformMode.ENVELOPE) {
-                            // Apply the identity envelope, switch the editor tool, and close the sheet
-                            // so the user can drag the corners directly on the canvas.
-                            val defaultEnvelope = envelopeDeformDefault(sourceBounds)
-                            vm.setSelectedDeform(defaultEnvelope, pushHistory = true)
-                            vm.editorTool = EditorTool.ENVELOPE
-                            onDismiss()
-                        }
-                    },
-                    label = { Text(stringResource(R.string.ui_deform_envelope)) },
-                )
+                Text("+100", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             Spacer(Modifier.height(12.dp))
 
-            when (mode) {
-                DeformMode.CIRCLE -> {
-                    // Radius
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.ui_deform_radius_mm), Modifier.weight(1f))
-                        EditableStepper(radius, 5, 500, step = 1) { radius = it; applyLive() }
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-
-                    // Start angle
+            // "Erweitert" expander for start angle.
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { advancedExpanded = !advancedExpanded },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    stringResource(R.string.ui_bend_advanced),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    if (advancedExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+            AnimatedVisibility(visible = advancedExpanded) {
+                Column(Modifier.padding(top = 8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.ui_deform_start_angle), Modifier.weight(1f))
-                        EditableStepper(startAngle, 0, 359, step = 5) { startAngle = it; applyLive() }
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-
-                    // Direction toggle (inside / outside the circle)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.ui_deform_direction), Modifier.weight(1f))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(
-                                selected = !clockwise,
-                                onClick = { clockwise = false; applyLive() },
-                                label = { Text(stringResource(R.string.ui_deform_outside)) },
-                            )
-                            FilterChip(
-                                selected = clockwise,
-                                onClick = { clockwise = true; applyLive() },
-                                label = { Text(stringResource(R.string.ui_deform_inside)) },
-                            )
+                        EditableStepper(startAngle, 0, 359, step = 5) { v ->
+                            startAngle = v
+                            applyBend(sliderValue.toInt(), v)
                         }
-                    }
-                }
-
-                DeformMode.ARC -> {
-                    // Curvature slider: -200..200 mm, 0 = straight.
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.ui_deform_curvature), Modifier.weight(1f))
-                        EditableStepper(curvature, -200, 200, step = 5) { curvature = it; applyLive() }
-                    }
-                }
-
-                DeformMode.ENVELOPE -> {
-                    // Envelope mode uses the canvas directly; just show the hint.
-                    Text(
-                        stringResource(R.string.ui_deform_envelope_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            if (mode != DeformMode.ENVELOPE) {
-                Spacer(Modifier.height(8.dp))
-
-                // Shared baseline chips (not applicable to envelope mode)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.ui_deform_baseline), Modifier.weight(1f))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = baseline == DeformBaseline.TOP,
-                            onClick = { baseline = DeformBaseline.TOP; applyLive() },
-                            label = { Text(stringResource(R.string.ui_top)) },
-                        )
-                        FilterChip(
-                            selected = baseline == DeformBaseline.CENTER,
-                            onClick = { baseline = DeformBaseline.CENTER; applyLive() },
-                            label = { Text(stringResource(R.string.ui_center)) },
-                        )
-                        FilterChip(
-                            selected = baseline == DeformBaseline.BOTTOM,
-                            onClick = { baseline = DeformBaseline.BOTTOM; applyLive() },
-                            label = { Text(stringResource(R.string.ui_bottom)) },
-                        )
                     }
                 }
             }
@@ -1066,11 +1010,7 @@ private fun DeformSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             Spacer(Modifier.height(16.dp))
 
             TextButton(
-                onClick = {
-                    vm.clearSelectedDeform()
-                    if (vm.editorTool == EditorTool.ENVELOPE) vm.editorTool = EditorTool.SELECT
-                    onDismiss()
-                },
+                onClick = { vm.clearSelectedDeform(); onDismiss() },
                 modifier = Modifier.align(Alignment.Start),
             ) {
                 Text(stringResource(R.string.ui_deform_remove))

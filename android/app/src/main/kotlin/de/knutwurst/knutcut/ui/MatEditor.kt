@@ -42,7 +42,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import de.knutwurst.knutcut.data.CircleDeform
-import de.knutwurst.knutcut.data.EnvelopeDeform
 import de.knutwurst.knutcut.data.Mat
 import de.knutwurst.knutcut.data.PathDeform
 import de.knutwurst.knutcut.data.Tool
@@ -69,8 +68,6 @@ private sealed interface Drag {
     // Node-editor drags
     data class NodeAnchor(val index: Int) : Drag
     data class NodeHandle(val nodeIndex: Int, val side: HandleSide) : Drag
-    // Envelope-editor drags: corner 0=TL, 1=TR, 2=BR, 3=BL
-    data class EnvelopeCorner(val corner: Int) : Drag
 }
 
 private const val HANDLE_HIT_PX = 34f   // touch radius for grabbing a handle
@@ -87,10 +84,6 @@ private const val NODE_ANCHOR_RADIUS_PX = 8f     // filled dot for an anchor
 private const val NODE_HANDLE_RADIUS_PX = 5f     // smaller dot for a control handle
 private const val NODE_HIT_PX = 28f              // touch radius for nodes/handles in the node editor
 private const val DOUBLE_TAP_MS = 350L           // max gap between taps to count as a double-tap
-
-// Envelope editor visual constants
-private const val ENV_CORNER_PX = 11f            // half-side of the drawn corner square
-private const val ENV_HIT_PX = 22f              // touch radius for an envelope corner handle
 
 /**
  * The placement mat. Pinch or one-finger-drag on empty space moves/zooms the *work area* (like a
@@ -423,80 +416,6 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                     }
                 }
 
-                // ---- ENVELOPE mode: drag corners of the cage quad ----
-                if (vm.editorTool == EditorTool.ENVELOPE) {
-                    val layerIdx = vm.selectedLayer
-                    val envDeform = vm.layers.getOrNull(layerIdx)?.deform as? EnvelopeDeform
-                    if (envDeform == null) {
-                        // Layer no longer has an EnvelopeDeform (e.g. deleted/changed): reset to
-                        // SELECT so the user is not trapped in a mode that does nothing.
-                        vm.editorTool = EditorTool.SELECT
-                        // Fall through to normal SELECT/pan handling.
-                    } else {
-                        // Build screen positions for corners (local -> world -> screen).
-                        val cornersLocal = listOf(envDeform.tl, envDeform.tr, envDeform.br, envDeform.bl)
-                        val cornersScreen = cornersLocal.mapNotNull { lp ->
-                            vm.layerLocalToWorld(layerIdx, lp)?.let { worldToScreen(it, origin, ppm) }
-                        }
-                        val hitPx = ENV_HIT_PX
-                        val downPos = down.position
-                        var bestCorner = -1
-                        var bestDist = hitPx * hitPx
-                        if (cornersScreen.size == 4) {
-                            for (ci in 0..3) {
-                                val c = cornersScreen[ci]
-                                val dx = downPos.x - c.x
-                                val dy = downPos.y - c.y
-                                val d2 = dx * dx + dy * dy
-                                if (d2 < bestDist) { bestDist = d2; bestCorner = ci }
-                            }
-                        }
-                        if (bestCorner >= 0) {
-                            var pushedHistory = false
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val pressed = event.changes.filter { it.pressed }
-                                if (pressed.isEmpty()) break
-                                if (pressed.size >= 2) {
-                                    val (np, no) = applyTwoFingerCamera(pressed[0], pressed[1], ppm, origin)
-                                    ppm = np; origin = no
-                                    event.changes.forEach { it.consume() }
-                                } else {
-                                    val p = pressed[0]
-                                    val moved = p.positionChange().getDistance()
-                                    if (!pushedHistory && moved > 1f) {
-                                        vm.beginDeformEdit()
-                                        pushedHistory = true
-                                    }
-                                    if (pushedHistory) {
-                                        ppm = ppmFor(sizePx, vm.mat, vm.camScale)
-                                        origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
-                                        val curWorld = screenToWorld(p.position, origin, ppm)
-                                        val curLocal = vm.worldToLayerLocal(layerIdx, curWorld) ?: curWorld
-                                        vm.moveEnvelopeCorner(bestCorner, curLocal)
-                                    }
-                                    p.consume()
-                                }
-                            }
-                            return@awaitEachGesture
-                        }
-                        // Missed all corners: let two-finger pan through but eat single-finger.
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val pressed = event.changes.filter { it.pressed }
-                            if (pressed.isEmpty()) break
-                            if (pressed.size >= 2) {
-                                val (np, no) = applyTwoFingerCamera(pressed[0], pressed[1], ppm, origin)
-                                ppm = np; origin = no
-                                event.changes.forEach { it.consume() }
-                            } else {
-                                pressed[0].consume()
-                            }
-                        }
-                        return@awaitEachGesture
-                    }
-                }
-
                 // ---- SELECT mode (default): move / resize / rotate / pan ----
 
                 val handlesScreen = handleWorldPoints(vm.placedCorners()).map { worldToScreen(it, origin, ppm) }
@@ -594,7 +513,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                                 val a = atan2((p.position.y - cs.y).toDouble(), (p.position.x - cs.x).toDouble())
                                 vm.rotationDeg = startRotation + Math.toDegrees(a - startAngle)
                             }
-                            is Drag.NodeAnchor, is Drag.NodeHandle, is Drag.EnvelopeCorner -> Unit
+                            is Drag.NodeAnchor, is Drag.NodeHandle -> Unit
                         }
                         p.consume()
                     }
@@ -751,39 +670,6 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 }
             }
             else -> Unit
-        }
-
-        // Envelope editor overlay: show the draggable corner handles and quad outline in ENVELOPE mode.
-        if (vm.editorTool == EditorTool.ENVELOPE) {
-            val layerIdx = vm.selectedLayer
-            val envDeform = vm.layers.getOrNull(layerIdx)?.deform as? EnvelopeDeform
-            if (envDeform != null) {
-                fun lts(lp: Pt): Offset = vm.layerLocalToWorld(layerIdx, lp)?.let { s(it) } ?: s(lp)
-                val cs = listOf(lts(envDeform.tl), lts(envDeform.tr), lts(envDeform.br), lts(envDeform.bl))
-                // Quad outline
-                val quadPath = Path().apply {
-                    moveTo(cs[0].x, cs[0].y)
-                    lineTo(cs[1].x, cs[1].y)
-                    lineTo(cs[2].x, cs[2].y)
-                    lineTo(cs[3].x, cs[3].y)
-                    close()
-                }
-                drawPath(quadPath, deformGuideColor, style = Stroke(width = 1.5f))
-                // Corner handles
-                for (c in cs) {
-                    drawRect(
-                        color = handleColor,
-                        topLeft = Offset(c.x - ENV_CORNER_PX, c.y - ENV_CORNER_PX),
-                        size = Size(ENV_CORNER_PX * 2, ENV_CORNER_PX * 2),
-                    )
-                    drawRect(
-                        color = nodeSurfaceColor,
-                        topLeft = Offset(c.x - ENV_CORNER_PX, c.y - ENV_CORNER_PX),
-                        size = Size(ENV_CORNER_PX * 2, ENV_CORNER_PX * 2),
-                        style = Stroke(width = 1.5f),
-                    )
-                }
-            }
         }
 
         // Node editor overlay: draw anchors and handles when in NODES mode.

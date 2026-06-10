@@ -290,18 +290,8 @@
     <string name="ui_changelog">Changelog</string>
     <string name="ui_open">Open file/project</string>
     <string name="ui_deform">Warp</string>
-    <string name="ui_deform_circle">On circle</string>
-    <string name="ui_deform_radius_mm">Radius (mm)</string>
     <string name="ui_deform_start_angle">Start angle (°)</string>
-    <string name="ui_deform_direction">Direction</string>
-    <string name="ui_deform_inside">Inside</string>
-    <string name="ui_deform_outside">Outside</string>
-    <string name="ui_deform_baseline">Baseline</string>
     <string name="ui_deform_remove">Remove warp</string>
-    <string name="ui_deform_arc">Arc</string>
-    <string name="ui_deform_curvature">Curvature (mm)</string>
-    <string name="ui_deform_envelope">Envelope</string>
-    <string name="ui_deform_envelope_hint">Drag the corners on the canvas to warp</string>
     <string name="ui_draw_mode">Draw</string>
     <string name="ui_draw_mode_desc">Freehand draw mode</string>
     <string name="ui_draw_layer_name">Drawing</string>
@@ -314,5 +304,16 @@
     <string name="ui_done">Done</string>
     <string name="ui_mode_draw_hint">Draw: drag with your finger. Two fingers pan and zoom.</string>
     <string name="ui_mode_nodes_hint">Nodes: drag to bend, double-tap a line to add a point.</string>
-    <string name="ui_mode_envelope_hint">Envelope: drag the four corners to warp.</string>
+    <!-- Mode segment -->
+    <string name="ui_mode_select">Select</string>
+    <string name="ui_mode_draw">Draw</string>
+    <string name="ui_mode_nodes">Nodes</string>
+    <!-- Bend sheet -->
+    <string name="ui_bend">Bend</string>
+    <string name="ui_bend_straight">Straight</string>
+    <string name="ui_bend_advanced">Advanced</string>
+    <!-- Editing bar -->
+    <string name="ui_flip">Flip</string>
+    <string name="ui_more">More</string>
+    <string name="ui_align">Align</string>
 </resources>

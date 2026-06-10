@@ -90,8 +90,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Editor interaction mode: normal SELECT/move/resize, freehand DRAW, node editor NODES, or ENVELOPE cage warp. */
-enum class EditorTool { SELECT, DRAW, NODES, ENVELOPE }
+/** Editor interaction mode: normal SELECT/move/resize, freehand DRAW, or node editor NODES. */
+enum class EditorTool { SELECT, DRAW, NODES }
 
 class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 

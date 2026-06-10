@@ -261,7 +261,8 @@ class DeformNodeInvariantTest {
         val layer = stripLayer()
         vm.addLayer(layer.name, layer.polylines, layer.tool)
 
-        vm.editorTool = EditorTool.ENVELOPE
+        // Use DRAW as a non-SELECT tool (ENVELOPE was removed); clearAll must still reset to SELECT.
+        vm.editorTool = EditorTool.DRAW
 
         vm.clearAll()
 
