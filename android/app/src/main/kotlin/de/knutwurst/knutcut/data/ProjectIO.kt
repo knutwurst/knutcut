@@ -39,6 +39,7 @@ object ProjectIO {
                 o.put("deformSrc", srcArr)
             }
             l.editPath?.let { o.put("editPath", serializeEditPath(it)) }
+            l.editOriginMm?.let { o.put("editOrigin", JSONArray().put(it.xMm).put(it.yMm)) }
             l.textSpec?.let { ts ->
                 o.put("textSpec", JSONObject()
                     .put("text", ts.text)
@@ -88,6 +89,10 @@ object ProjectIO {
                 src.takeIf { it.isNotEmpty() }
             }
             val editPath = o.optJSONObject("editPath")?.let { deserializeEditPath(it) }
+            // Frozen edit pivot; only meaningful alongside an editPath. Legacy files lack it.
+            val editOrigin = o.optJSONArray("editOrigin")
+                ?.takeIf { editPath != null && it.length() == 2 }
+                ?.let { Pt(it.optDouble(0), it.optDouble(1)) }
             val textSpec = o.optJSONObject("textSpec")?.let { ts ->
                 TextSpec(
                     text = ts.optString("text", ""),
@@ -115,6 +120,7 @@ object ProjectIO {
                 deform = safeDeform,
                 deformSource = safeDeformSrc,
                 editPath = editPath,
+                editOriginMm = editOrigin,
                 textSpec = textSpec,
             ))
         }

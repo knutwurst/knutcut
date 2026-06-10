@@ -42,6 +42,15 @@ data class Layer(
      */
     val editPath: EditablePath? = null,
     /**
+     * Stable local-frame pivot for an editable layer, captured when [editPath] is created.
+     *
+     * The placement matrix normally pivots about the live bounding-box centre of [polylines]. While
+     * node-editing that centre moves as the geometry changes, which would re-centre the whole shape
+     * and make the other nodes drift (and a drag feed back on itself). Freezing the pivot here keeps
+     * the editing frame fixed, so dragging a node moves only that node. Non-null iff [editPath] is.
+     */
+    val editOriginMm: Pt? = null,
+    /**
      * Source text and font parameters for text layers.  Non-null only on layers created by the
      * text tool; used by the curve-text feature to re-render glyphs at a new arc value without
      * losing the original text.

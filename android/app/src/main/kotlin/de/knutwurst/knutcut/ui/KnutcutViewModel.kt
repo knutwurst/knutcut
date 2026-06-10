@@ -724,6 +724,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             visible = true,
             centerMm = center,
             editPath = path,
+            // Freeze the local frame at the creation centre; node edits then move only the node, not
+            // the whole shape (centre == bounds centre here, so the frame starts as world = local).
+            editOriginMm = center,
         )
         layers = layers + layer
         selectedLayer = layers.lastIndex
@@ -867,12 +870,16 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         if (layer.polylines.size != 1) return
         pushHistory()
         val poly = layer.polylines[0]
-        // simplifyToBudget keeps the node count manageable (~40) even for dense warped polylines.
-        // For sparse paths (already ≤ 40 points) it smooths directly without further reduction.
+        // simplifyToBudget keeps the node count small even for dense warped polylines; sparse paths
+        // are smoothed directly without further reduction.
         val newPath = simplifyToBudget(poly.points, poly.closed)
+        // Freeze the local pivot at the centre the matrix is using right now, so converting does not
+        // shift the shape and later node edits stay in a fixed frame.
+        val b = layerBounds(layer)
+        val origin = Pt((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2)
         layers = layers.mapIndexed { idx, l ->
             // Bake away any active warp: the node positions come from the warped polyline.
-            if (idx == i) l.copy(editPath = newPath, deform = null, deformSource = null) else l
+            if (idx == i) l.copy(editPath = newPath, editOriginMm = origin, deform = null, deformSource = null) else l
         }
     }
 
@@ -925,7 +932,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     private fun resizeKeepingTopLeft(newSx: Double, newSy: Double, newRot: Double) {
         val layer = layers.getOrNull(selectedLayer) ?: return
         val b = layerBounds(layer)
-        val lc = Pt((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2)
+        // Pivot must match layerMatrix (frozen origin for editable layers, else bounds centre).
+        val lc = layerPivot(layer)
         val tlLocal = Pt(b.minX, b.minY)
         val oldTopLeft = layerMatrix(layer).apply(tlLocal)
         val fx = if (layer.flipX) -1.0 else 1.0
@@ -1099,8 +1107,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val warped = DeformEngine.apply(spec, source)
         if (pushHistory) pushHistory()
         layers = layers.mapIndexed { i, l ->
-            // Deform and node-editing are mutually exclusive: clear editPath when a deform is set.
-            if (i == index) l.copy(polylines = warped, deform = spec, deformSource = source, editPath = null) else l
+            // Deform and node-editing are mutually exclusive: clear editPath (and its frozen pivot)
+            // when a deform is set.
+            if (i == index) l.copy(polylines = warped, deform = spec, deformSource = source, editPath = null, editOriginMm = null) else l
         }
         pruneBoundsCache()
     }
@@ -1146,7 +1155,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return layer.copy(
             polylines = baked, centerMm = centerOf(baked.flatMap { it.points }),
             scaleX = 1.0, scaleY = 1.0, rotationDeg = 0.0, flipX = false, flipY = false,
-            deform = null, deformSource = null, editPath = null,
+            deform = null, deformSource = null, editPath = null, editOriginMm = null,
         )
     }
 
@@ -1554,12 +1563,18 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Placement matrix for one layer: rotate/scale/mirror about its own centre, then move to [Layer.centerMm]. */
+    /** Placement matrix for one layer: rotate/scale/mirror about its own pivot, then move to [Layer.centerMm].
+     *  Editable layers pivot about a frozen [Layer.editOriginMm] so node edits don't shift the frame. */
     private fun layerMatrix(layer: Layer): Matrix =
         Placement.matrix(
             layerBounds(layer), layer.centerMm, layer.scaleX, layer.scaleY, layer.rotationDeg,
-            layer.flipX, layer.flipY,
+            layer.flipX, layer.flipY, localCenter = layer.editOriginMm,
         )
+
+    /** The local pivot the matrix turns/scales about: a frozen origin for editable layers, else the
+     *  live bounds centre. Resize/rotate maths must use the same pivot as [layerMatrix]. */
+    private fun layerPivot(layer: Layer): Pt =
+        layer.editOriginMm ?: layerBounds(layer).let { Pt((it.minX + it.maxX) / 2, (it.minY + it.maxY) / 2) }
 
     /** The four corners of a layer's placed box, in mm (TL, TR, BR, BL; rotated with the layer). */
     fun layerCorners(index: Int): List<Pt> {

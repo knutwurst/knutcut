@@ -366,6 +366,67 @@ class NodeEditorViewModelTest {
     // -------------------------------------------------------------------------
 
     @Test
+    fun draggingAnAnchorWithAHeldFingerStaysBounded() {
+        // Reproduction for the "node runs away to a huge coordinate" bug: during a node drag the
+        // editor maps the finger (a fixed world point while held still) to layer-local coords each
+        // frame, then moves the anchor there. If the layer's coordinate frame is re-derived from the
+        // (now changing) geometry every frame, the mapping feeds back on itself and the anchor blows
+        // up. Holding the finger still must converge to a stable point, not diverge.
+        val n = 24
+        val stroke = (0 until n).map { i ->
+            val a = 2 * Math.PI * i / n
+            Pt(150.0 + 30.0 * kotlin.math.cos(a), 150.0 + 30.0 * kotlin.math.sin(a))
+        }
+        val vm = vm()
+        vm.addDrawnPath(stroke)            // closed circle with an editPath
+        vm.selectLayer(0)
+        assertNotNull("precondition: editPath present", vm.selectedEditPath)
+
+        val targetWorld = Pt(190.0, 150.0) // finger held just outside the circle, on the mat
+        repeat(60) {
+            val local = vm.worldToLayerLocal(0, targetWorld) ?: return@repeat
+            vm.moveSelectedAnchor(0, local)
+        }
+
+        val maxCoord = vm.layers[0].polylines.flatMap { it.points }
+            .maxOf { maxOf(kotlin.math.abs(it.xMm), kotlin.math.abs(it.yMm)) }
+        assertTrue("anchor coords must stay bounded, got $maxCoord", maxCoord < 1000.0)
+    }
+
+    @Test
+    fun movingOneAnchorLeavesTheOtherAnchorsWhereTheyAre() {
+        // Root cause of the runaway: the layer's matrix re-centres on the live polyline bounds, so
+        // dragging one node shifts the whole coordinate frame and every OTHER node jumps in world
+        // space. During a drag that feeds back on the finger mapping and the node shoots off. Editing
+        // one anchor must not move the others.
+        val n = 12
+        val stroke = (0 until n).map { i ->
+            val a = 2 * Math.PI * i / n
+            Pt(150.0 + 30.0 * kotlin.math.cos(a), 150.0 + 30.0 * kotlin.math.sin(a))
+        }
+        val vm = vm()
+        vm.addDrawnPath(stroke)
+        vm.selectLayer(0)
+        val path = vm.selectedEditPath!!
+
+        // World positions of nodes 1 and 2 before touching node 0.
+        val w1Before = vm.layerLocalToWorld(0, path.nodes[1].anchor)!!
+        val w2Before = vm.layerLocalToWorld(0, path.nodes[2].anchor)!!
+
+        // Drag node 0 well away from its spot.
+        val n0 = path.nodes[0].anchor
+        vm.moveSelectedAnchor(0, Pt(n0.xMm + 40.0, n0.yMm + 25.0))
+
+        val w1After = vm.layerLocalToWorld(0, vm.selectedEditPath!!.nodes[1].anchor)!!
+        val w2After = vm.layerLocalToWorld(0, vm.selectedEditPath!!.nodes[2].anchor)!!
+
+        assertEquals("node 1 must not move when node 0 is edited (x)", w1Before.xMm, w1After.xMm, 1e-6)
+        assertEquals("node 1 must not move when node 0 is edited (y)", w1Before.yMm, w1After.yMm, 1e-6)
+        assertEquals("node 2 must not move when node 0 is edited (x)", w2Before.xMm, w2After.xMm, 1e-6)
+        assertEquals("node 2 must not move when node 0 is edited (y)", w2Before.yMm, w2After.yMm, 1e-6)
+    }
+
+    @Test
     fun convertDensePolylineYieldsFewNodes() {
         val vm = vm()
         // Build a 300-point single polyline (far denser than the node budget).
