@@ -3,6 +3,7 @@ package de.knutwurst.knutcut.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -130,7 +131,7 @@ fun MatEditor(
 
     // Fix 1: reset selected node when the selected layer or the layer count changes, so
     // selectedNodeIndex can never point at a node that no longer exists.
-    LaunchedEffect(vm.selectedLayer, vm.layers.size) { selectedNodeIndex = -1; contextMenuLayer = -1 }
+    LaunchedEffect(vm.selectedLayer, vm.layers.size) { selectedNodeIndex = -1 }
 
     // Fix 3: clear the live stroke preview when the user leaves DRAW mode mid-stroke.
     LaunchedEffect(vm.editorTool) { if (vm.editorTool != EditorTool.DRAW) liveStroke = emptyList() }
@@ -560,7 +561,6 @@ fun MatEditor(
                 val startScaleY = vm.scaleY
                 var totalDrag = 0f
                 var pushedHistory = false
-                val downTime = System.currentTimeMillis()
                 // Running, un-snapped centre for the move (so snapping never swallows small drags).
                 var moveCenter = vm.centerMm
 
@@ -578,15 +578,6 @@ fun MatEditor(
                         val p = pressed[0]
                         val moved = p.positionChange().getDistance()
                         totalDrag += moved
-                        // Long-press on a layer (held, no real drag) opens the context menu that mirrors
-                        // the toolbar actions.
-                        if (drag is Drag.Move && !pushedHistory && totalDrag < TAP_SLOP_DP * density &&
-                            System.currentTimeMillis() - downTime >= viewConfiguration.longPressTimeoutMillis) {
-                            contextMenuAt = down.position
-                            contextMenuLayer = vm.selectedLayer
-                            p.consume()
-                            return@awaitEachGesture
-                        }
                         if (!pushedHistory && moved > 0f && (drag is Drag.Move || drag is Drag.Resize || drag is Drag.Rotate)) {
                             vm.pushHistory(); pushedHistory = true
                         }
@@ -652,6 +643,25 @@ fun MatEditor(
                     }
                 }
                 vm.clearGuides()
+            }
+        }
+        // Long-press a layer (Select mode) opens the context menu. A separate, timer-based detector
+        // so a perfectly still finger still fires it; the main gesture above doesn't consume the
+        // press, so the two coexist — a real drag cancels this, a still hold triggers it.
+        .pointerInput(vm.editorTool, vm.bendingText) {
+            if (vm.editorTool == EditorTool.SELECT && !vm.bendingText) {
+                detectTapGestures(onLongPress = { off ->
+                    val lpPpm = ppmFor(sizePx, vm.mat, vm.camScale)
+                    if (lpPpm > 0f) {
+                        val lpOrigin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
+                        val hit = vm.layerAt(screenToWorld(off, lpOrigin, lpPpm))
+                        if (hit >= 0) {
+                            vm.selectLayer(hit)
+                            contextMenuAt = off
+                            contextMenuLayer = hit
+                        }
+                    }
+                })
             }
         },
     ) {

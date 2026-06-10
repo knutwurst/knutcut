@@ -65,7 +65,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
@@ -785,44 +784,23 @@ private fun EditorHintBar(vm: KnutcutViewModel) {
         vm.editorTool == EditorTool.NODES -> stringResource(R.string.ui_mode_nodes_hint)
         else -> stringResource(R.string.ui_mode_select_hint)
     }
-    Row(
-        // Reserve room for two lines so the layout never jumps as the hint changes.
+    // Reserve room for two lines so the layout never jumps as the hint changes.
+    Surface(
+        color = MaterialTheme.colorScheme.primaryContainer,
+        shape = RoundedCornerShape(8.dp),
         modifier = Modifier.fillMaxWidth().height(56.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Surface(
-            color = MaterialTheme.colorScheme.primaryContainer,
-            shape = RoundedCornerShape(8.dp),
-            modifier = Modifier.weight(1f).fillMaxHeight(),
+        Box(
+            Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 6.dp),
+            contentAlignment = Alignment.CenterStart,
         ) {
-            Box(
-                Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 6.dp),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                Text(
-                    hint,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        // Contextual action for the active mode.
-        when {
-            vm.bendingText ->
-                OutlinedButton(onClick = { vm.stopBendingText() }) { Text(stringResource(R.string.ui_done), maxLines = 1) }
-            vm.editorTool == EditorTool.NODES && vm.selectedEditPath != null ->
-                OutlinedButton(
-                    onClick = { vm.toggleSelectedPathClosed() },
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                ) {
-                    Text(
-                        stringResource(if (vm.selectedPathClosed) R.string.ui_path_open else R.string.ui_path_close),
-                        maxLines = 1,
-                    )
-                }
+            Text(
+                hint,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -905,7 +883,6 @@ private fun EditingBar(
     onAlign: () -> Unit,
 ) {
     val perLayer = !vm.matSelected
-    var showFlipMenu by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
 
     val sel = vm.layers.getOrNull(vm.selectedLayer)
@@ -940,20 +917,14 @@ private fun EditingBar(
                                else { if (sel?.editPath == null) vm.convertSelectedToEditablePath(); vm.editorTool = EditorTool.NODES }
             }
         }
-        Spacer(Modifier.width(10.dp))   // gap between the tool modes and the edit actions
         IconAction(stringResource(R.string.ui_size_angle), Icons.Default.AspectRatio, enabled = perLayer, onClick = onSize)
         IconAction(stringResource(R.string.ui_rotate90), Icons.AutoMirrored.Filled.RotateRight, enabled = perLayer) { vm.rotate90() }
-        Box {
-            IconAction(stringResource(R.string.ui_flip), Icons.Default.Flip, enabled = perLayer) { showFlipMenu = true }
-            DropdownMenu(expanded = showFlipMenu, onDismissRequest = { showFlipMenu = false }) {
-                DropdownMenuItem(text = { Text(stringResource(R.string.ui_flip_h)) }, onClick = { showFlipMenu = false; vm.mirrorSelectedHorizontal() })
-                DropdownMenuItem(text = { Text(stringResource(R.string.ui_flip_v)) }, onClick = { showFlipMenu = false; vm.mirrorSelectedVertical() })
-            }
-        }
         IconAction(stringResource(R.string.ui_duplicate), Icons.Default.ContentCopy, enabled = perLayer) { vm.duplicateSelected() }
         Box {
             IconAction(stringResource(R.string.ui_more), Icons.Default.MoreVert) { showMoreMenu = true }
             DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
+                DropdownMenuItem(text = { Text(stringResource(R.string.ui_flip_h)) }, enabled = perLayer, onClick = { showMoreMenu = false; vm.mirrorSelectedHorizontal() })
+                DropdownMenuItem(text = { Text(stringResource(R.string.ui_flip_v)) }, enabled = perLayer, onClick = { showMoreMenu = false; vm.mirrorSelectedVertical() })
                 DropdownMenuItem(text = { Text(stringResource(R.string.ui_align)) }, onClick = { showMoreMenu = false; onAlign() })
                 DropdownMenuItem(text = { Text(stringResource(R.string.ui_reset_layer)) }, enabled = perLayer, onClick = { showMoreMenu = false; vm.resetSelectedPlacement() })
                 if (vm.matSelected) {

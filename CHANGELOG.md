@@ -3,6 +3,13 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.56.5
+- Fixed the editor toolbar spilling off the right edge: Spiegeln (flip) moved into the ⋯ menu so the
+  whole toolbar fits one row.
+- Removed the button next to the gesture hint (it was redundant — bend/shape are toggled from the
+  toolbar, and the mat exits those modes); the hint now uses the full width.
+- Long-press a layer reliably opens the context menu (now uses the proper long-press detector).
+
 ## 0.56.4
 - Reworked editor toolbar: Select and Draw are round toggle buttons, a context-aware Magic button
   bends a text layer or edits a shape's points (disabled when neither fits), the active tool glows,
