@@ -52,6 +52,7 @@ import de.knutwurst.knutcut.svgcore.nearestHandle
 import de.knutwurst.knutcut.svgcore.nearestNode
 import de.knutwurst.knutcut.svgcore.nearestSegment
 import de.knutwurst.knutcut.svgcore.Pt
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -74,12 +75,14 @@ private sealed interface Drag {
     data class NodeHandle(val nodeIndex: Int, val side: HandleSide) : Drag
 }
 
-private const val HANDLE_HIT_PX = 34f   // touch radius for grabbing a handle
-private const val ROTATE_ARM_PX = 44f   // length of the rotate handle's arm
-private const val TAP_SLOP_PX = 12f     // movement below this counts as a tap, not a drag
-private const val CORNER_PX = 14f       // drawn size of a corner handle
-private const val SIDE_PX = 12f         // drawn size of a side-midpoint handle
-private const val ROTATE_DOT_PX = 8f    // drawn radius of the rotate handle dot
+// SELECT-mode handle sizes / hit zones, in dp (× screen density at the use site) so they keep a
+// sensible physical size on dense displays instead of shrinking to a few raw pixels.
+private const val HANDLE_HIT_DP = 16f   // touch radius for grabbing a resize/rotate handle
+private const val ROTATE_ARM_DP = 22f   // length of the rotate handle's arm
+private const val TAP_SLOP_DP = 6f      // movement below this counts as a tap, not a drag
+private const val CORNER_DP = 8f        // drawn size of a corner handle square
+private const val SIDE_DP = 7f          // drawn size of a side-midpoint handle square
+private const val ROTATE_DOT_DP = 5f    // drawn radius of the rotate handle dot
 // Smart-guide line colour: a high-contrast magenta that reads on both light and dark mats.
 private val GUIDE_COLOR = Color(0xFFFF4081)
 
@@ -106,6 +109,9 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     var liveStroke by remember { mutableStateOf<List<Pt>>(emptyList()) }
     // Index of the node currently selected in NODES mode (-1 = none).
     var selectedNodeIndex by remember { mutableStateOf(-1) }
+    // Last anchor tap (node index + time), so a genuine double-tap on the same node toggles smooth.
+    var lastTapNode by remember { mutableStateOf(-1) }
+    var lastTapMs by remember { mutableStateOf(0L) }
 
     // Fix 1: reset selected node when the selected layer or the layer count changes, so
     // selectedNodeIndex can never point at a node that no longer exists.
@@ -166,47 +172,75 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 var origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
 
                 // ---- BEND mode (on-mat text curve handle) ----
-                // Drag up/down anywhere to bend the selected text: up arches it (rainbow), down
-                // bows it the other way. Two fingers hand off to the camera. One undo step per drag.
+                // Grab the knob and drag up/down to bend the selected text (up = arch, down = bow the
+                // other way). A drag on empty mat just pans; two fingers pan/zoom. One undo per bend.
                 if (vm.bendingText) {
                     val layerIdx = vm.selectedLayer
                     val spec = vm.layers.getOrNull(layerIdx)?.textSpec
                     if (spec != null) {
-                        val startCurve = spec.curve
-                        val downWorldY = screenToWorld(down.position, origin, ppm).yMm
-                        var pushed = false
-                        var totalMoved = 0f
+                        // Knob position in screen space — must match the overlay's knob.
+                        val corners = vm.layerCorners(layerIdx)
+                        val knobScreen = if (corners.size == 4) {
+                            val cx = (corners.minOf { it.xMm } + corners.maxOf { it.xMm }) / 2.0
+                            val cyc = (corners.minOf { it.yMm } + corners.maxOf { it.yMm }) / 2.0
+                            worldToScreen(Pt(cx, cyc - spec.curve / 100.0 * BEND_DRAG_RANGE_MM), origin, ppm)
+                        } else null
+                        val grabbedKnob = knobScreen != null &&
+                            (down.position - knobScreen).getDistance() <= NODE_HIT_DP * density
+
+                        if (grabbedKnob) {
+                            val startCurve = spec.curve
+                            val downWorldY = screenToWorld(down.position, origin, ppm).yMm
+                            var pushed = false
+                            var totalMoved = 0f
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val pressed = event.changes.filter { it.pressed }
+                                if (pressed.isEmpty()) break
+                                if (pressed.size >= 2) {
+                                    if (pushed) vm.undo()   // abort the partial bend, hand off to camera
+                                    val (np, no) = applyTwoFingerCamera(pressed[0], pressed[1], ppm, origin)
+                                    ppm = np; origin = no
+                                    event.changes.forEach { it.consume() }
+                                    while (true) {
+                                        val ev2 = awaitPointerEvent()
+                                        val pr2 = ev2.changes.filter { it.pressed }
+                                        if (pr2.isEmpty()) break
+                                        if (pr2.size >= 2) { val (a, b) = applyTwoFingerCamera(pr2[0], pr2[1], ppm, origin); ppm = a; origin = b }
+                                        ev2.changes.forEach { it.consume() }
+                                    }
+                                    return@awaitEachGesture
+                                }
+                                val p = pressed[0]
+                                totalMoved += p.positionChange().getDistance()
+                                if (!pushed && totalMoved > viewConfiguration.touchSlop) { vm.beginTextCurve(); pushed = true }
+                                if (pushed) {
+                                    ppm = ppmFor(sizePx, vm.mat, vm.camScale)
+                                    origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
+                                    val curWorldY = screenToWorld(p.position, origin, ppm).yMm
+                                    // Screen y grows downward, so dragging up is a negative dy → +curve.
+                                    val dyMm = curWorldY - downWorldY
+                                    val curve = (startCurve - dyMm / BEND_DRAG_RANGE_MM * 100.0).roundToInt()
+                                    vm.setSelectedTextCurve(curve)
+                                }
+                                p.consume()
+                            }
+                            return@awaitEachGesture
+                        }
+
+                        // Not on the knob: empty area pans (one finger) / pans+zooms (two fingers).
                         while (true) {
                             val event = awaitPointerEvent()
                             val pressed = event.changes.filter { it.pressed }
                             if (pressed.isEmpty()) break
                             if (pressed.size >= 2) {
-                                if (pushed) vm.undo()   // abort the partial bend, hand off to camera
                                 val (np, no) = applyTwoFingerCamera(pressed[0], pressed[1], ppm, origin)
                                 ppm = np; origin = no
                                 event.changes.forEach { it.consume() }
-                                while (true) {
-                                    val ev2 = awaitPointerEvent()
-                                    val pr2 = ev2.changes.filter { it.pressed }
-                                    if (pr2.isEmpty()) break
-                                    if (pr2.size >= 2) { val (a, b) = applyTwoFingerCamera(pr2[0], pr2[1], ppm, origin); ppm = a; origin = b }
-                                    ev2.changes.forEach { it.consume() }
-                                }
-                                return@awaitEachGesture
+                            } else {
+                                vm.camOffset += pressed[0].positionChange()
+                                pressed[0].consume()
                             }
-                            val p = pressed[0]
-                            totalMoved += p.positionChange().getDistance()
-                            if (!pushed && totalMoved > viewConfiguration.touchSlop) { vm.beginTextCurve(); pushed = true }
-                            if (pushed) {
-                                ppm = ppmFor(sizePx, vm.mat, vm.camScale)
-                                origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
-                                val curWorldY = screenToWorld(p.position, origin, ppm).yMm
-                                // Screen y grows downward, so dragging up is a negative dy → +curve.
-                                val dyMm = curWorldY - downWorldY
-                                val curve = (startCurve - dyMm / BEND_DRAG_RANGE_MM * 100.0).roundToInt()
-                                vm.setSelectedTextCurve(curve)
-                            }
-                            p.consume()
                         }
                         return@awaitEachGesture
                     }
@@ -347,18 +381,21 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                                 }
                                 p.consume()
                             }
-                            if (!cancelledByTwoFinger && totalNodeDrag < TAP_SLOP_PX) {
-                                // Tap (no real drag): select the anchor node.
-                                // Double-tap on an anchor = toggle smooth.
-                                val now = System.currentTimeMillis()
+                            if (!cancelledByTwoFinger && totalNodeDrag < TAP_SLOP_DP * density) {
+                                // Tap (no real drag): select the anchor node. A genuine double-tap on
+                                // the same node (two taps within DOUBLE_TAP_MS) toggles smooth/corner.
+                                val nowMs = System.currentTimeMillis()
                                 val nodeIndex = when (nodeDrag) {
                                     is Drag.NodeAnchor -> nodeDrag.index
                                     is Drag.NodeHandle -> nodeDrag.nodeIndex
                                     else -> -1
                                 }
-                                if (nodeIndex >= 0 && nodeIndex == selectedNodeIndex) {
-                                    // Second tap on the same anchor: toggle smooth.
+                                if (nodeIndex >= 0 && nodeIndex == lastTapNode && nowMs - lastTapMs <= DOUBLE_TAP_MS) {
                                     vm.toggleSelectedNodeSmooth(nodeIndex)
+                                    lastTapNode = -1   // consume, so a third tap doesn't immediately re-toggle
+                                } else {
+                                    lastTapNode = nodeIndex
+                                    lastTapMs = nowMs
                                 }
                                 selectedNodeIndex = nodeIndex
                             }
@@ -395,7 +432,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                                 // Long-press on the line = insert a node (the line itself isn't draggable).
                                 if (!longPressed && !panned &&
                                     elapsed >= viewConfiguration.longPressTimeoutMillis &&
-                                    totalSegDrag < TAP_SLOP_PX) {
+                                    totalSegDrag < TAP_SLOP_DP * density) {
                                     longPressed = true
                                     vm.insertSelectedNode(segHit.segmentIndex, segHit.t)
                                     selectedNodeIndex = -1
@@ -411,34 +448,18 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                             }
 
                             if (!cancelledByTwoFinger && !longPressed && !panned) {
-                                // Plain tap on a segment: wait briefly for a second tap (double-tap = insert).
-                                val tapTime = System.currentTimeMillis()
+                                // Plain tap on a segment: wait up to DOUBLE_TAP_MS for a second tap
+                                // (double-tap = insert a node). withTimeoutOrNull so the gesture isn't
+                                // parked waiting for a tap that never comes (which would swallow the next).
+                                val down2 = withTimeoutOrNull(DOUBLE_TAP_MS) { awaitFirstDown(requireUnconsumed = false) }
                                 var gotSecondTap = false
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    val elapsed = System.currentTimeMillis() - tapTime
-                                    if (elapsed > DOUBLE_TAP_MS) break
-                                    val pressed = event.changes.filter { it.pressed }
-                                    if (pressed.isEmpty()) {
-                                        // Finger lifted — wait for next down.
-                                        val down2 = awaitFirstDown(requireUnconsumed = false)
-                                        val elapsed2 = System.currentTimeMillis() - tapTime
-                                        if (elapsed2 <= DOUBLE_TAP_MS) {
-                                            val w2 = screenToWorld(down2.position, origin, ppm)
-                                            val l2 = vm.worldToLayerLocal(layerIdx, w2) ?: w2
-                                            val seg2 = editPath.nearestSegment(l2, segHitMm)
-                                            if (seg2 != null) {
-                                                vm.insertSelectedNode(seg2.segmentIndex, seg2.t)
-                                                gotSecondTap = true
-                                            }
-                                        }
-                                        break
-                                    }
-                                    if (pressed.size >= 2) {
-                                        val (np, no) = applyTwoFingerCamera(pressed[0], pressed[1], ppm, origin)
-                                        ppm = np; origin = no
-                                        event.changes.forEach { it.consume() }
-                                        break
+                                if (down2 != null) {
+                                    val w2 = screenToWorld(down2.position, origin, ppm)
+                                    val l2 = vm.worldToLayerLocal(layerIdx, w2) ?: w2
+                                    val seg2 = editPath.nearestSegment(l2, segHitMm)
+                                    if (seg2 != null) {
+                                        vm.insertSelectedNode(seg2.segmentIndex, seg2.t)
+                                        gotSecondTap = true
                                     }
                                 }
                                 if (!gotSecondTap) selectedNodeIndex = -1
@@ -471,7 +492,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 val handlesScreen = handleWorldPoints(vm.placedCorners()).map { worldToScreen(it, origin, ppm) }
                 val cornersScreen = vm.placedCorners().map { worldToScreen(it, origin, ppm) }
                 val centerScreen = worldToScreen(vm.centerMm, origin, ppm)
-                var drag: Drag = hitTest(down.position, handlesScreen, cornersScreen, centerScreen)
+                var drag: Drag = hitTest(down.position, handlesScreen, cornersScreen, centerScreen, density)
 
                 // Missed the selected layer's box/handles? If the touch is inside another layer,
                 // select it and move that one instead of panning the view.
@@ -570,31 +591,14 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 }
 
                 // Tap on empty mat space: deselect. Double-tap on empty space: reset camera.
-                if (drag is Drag.PanCamera && totalDrag < TAP_SLOP_PX) {
+                if (drag is Drag.PanCamera && totalDrag < TAP_SLOP_DP * density) {
                     vm.deselectLayers()
-                    // Wait briefly to detect a second tap (double-tap = resetView).
-                    val tapTime = System.currentTimeMillis()
-                    tapWaitLoop@ while (true) {
-                        val event = awaitPointerEvent()
-                        val elapsed = System.currentTimeMillis() - tapTime
-                        if (elapsed > DOUBLE_TAP_MS) break@tapWaitLoop
-                        val pressed = event.changes.filter { it.pressed }
-                        if (pressed.isEmpty()) {
-                            val down2 = awaitFirstDown(requireUnconsumed = false)
-                            val elapsed2 = System.currentTimeMillis() - tapTime
-                            if (elapsed2 <= DOUBLE_TAP_MS) {
-                                // Only reset view when the second tap is also on empty space.
-                                val w2 = screenToWorld(down2.position, origin, ppm)
-                                if (vm.layerAt(w2) < 0) vm.resetView()
-                            }
-                            break@tapWaitLoop
-                        }
-                        if (pressed.size >= 2) {
-                            val (np, no) = applyTwoFingerCamera(pressed[0], pressed[1], ppm, origin)
-                            ppm = np; origin = no
-                            event.changes.forEach { it.consume() }
-                            break@tapWaitLoop
-                        }
+                    // Wait up to DOUBLE_TAP_MS for a second tap on empty space (double-tap = reset
+                    // view). withTimeoutOrNull so a single tap doesn't park the gesture.
+                    val down2 = withTimeoutOrNull(DOUBLE_TAP_MS) { awaitFirstDown(requireUnconsumed = false) }
+                    if (down2 != null) {
+                        val w2 = screenToWorld(down2.position, origin, ppm)
+                        if (vm.layerAt(w2) < 0) vm.resetView()
                     }
                 }
                 vm.clearGuides()
@@ -673,15 +677,17 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
             }
             drawPath(box, handleColor, style = Stroke(width = 1.5f))
             // corner handles (square) and side-midpoint handles (square, slightly smaller)
-            corners.forEach { drawRect(handleColor, topLeft = Offset(it.x - CORNER_PX / 2, it.y - CORNER_PX / 2), size = Size(CORNER_PX, CORNER_PX)) }
+            val cornerPx = CORNER_DP * density
+            val sidePx = SIDE_DP * density
+            corners.forEach { drawRect(handleColor, topLeft = Offset(it.x - cornerPx / 2, it.y - cornerPx / 2), size = Size(cornerPx, cornerPx)) }
             for (i in 0 until 4) {
                 val m = (corners[i] + corners[(i + 1) % 4]) / 2f
-                drawRect(handleColor, topLeft = Offset(m.x - SIDE_PX / 2, m.y - SIDE_PX / 2), size = Size(SIDE_PX, SIDE_PX))
+                drawRect(handleColor, topLeft = Offset(m.x - sidePx / 2, m.y - sidePx / 2), size = Size(sidePx, sidePx))
             }
-            val rot = rotateHandlePos(corners, s(vm.centerMm))
+            val rot = rotateHandlePos(corners, s(vm.centerMm), density)
             val topMid = (corners[0] + corners[1]) / 2f
             drawLine(handleColor, topMid, rot, strokeWidth = 1.5f)
-            drawCircle(handleColor, radius = ROTATE_DOT_PX, center = rot)
+            drawCircle(handleColor, radius = ROTATE_DOT_DP * density, center = rot)
         }
 
         // smart alignment guides (centre snapping) while dragging
@@ -947,19 +953,20 @@ private fun clampToMat(p: Pt, matWidthMm: Double, matHeightMm: Double, marginMm:
         p.yMm.coerceIn(-marginMm, matHeightMm + marginMm),
     )
 
-private fun rotateHandlePos(corners: List<Offset>, center: Offset): Offset {
+private fun rotateHandlePos(corners: List<Offset>, center: Offset, density: Float): Offset {
     val topMid = (corners[0] + corners[1]) / 2f
     val dir = topMid - center
     val len = dir.getDistance()
     val unit = if (len > 0f) dir / len else Offset(0f, -1f)
-    return topMid + unit * ROTATE_ARM_PX
+    return topMid + unit * (ROTATE_ARM_DP * density)
 }
 
-private fun hitTest(p: Offset, handles: List<Offset>, corners: List<Offset>, center: Offset): Drag {
+private fun hitTest(p: Offset, handles: List<Offset>, corners: List<Offset>, center: Offset, density: Float): Drag {
+    val hit = HANDLE_HIT_DP * density
     if (corners.size == 4 && handles.size == 8) {
         // Test all 8 handles; corners (0-3) win ties over sides (4-7) since they're checked first.
-        handles.forEachIndexed { i, h -> if ((h - p).getDistance() < HANDLE_HIT_PX) return Drag.Resize(i) }
-        if ((rotateHandlePos(corners, center) - p).getDistance() < HANDLE_HIT_PX) return Drag.Rotate
+        handles.forEachIndexed { i, h -> if ((h - p).getDistance() < hit) return Drag.Resize(i) }
+        if ((rotateHandlePos(corners, center, density) - p).getDistance() < hit) return Drag.Rotate
         if (inQuad(p, corners)) return Drag.Move
     }
     return Drag.PanCamera
