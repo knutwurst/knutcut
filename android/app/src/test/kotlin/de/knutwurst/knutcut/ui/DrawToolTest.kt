@@ -197,6 +197,25 @@ class DrawToolTest {
     }
 
     @Test
+    fun addDrawnPathKeepsNonConsecutiveRevisitedPoints() {
+        val vm = vm()
+        // Out to (10,0) and back to the start. A global de-dup would collapse the revisited start and
+        // leave a 2-point line; consecutive-only de-dup keeps the out-and-back (3 nodes).
+        vm.addDrawnPath(listOf(Pt(0.0, 0.0), Pt(10.0, 0.0), Pt(0.0, 0.0)))
+        val editPath = vm.layers[0].editPath!!
+        assertTrue("revisited point kept, not collapsed to a line", editPath.nodes.size >= 3)
+    }
+
+    @Test
+    fun addDrawnPathDropsConsecutiveDuplicates() {
+        val vm = vm()
+        // Repeated identical samples (zero-length segments) collapse to a single 2-node line.
+        vm.addDrawnPath(listOf(Pt(0.0, 0.0), Pt(0.0, 0.0), Pt(10.0, 0.0), Pt(10.0, 0.0)))
+        val editPath = vm.layers[0].editPath!!
+        assertEquals("consecutive duplicates removed", 2, editPath.nodes.size)
+    }
+
+    @Test
     fun addDrawnPathSelectsNewLayer() {
         val vm = vm()
         vm.addDrawnPath(listOf(Pt(0.0, 0.0), Pt(10.0, 0.0)))

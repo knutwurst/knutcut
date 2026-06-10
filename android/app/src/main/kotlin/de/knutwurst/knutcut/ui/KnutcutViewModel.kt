@@ -421,12 +421,15 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      * project this is a portable vector other tools can open.
      */
     fun exportSvg(uri: Uri) {
-        val strokes = placedLayers().flatMap { pl ->
-            pl.polylines.mapIndexed { i, poly -> SvgExport.Stroke(poly, pl.colors.getOrNull(i)) }
-        }
-        val svg = SvgExport.toSvg(strokes)
+        // Snapshot the (immutable) placed geometry on the caller, then build the SVG and write it off
+        // the UI thread — a large design can have a lot of points.
+        val placed = placedLayers()
         viewModelScope.launch {
-            val ok = withContext(Dispatchers.IO) {
+            val ok = withContext(Dispatchers.Default) {
+                val strokes = placed.flatMap { pl ->
+                    pl.polylines.mapIndexed { i, poly -> SvgExport.Stroke(poly, pl.colors.getOrNull(i)) }
+                }
+                val svg = SvgExport.toSvg(strokes)
                 runCatching { getApplication<Application>().contentResolver.openOutputStream(uri)?.use { it.write(svg.toByteArray()) } }.isSuccess
             }
             status = if (ok) s(R.string.st_svg_exported) else s(R.string.st_svg_export_failed)
@@ -735,6 +738,17 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Leave on-mat bend mode. */
     fun stopBendingText() { bendingText = false }
 
+    /**
+     * Leave any active editor mode (bend, or draw/nodes) back to plain SELECT. Returns true if a mode
+     * was actually exited — the Back handler uses this so Back steps out of a mode before it
+     * backgrounds the app.
+     */
+    fun exitActiveMode(): Boolean = when {
+        bendingText -> { bendingText = false; true }
+        editorTool != EditorTool.SELECT -> { editorTool = EditorTool.SELECT; true }
+        else -> false
+    }
+
     /** Snapshot history once at the start of a bend drag (one undo step for the whole gesture). */
     fun beginTextCurve() { pushHistory() }
 
@@ -773,12 +787,15 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      * No-op when fewer than 2 distinct points are supplied.
      */
     fun addDrawnPath(worldPoints: List<Pt>, closed: Boolean? = null) {
-        // Drop duplicates at the list head so the RDP start/end invariant is meaningful.
-        val distinct = worldPoints.distinctBy { it.xMm to it.yMm }
-        if (distinct.size < 2) return
+        // Drop only CONSECUTIVE duplicate samples (zero-length segments). Revisited points are kept,
+        // so a self-intersecting or back-traced stroke isn't silently altered.
+        val samples = worldPoints.filterIndexed { i, p ->
+            i == 0 || p.xMm != worldPoints[i - 1].xMm || p.yMm != worldPoints[i - 1].yMm
+        }
+        if (samples.size < 2) return
 
-        val shouldClose = closed ?: (autoCloseDrawn && looksClosed(distinct))
-        val simplified = simplifyRdp(distinct, RDP_TOLERANCE_MM)
+        val shouldClose = closed ?: (autoCloseDrawn && looksClosed(samples))
+        val simplified = simplifyRdp(samples, RDP_TOLERANCE_MM)
         val path = simplifyToBudget(simplified, shouldClose)
         val poly = path.toPolyline()
         if (poly.points.size < 2) return

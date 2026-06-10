@@ -205,6 +205,23 @@ class KnutcutViewModelTest {
     }
 
     @Test
+    fun exitActiveModeStepsOutOfModesThenReportsFalse() {
+        val vm = vm()
+        vm.addLayer("Text: Hi", textLayer(), Tool.PEN, textSpec = TextSpec("Hi", 0, 20.0, 0))
+        vm.selectLayer(0)
+
+        vm.startBendingText()
+        assertTrue("exits bend mode", vm.exitActiveMode())
+        assertTrue("bend cleared", !vm.bendingText)
+
+        vm.editorTool = EditorTool.NODES
+        assertTrue("exits node mode", vm.exitActiveMode())
+        assertEquals("back to select", EditorTool.SELECT, vm.editorTool)
+
+        assertTrue("nothing left to exit", !vm.exitActiveMode())
+    }
+
+    @Test
     fun startBendingTextOnlyForTextLayers() {
         val vm = vm()
         vm.addLayer("Form", square(0.0), Tool.KNIFE)

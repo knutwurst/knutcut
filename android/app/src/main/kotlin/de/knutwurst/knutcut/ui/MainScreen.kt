@@ -328,13 +328,15 @@ fun MainScreen(vm: KnutcutViewModel) {
         if (vm.autoUpdate) vm.checkForUpdate(silent = true)
     }
 
-    // When a design is loaded, back press backgrounds the app rather than finishing the activity.
-    // This keeps the ViewModel alive so a subsequent share from another app (e.g. CricutExport)
-    // always hits onNewIntent on the live instance, which correctly shows the replace/add dialog.
-    // Without this, the finished activity would be recreated with an empty ViewModel, silently
-    // replacing the loaded design on the second share.
-    BackHandler(enabled = vm.hasDesign) {
-        (context as? android.app.Activity)?.moveTaskToBack(true)
+    // Back, when a design is loaded: first step out of an active editor mode (draw/nodes/bend); only
+    // when none is active does it background the app (rather than finishing the activity). Backgrounding
+    // keeps the ViewModel alive so a subsequent share from another app (e.g. CricutExport) hits
+    // onNewIntent on the live instance and shows the replace/add dialog instead of silently replacing
+    // the loaded design.
+    BackHandler(enabled = vm.hasDesign || vm.bendingText || vm.editorTool != EditorTool.SELECT) {
+        if (!vm.exitActiveMode()) {
+            (context as? android.app.Activity)?.moveTaskToBack(true)
+        }
     }
     vm.updateInfo?.let { info ->
         AlertDialog(
