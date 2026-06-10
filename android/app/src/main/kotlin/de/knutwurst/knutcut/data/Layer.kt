@@ -1,5 +1,6 @@
 package de.knutwurst.knutcut.data
 
+import de.knutwurst.knutcut.svgcore.EditablePath
 import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Pt
 
@@ -24,6 +25,37 @@ data class Layer(
     /** Per-polyline colour (packed ARGB) for merged layers that hold shapes of different colours,
      *  aligned 1:1 with [polylines]. Null means every polyline uses [colorArgb]. */
     val polylineColors: List<Int?>? = null,
+    /**
+     * Active deformation spec, or null when the geometry is not warped.
+     * Invariant: when non-null, [polylines] == DeformEngine.apply(deform, deformSource!!).
+     */
+    val deform: DeformSpec? = null,
+    /**
+     * Original (pre-warp) geometry preserved so the deformation can be changed or removed without
+     * losing the source.  Non-null if and only if [deform] is non-null.
+     */
+    val deformSource: List<Polyline>? = null,
+    /**
+     * Editable Bézier path for freehand-drawn layers.  When non-null,
+     * [polylines] == listOf(editPath.toPolyline()); [polylines] remains the single source of truth
+     * for rendering and cutting.
+     */
+    val editPath: EditablePath? = null,
+    /**
+     * Stable local-frame pivot for an editable layer, captured when [editPath] is created.
+     *
+     * The placement matrix normally pivots about the live bounding-box centre of [polylines]. While
+     * node-editing that centre moves as the geometry changes, which would re-centre the whole shape
+     * and make the other nodes drift (and a drag feed back on itself). Freezing the pivot here keeps
+     * the editing frame fixed, so dragging a node moves only that node. Non-null iff [editPath] is.
+     */
+    val editOriginMm: Pt? = null,
+    /**
+     * Source text and font parameters for text layers.  Non-null only on layers created by the
+     * text tool; used by the curve-text feature to re-render glyphs at a new arc value without
+     * losing the original text.
+     */
+    val textSpec: TextSpec? = null,
 ) {
     /** Colour of each polyline, expanding the single [colorArgb] when no per-polyline list is set. */
     fun colorList(): List<Int?> = polylineColors ?: List(polylines.size) { colorArgb }

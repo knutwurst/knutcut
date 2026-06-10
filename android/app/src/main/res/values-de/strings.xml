@@ -101,6 +101,8 @@
     <string name="ui_lib_cat_vehicles">Fahrzeuge</string>
     <string name="ui_lib_cat_labels">Etiketten</string>
     <string name="ui_text_menu">Text…</string>
+    <string name="ui_shapes_menu">Formen…</string>
+    <string name="ui_back">Zurück</string>
     <string name="ui_square">Quadrat</string>
     <string name="ui_rect">Rechteck</string>
     <string name="ui_circle">Kreis</string>
@@ -173,6 +175,8 @@
     <string name="ui_off">Aus</string>
     <string name="ui_align_guides">Ausrichtungshilfe</string>
     <string name="ui_align_guides_hint">Mittelpunkte rasten an anderen Ebenen und der Mattenmitte ein.</string>
+    <string name="ui_auto_close">Gezeichnetes schließen</string>
+    <string name="ui_auto_close_hint">Ein Freihand-Strich, dessen Enden sich ungefähr treffen, wird zu einer geschlossenen, schneidbaren Form.</string>
     <string name="ui_unit">Einheit</string>
     <string name="ui_sil_speed">Silhouette-Geschwindigkeit</string>
     <string name="ui_project">Projekt</string>
@@ -287,4 +291,34 @@
     <string name="ui_donate_paypal">Mit PayPal spenden</string>
     <string name="ui_changelog">Änderungsverlauf</string>
     <string name="ui_open">Datei/Projekt öffnen</string>
+    <string name="ui_deform">Verformen</string>
+    <string name="ui_deform_start_angle">Startwinkel (°)</string>
+    <string name="ui_deform_remove">Verformung entfernen</string>
+    <string name="ui_draw_mode">Zeichnen</string>
+    <string name="ui_draw_mode_desc">Freihand-Zeichnen</string>
+    <string name="ui_draw_layer_name">Zeichnung</string>
+    <string name="ui_nodes">Punkte</string>
+    <string name="ui_nodes_desc">Punkte bearbeiten</string>
+    <string name="ui_node_smooth">Glatt</string>
+    <string name="ui_node_corner">Ecke</string>
+    <string name="ui_node_delete">Punkt löschen</string>
+    <string name="ui_node_convert">Bearbeitbar machen</string>
+    <string name="ui_done">Fertig</string>
+    <string name="ui_mode_draw_hint">Zeichnen: mit dem Finger ziehen. Zwei Finger verschieben und zoomen.</string>
+    <string name="ui_mode_nodes_hint">Formen: an Punkten ziehen zum Biegen, Linie doppeltippen fügt einen Punkt hinzu.</string>
+    <!-- Modus-Segment -->
+    <string name="ui_mode_select">Auswählen</string>
+    <string name="ui_mode_draw">Zeichnen</string>
+    <string name="ui_mode_nodes">Formen</string>
+    <string name="ui_path_close">Schließen</string>
+    <string name="ui_path_open">Öffnen</string>
+    <!-- Biegen-Sheet -->
+    <string name="ui_bend">Biegen</string>
+    <string name="ui_bend_hint">Biegen: Griff hoch oder runter ziehen. Zwei Finger verschieben und zoomen.</string>
+    <string name="ui_bend_straight">Gerade</string>
+    <string name="ui_bend_advanced">Erweitert</string>
+    <!-- Bearbeitungsleiste -->
+    <string name="ui_flip">Spiegeln</string>
+    <string name="ui_more">Mehr</string>
+    <string name="ui_align">Ausrichten</string>
 </resources>

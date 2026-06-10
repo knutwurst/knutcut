@@ -7,6 +7,9 @@ object Placement {
      * The matrix that places a shape with [localBounds] so its centre sits at [center], scaled and
      * rotated (and optionally mirrored) about its own centre. Mirroring is a sign flip on the scale,
      * so the magnitude in [scaleX]/[scaleY] stays positive and resize handles keep working.
+     *
+     * [localCenter] overrides the pivot: pass a fixed local point to pivot about it instead of the
+     * live bounds centre. Editable layers use this so editing a node doesn't shift the whole frame.
      */
     fun matrix(
         localBounds: Bounds,
@@ -16,9 +19,10 @@ object Placement {
         rotationDeg: Double,
         flipX: Boolean = false,
         flipY: Boolean = false,
+        localCenter: Pt? = null,
     ): Matrix {
-        val lcx = (localBounds.minX + localBounds.maxX) / 2
-        val lcy = (localBounds.minY + localBounds.maxY) / 2
+        val lcx = localCenter?.xMm ?: ((localBounds.minX + localBounds.maxX) / 2)
+        val lcy = localCenter?.yMm ?: ((localBounds.minY + localBounds.maxY) / 2)
         val sx = scaleX * if (flipX) -1.0 else 1.0
         val sy = scaleY * if (flipY) -1.0 else 1.0
         return Matrix.translate(center.xMm, center.yMm) *

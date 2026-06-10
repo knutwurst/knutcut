@@ -30,11 +30,28 @@ import de.knutwurst.knutcut.data.display
 import de.knutwurst.knutcut.data.PlotterModel
 import de.knutwurst.knutcut.data.PlotterSvgItem
 import de.knutwurst.knutcut.data.PlotterSvgLibrary
+import de.knutwurst.knutcut.data.DeformEngine
+import de.knutwurst.knutcut.data.DeformSpec
+import de.knutwurst.knutcut.data.EnvelopeDeform
+import de.knutwurst.knutcut.data.TextSpec
 import de.knutwurst.knutcut.data.Settings
 import de.knutwurst.knutcut.data.ThemeMode
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Bounds
 import de.knutwurst.knutcut.svgcore.CutOrder
+import de.knutwurst.knutcut.svgcore.EditablePath
+import de.knutwurst.knutcut.svgcore.HandleSide
+import de.knutwurst.knutcut.svgcore.deleteNode
+import de.knutwurst.knutcut.svgcore.dragSegment
+import de.knutwurst.knutcut.svgcore.insertNode
+import de.knutwurst.knutcut.svgcore.inverse
+import de.knutwurst.knutcut.svgcore.moveAnchor
+import de.knutwurst.knutcut.svgcore.moveHandle
+import de.knutwurst.knutcut.svgcore.setSmooth
+import de.knutwurst.knutcut.svgcore.looksClosed
+import de.knutwurst.knutcut.svgcore.simplifyRdp
+import de.knutwurst.knutcut.svgcore.simplifyToBudget
+import de.knutwurst.knutcut.svgcore.toEditablePath
 import de.knutwurst.knutcut.svgcore.DragKnife
 import de.knutwurst.knutcut.svgcore.Handshake
 import de.knutwurst.knutcut.svgcore.History
@@ -60,6 +77,7 @@ import de.knutwurst.knutcut.svgcore.Pt
 import de.knutwurst.knutcut.svgcore.Query
 import de.knutwurst.knutcut.svgcore.Snap
 import de.knutwurst.knutcut.svgcore.SvgParser
+import de.knutwurst.knutcut.svgcore.TextArc
 import de.knutwurst.knutcut.svgcore.UNITS_PER_MM
 import de.knutwurst.knutcut.svgcore.responseState
 import de.knutwurst.knutcut.svgcore.responseStateReady
@@ -73,6 +91,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** Editor interaction mode: normal SELECT/move/resize, freehand DRAW, or node editor NODES. */
+enum class EditorTool { SELECT, DRAW, NODES }
 
 class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -146,6 +167,17 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var material by mutableStateOf<Material>(Materials.default); private set
     var tool by mutableStateOf(Tool.KNIFE); private set
     var force by mutableStateOf(Materials.default.force); private set
+
+    /** Freehand draw mode toggle; SELECT is the default (normal move/resize interaction). */
+    var editorTool by mutableStateOf(EditorTool.SELECT)
+
+    /** When true, the selected text layer is being bent via the on-mat handle (overlay + drag).
+     *  Mutually exclusive with the normal move/resize gesture while active. */
+    var bendingText by mutableStateOf(false); private set
+
+    /** Fonts for re-rendering curved text during a live bend. Built lazily off the app context. */
+    private val fontRepo by lazy { FontRepository(getApplication()) }
+
     var penForce by mutableStateOf(15); private set
 
     // Connection.
@@ -177,6 +209,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var autoUpdate by mutableStateOf(settings.autoUpdate); private set
     var snapMm by mutableStateOf(settings.snapMm); private set
     var alignGuides by mutableStateOf(settings.alignGuides); private set
+    var autoCloseDrawn by mutableStateOf(settings.autoCloseDrawn); private set
     // Transient guide lines shown while a drag is snapped to another layer's (or the mat's) centre.
     var alignGuideX by mutableStateOf<Double?>(null); private set
     var alignGuideY by mutableStateOf<Double?>(null); private set
@@ -296,6 +329,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun changeAlignGuides(on: Boolean) { alignGuides = on; settings.alignGuides = on; if (!on) clearGuides() }
+
+    /** Toggle whether a freehand stroke auto-closes into a plottable shape. Persisted. */
+    fun changeAutoCloseDrawn(on: Boolean) { autoCloseDrawn = on; settings.autoCloseDrawn = on }
 
     /** Format a millimetre length in the chosen display unit, e.g. "4.0 cm". */
     fun formatLen(mm: Double): String =
@@ -573,7 +609,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return group.map { it.copy(centerMm = Pt(it.centerMm.xMm + dx, it.centerMm.yMm + dy)) }
     }
 
-    fun selectLayer(i: Int) { if (i in layers.indices) selectedLayer = i }
+    fun selectLayer(i: Int) { if (i in layers.indices) { selectedLayer = i; bendingText = false } }
 
     /** Rename a layer (trimmed; blank keeps the old name). */
     fun renameLayer(i: Int, name: String) {
@@ -598,7 +634,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun resetView() { camScale = 1f; camOffset = Offset.Zero }
 
     /** Clear the layer selection and any marks — the mat itself becomes the active selection. */
-    fun deselectLayers() { selectedLayer = -1; markedLayers = emptySet() }
+    fun deselectLayers() { selectedLayer = -1; markedLayers = emptySet(); bendingText = false }
 
     /** Start over: remove every layer and reset the view (undoable). Keeps device/material settings. */
     fun clearAll() {
@@ -607,6 +643,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         layers = emptyList()
         selectedLayer = -1
         markedLayers = emptySet()
+        // A node-edit, deform, or bend mode must not survive the loss of all layers.
+        editorTool = EditorTool.SELECT
+        bendingText = false
         pruneBoundsCache()
         camScale = 1f
         camOffset = Offset.Zero
@@ -637,14 +676,273 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Add a new layer (e.g. a primitive shape or text) centred on the mat and select it. */
-    fun addLayer(name: String, polylines: List<Polyline>, layerTool: Tool = tool) {
+    fun addLayer(name: String, polylines: List<Polyline>, layerTool: Tool = tool, textSpec: TextSpec? = null) {
         if (polylines.isEmpty()) return
         pushHistory()
-        val layer = Layer(name, polylines, layerTool, visible = true, centerMm = Pt(mat.widthMm / 2, mat.heightMm / 2))
+        val layer = Layer(name, polylines, layerTool, visible = true, centerMm = Pt(mat.widthMm / 2, mat.heightMm / 2), textSpec = textSpec)
         layers = layers + layer
         selectedLayer = layers.lastIndex
         markedLayers = emptySet()
         status = s(R.string.st_shape_added, name)
+    }
+
+    /**
+     * Re-render the selected text layer with a new arc curve and update both the polylines and the
+     * stored [TextSpec.curve].  No-op when the layer has no [TextSpec].  Pushes one undo step the
+     * first time it is called for a given gesture (caller controls [pushHistory]).
+     */
+    fun applyTextCurve(index: Int, curve: Int, newPolylines: List<Polyline>) {
+        if (index !in layers.indices) return
+        val layer = layers[index]
+        val spec = layer.textSpec ?: return
+        pushHistory()
+        layers = layers.mapIndexed { i, l ->
+            if (i == index) l.copy(polylines = newPolylines, textSpec = spec.copy(curve = curve)) else l
+        }
+        pruneBoundsCache()
+    }
+
+    // -------------------------------------------------------------------------
+    // On-mat text bending (drag a handle on the canvas instead of a slider)
+    // -------------------------------------------------------------------------
+
+    /** Enter on-mat bend mode for the selected text layer. No-op when it isn't a text layer. */
+    fun startBendingText() {
+        if (layers.getOrNull(selectedLayer)?.textSpec == null) return
+        editorTool = EditorTool.SELECT
+        bendingText = true
+    }
+
+    /** Leave on-mat bend mode. */
+    fun stopBendingText() { bendingText = false }
+
+    /** Snapshot history once at the start of a bend drag (one undo step for the whole gesture). */
+    fun beginTextCurve() { pushHistory() }
+
+    /**
+     * Re-render the selected text layer at [curve] (−100..100) and update its polylines + stored
+     * curve, WITHOUT pushing history — call [beginTextCurve] once at the drag start. No-op when the
+     * selected layer is not a text layer or the font is unavailable.
+     */
+    fun setSelectedTextCurve(curve: Int) {
+        val idx = selectedLayer
+        val layer = layers.getOrNull(idx) ?: return
+        val spec = layer.textSpec ?: return
+        val c = curve.coerceIn(-100, 100)
+        val opt = fontRepo.options.getOrNull(spec.fontIndex) ?: return
+        val poly = TextArc.layoutOnArc(opt.renderGlyphs(spec.text, spec.heightMm), c / 100.0)
+        layers = layers.mapIndexed { i, l ->
+            if (i == idx) l.copy(polylines = poly, textSpec = spec.copy(curve = c)) else l
+        }
+        pruneBoundsCache()
+    }
+
+    /**
+     * Convert a freehand stroke (world-space mm points collected during a DRAW gesture) into a
+     * smooth, editable PEN layer placed exactly where the stroke was drawn.
+     *
+     * The stroke is de-jittered with RDP (~0.6 mm tolerance) and then reduced to a small, editable
+     * Bézier path via [simplifyToBudget] — a hand-drawn shape is easier to edit with a handful of
+     * nodes than with dozens.  The resulting [Layer] stores the flattened polyline in
+     * [Layer.polylines] (the render/cut source of truth) and the editable path in [Layer.editPath].
+     *
+     * [closed] decides whether the shape is closed: null (the default, used by the draw gesture)
+     * closes the stroke when [autoCloseDrawn] is on and the ends roughly meet ([looksClosed]) — so
+     * sketching a heart and lifting near the start yields a closed, plottable outline. Pass
+     * true/false to force it. The open/close state can always be flipped later in the node editor.
+     *
+     * No-op when fewer than 2 distinct points are supplied.
+     */
+    fun addDrawnPath(worldPoints: List<Pt>, closed: Boolean? = null) {
+        // Drop duplicates at the list head so the RDP start/end invariant is meaningful.
+        val distinct = worldPoints.distinctBy { it.xMm to it.yMm }
+        if (distinct.size < 2) return
+
+        val shouldClose = closed ?: (autoCloseDrawn && looksClosed(distinct))
+        val simplified = simplifyRdp(distinct, RDP_TOLERANCE_MM)
+        val path = simplifyToBudget(simplified, shouldClose)
+        val poly = path.toPolyline()
+        if (poly.points.size < 2) return
+
+        val center = centerOf(poly.points)
+        val name = s(R.string.ui_draw_layer_name)
+        pushHistory()
+        val layer = Layer(
+            name = name,
+            polylines = listOf(poly),
+            tool = Tool.PEN,
+            visible = true,
+            centerMm = center,
+            editPath = path,
+            // Freeze the local frame at the creation centre; node edits then move only the node, not
+            // the whole shape (centre == bounds centre here, so the frame starts as world = local).
+            editOriginMm = center,
+        )
+        layers = layers + layer
+        selectedLayer = layers.lastIndex
+        markedLayers = emptySet()
+        pruneBoundsCache()
+        status = s(R.string.st_shape_added, name)
+    }
+
+    // -------------------------------------------------------------------------
+    // Node editor (EditorTool.NODES)
+    // -------------------------------------------------------------------------
+
+    /** The selected layer's editable path, or null when none is available. */
+    val selectedEditPath: EditablePath?
+        get() = layers.getOrNull(selectedLayer)?.editPath
+
+    /**
+     * Convert a world-space point to local (design) coordinates for layer [index].
+     * Returns null when the layer doesn't exist or its transform is degenerate.
+     */
+    fun worldToLayerLocal(index: Int, p: Pt): Pt? {
+        val layer = layers.getOrNull(index) ?: return null
+        return layerMatrix(layer).inverse()?.apply(p)
+    }
+
+    /**
+     * Convert a local-coordinate point on layer [index] to world (mat) coordinates.
+     * Returns null when the layer doesn't exist.
+     */
+    fun layerLocalToWorld(index: Int, p: Pt): Pt? {
+        val layer = layers.getOrNull(index) ?: return null
+        return layerMatrix(layer).apply(p)
+    }
+
+    /** Apply a new editPath to the selected layer and keep [polylines] in sync.
+     *  Node editing bakes away any active warp: deform and deformSource are cleared. */
+    private fun applyEditPath(newPath: EditablePath) {
+        val i = selectedLayer
+        if (i !in layers.indices) return
+        val poly = newPath.toPolyline()
+        layers = layers.mapIndexed { idx, l ->
+            if (idx == i) l.copy(editPath = newPath, polylines = listOf(poly), deform = null, deformSource = null) else l
+        }
+        pruneBoundsCache()
+    }
+
+    /**
+     * Snapshot history once at the start of a node-drag gesture.  Call once on finger-down;
+     * the continuous drag updates don't add more steps.
+     */
+    fun beginNodeEdit() { pushHistory() }
+
+    /**
+     * Snapshot history once at the start of a deform-edit gesture (envelope corner drag, etc.).
+     * Identical to [beginNodeEdit] but named for clarity at the call site.
+     */
+    fun beginDeformEdit() { pushHistory() }
+
+    // -------------------------------------------------------------------------
+    // Envelope editor (EditorTool.ENVELOPE)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Move one corner of the selected layer's [EnvelopeDeform] to [toLocal] (layer-local coords).
+     *
+     * [corner] 0 = TL, 1 = TR, 2 = BR, 3 = BL.  No-op when the selected layer has no
+     * [EnvelopeDeform] active, the index is out of range, or no layer is selected.
+     * Does NOT push history — call [beginDeformEdit] once at the start of the drag gesture.
+     */
+    fun moveEnvelopeCorner(corner: Int, toLocal: Pt) {
+        val i = selectedLayer
+        if (i !in layers.indices) return
+        val spec = layers[i].deform as? EnvelopeDeform ?: return
+        val updated = when (corner) {
+            0 -> spec.copy(tl = toLocal)
+            1 -> spec.copy(tr = toLocal)
+            2 -> spec.copy(br = toLocal)
+            3 -> spec.copy(bl = toLocal)
+            else -> return
+        }
+        setLayerDeform(i, updated, pushHistory = false)
+    }
+
+    /** Move anchor [i] to [toLocal] (local coords). Does not push history — caller does that. */
+    fun moveSelectedAnchor(i: Int, toLocal: Pt) {
+        val path = selectedEditPath ?: return
+        applyEditPath(path.moveAnchor(i, toLocal))
+    }
+
+    /** Move handle [side] of node [i] to [toLocal] (local coords). Does not push history. */
+    fun moveSelectedHandle(i: Int, side: HandleSide, toLocal: Pt) {
+        val path = selectedEditPath ?: return
+        applyEditPath(path.moveHandle(i, side, toLocal))
+    }
+
+    /**
+     * Bend the curve by dragging a point on segment [segmentIndex] at parameter [t] to [toLocal].
+     * Does not push history — call [beginNodeEdit] once at the start of the drag gesture.
+     * No-op when there is no selected editable path or the segment index is out of range.
+     */
+    fun dragSelectedSegment(segmentIndex: Int, t: Double, toLocal: Pt) {
+        val path = selectedEditPath ?: return
+        if (segmentIndex < 0 || segmentIndex >= path.nodes.size) return
+        applyEditPath(path.dragSegment(segmentIndex, t, toLocal))
+    }
+
+    /** Insert a node on segment [segmentIndex] at parameter [t]. Pushes one undo step. */
+    fun insertSelectedNode(segmentIndex: Int, t: Double) {
+        val path = selectedEditPath ?: return
+        pushHistory()
+        applyEditPath(path.insertNode(segmentIndex, t))
+    }
+
+    /** Toggle the smooth flag on node [i]. Pushes one undo step. */
+    fun toggleSelectedNodeSmooth(i: Int) {
+        val path = selectedEditPath ?: return
+        pushHistory()
+        applyEditPath(path.setSmooth(i, !path.nodes[i].smooth))
+    }
+
+    /** True when the selected editable path is a closed (plottable) shape. */
+    val selectedPathClosed: Boolean get() = selectedEditPath?.closed == true
+
+    /** Flip the selected editable path between open and closed. Pushes one undo step.
+     *  This is the manual override for the freehand auto-close: close any shape for a clean cut,
+     *  or open one back up. No-op when there is no editable path. */
+    fun toggleSelectedPathClosed() {
+        val path = selectedEditPath ?: return
+        pushHistory()
+        applyEditPath(EditablePath(path.nodes, !path.closed))
+    }
+
+    /** Delete node [i]. No-op when the index is out of range or too few nodes remain. Pushes one undo step. */
+    fun deleteSelectedNode(i: Int) {
+        val path = selectedEditPath ?: return
+        if (i !in path.nodes.indices) return   // bounds guard: out-of-range index is a no-op
+        pushHistory()
+        applyEditPath(path.deleteNode(i))
+    }
+
+    /**
+     * Convert the selected layer's single polyline to an editable path.
+     *
+     * No-op when the layer already has an editPath, or has more than one polyline.
+     * When the layer has an active deform the current (warped) geometry is baked into the editable
+     * path and the deform is dropped — the warp becomes permanent node positions.
+     * Pushes one undo step on success.
+     */
+    fun convertSelectedToEditablePath() {
+        val i = selectedLayer
+        val layer = layers.getOrNull(i) ?: return
+        if (layer.editPath != null) return
+        if (layer.polylines.size != 1) return
+        pushHistory()
+        val poly = layer.polylines[0]
+        // simplifyToBudget keeps the node count small even for dense warped polylines; sparse paths
+        // are smoothed directly without further reduction.
+        val newPath = simplifyToBudget(poly.points, poly.closed)
+        // Freeze the local pivot at the centre the matrix is using right now, so converting does not
+        // shift the shape and later node edits stay in a fixed frame.
+        val b = layerBounds(layer)
+        val origin = Pt((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2)
+        layers = layers.mapIndexed { idx, l ->
+            // Bake away any active warp: the node positions come from the warped polyline.
+            if (idx == i) l.copy(editPath = newPath, editOriginMm = origin, deform = null, deformSource = null) else l
+        }
     }
 
     /** Mirror the selected layer (around its own centre). */
@@ -672,6 +970,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         layers = layers.filterIndexed { idx, _ -> idx != i }
         selectedLayer = selectedLayer.coerceIn(0, (layers.size - 1).coerceAtLeast(0))
         markedLayers = emptySet()
+        // A node-edit, deform, or bend mode must not outlive the layer it was editing.
+        editorTool = EditorTool.SELECT
+        bendingText = false
         pruneBoundsCache()
     }
 
@@ -694,7 +995,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     private fun resizeKeepingTopLeft(newSx: Double, newSy: Double, newRot: Double) {
         val layer = layers.getOrNull(selectedLayer) ?: return
         val b = layerBounds(layer)
-        val lc = Pt((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2)
+        // Pivot must match layerMatrix (frozen origin for editable layers, else bounds centre).
+        val lc = layerPivot(layer)
         val tlLocal = Pt(b.minX, b.minY)
         val oldTopLeft = layerMatrix(layer).apply(tlLocal)
         val fx = if (layer.flipX) -1.0 else 1.0
@@ -853,13 +1155,70 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         layers = layers.mapIndexed { i, l -> if (i == index) l.copy(visible = !l.visible) else l }
     }
 
-    /** Bake a layer's placement into its geometry, so its coordinates already sit where it is drawn. */
+    /**
+     * Apply [spec] to layer [index].  The first call preserves the layer's current geometry as the
+     * deform source; subsequent calls always re-warp from that original source, so changing the
+     * spec (e.g. a different radius) doesn't accumulate distortion.
+     *
+     * Pass [pushHistory] = false when calling repeatedly during a live drag preview; pass true (the
+     * default) to record an undoable snapshot on commit.
+     */
+    fun setLayerDeform(index: Int, spec: DeformSpec, pushHistory: Boolean = true) {
+        if (index !in layers.indices) return
+        val layer = layers[index]
+        val source = layer.deformSource ?: layer.polylines
+        val warped = DeformEngine.apply(spec, source)
+        if (pushHistory) pushHistory()
+        layers = layers.mapIndexed { i, l ->
+            // Deform and node-editing are mutually exclusive: clear editPath (and its frozen pivot)
+            // when a deform is set.
+            if (i == index) l.copy(polylines = warped, deform = spec, deformSource = source, editPath = null, editOriginMm = null) else l
+        }
+        pruneBoundsCache()
+    }
+
+    /** Convenience wrapper that targets the currently selected layer. */
+    fun setSelectedDeform(spec: DeformSpec, pushHistory: Boolean = true) =
+        setLayerDeform(selectedLayer, spec, pushHistory)
+
+    /**
+     * Remove the deformation from layer [index], restoring its original geometry.
+     * No-op when the layer has no active deformation.
+     */
+    fun clearLayerDeform(index: Int) {
+        if (index !in layers.indices) return
+        val layer = layers[index]
+        val src = layer.deformSource ?: return   // nothing to clear
+        pushHistory()
+        layers = layers.mapIndexed { i, l ->
+            if (i == index) l.copy(polylines = src, deform = null, deformSource = null) else l
+        }
+        pruneBoundsCache()
+    }
+
+    /** Convenience wrapper that targets the currently selected layer. */
+    fun clearSelectedDeform() = clearLayerDeform(selectedLayer)
+
+    /**
+     * Bounds of the selected layer's deform source geometry (original, pre-warp), or its current
+     * polylines when no deform is active. Returns null when no layer is selected or it has no points.
+     */
+    fun selectedDeformSourceBounds(): Bounds? {
+        val layer = layers.getOrNull(selectedLayer) ?: return null
+        val src = layer.deformSource ?: layer.polylines
+        return Bounds.ofOrNull(src.flatMap { it.points })
+    }
+
+    /** Bake a layer's placement into its geometry, so its coordinates already sit where it is drawn.
+     *  Also clears deform, deformSource, and editPath: the baked coordinates are the new source of
+     *  truth, and keeping stale pre-bake data would cause double-warping if a deform is reapplied. */
     private fun bake(layer: Layer): Layer {
         val m = layerMatrix(layer)
         val baked = layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
         return layer.copy(
             polylines = baked, centerMm = centerOf(baked.flatMap { it.points }),
             scaleX = 1.0, scaleY = 1.0, rotationDeg = 0.0, flipX = false, flipY = false,
+            deform = null, deformSource = null, editPath = null, editOriginMm = null,
         )
     }
 
@@ -1267,12 +1626,18 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Placement matrix for one layer: rotate/scale/mirror about its own centre, then move to [Layer.centerMm]. */
+    /** Placement matrix for one layer: rotate/scale/mirror about its own pivot, then move to [Layer.centerMm].
+     *  Editable layers pivot about a frozen [Layer.editOriginMm] so node edits don't shift the frame. */
     private fun layerMatrix(layer: Layer): Matrix =
         Placement.matrix(
             layerBounds(layer), layer.centerMm, layer.scaleX, layer.scaleY, layer.rotationDeg,
-            layer.flipX, layer.flipY,
+            layer.flipX, layer.flipY, localCenter = layer.editOriginMm,
         )
+
+    /** The local pivot the matrix turns/scales about: a frozen origin for editable layers, else the
+     *  live bounds centre. Resize/rotate maths must use the same pivot as [layerMatrix]. */
+    private fun layerPivot(layer: Layer): Pt =
+        layer.editOriginMm ?: layerBounds(layer).let { Pt((it.minX + it.maxX) / 2, (it.minY + it.maxY) / 2) }
 
     /** The four corners of a layer's placed box, in mm (TL, TR, BR, BL; rotated with the layer). */
     fun layerCorners(index: Int): List<Pt> {
@@ -1563,5 +1928,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         const val MATERIAL_POLL_MS = 700L   // load-gate polling: ~168 s total
         const val START_POLL_ATTEMPTS = 150
         const val START_POLL_MS = 800L      // start-gate polling: ~120 s total
+        // RDP simplification tolerance for freehand strokes (mm).
+        const val RDP_TOLERANCE_MM = 0.6
     }
 }

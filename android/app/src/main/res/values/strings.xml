@@ -103,6 +103,8 @@
     <string name="ui_lib_cat_vehicles">Vehicles</string>
     <string name="ui_lib_cat_labels">Labels</string>
     <string name="ui_text_menu">Text…</string>
+    <string name="ui_shapes_menu">Shapes…</string>
+    <string name="ui_back">Back</string>
     <string name="ui_square">Square</string>
     <string name="ui_rect">Rectangle</string>
     <string name="ui_circle">Circle</string>
@@ -175,6 +177,8 @@
     <string name="ui_off">Off</string>
     <string name="ui_align_guides">Alignment guides</string>
     <string name="ui_align_guides_hint">Centres snap to other layers and the mat centre.</string>
+    <string name="ui_auto_close">Close drawn shapes</string>
+    <string name="ui_auto_close_hint">A freehand stroke whose ends roughly meet becomes a closed, cuttable shape.</string>
     <string name="ui_unit">Unit</string>
     <string name="ui_sil_speed">Silhouette speed</string>
     <string name="ui_project">Project</string>
@@ -289,4 +293,34 @@
     <string name="ui_donate_paypal">Donate with PayPal</string>
     <string name="ui_changelog">Changelog</string>
     <string name="ui_open">Open file/project</string>
+    <string name="ui_deform">Warp</string>
+    <string name="ui_deform_start_angle">Start angle (°)</string>
+    <string name="ui_deform_remove">Remove warp</string>
+    <string name="ui_draw_mode">Draw</string>
+    <string name="ui_draw_mode_desc">Freehand draw mode</string>
+    <string name="ui_draw_layer_name">Drawing</string>
+    <string name="ui_nodes">Nodes</string>
+    <string name="ui_nodes_desc">Node editor</string>
+    <string name="ui_node_smooth">Smooth</string>
+    <string name="ui_node_corner">Corner</string>
+    <string name="ui_node_delete">Delete node</string>
+    <string name="ui_node_convert">Make editable</string>
+    <string name="ui_done">Done</string>
+    <string name="ui_mode_draw_hint">Draw: drag with your finger. Two fingers pan and zoom.</string>
+    <string name="ui_mode_nodes_hint">Shape: drag a point to bend, double-tap a line to add a point.</string>
+    <!-- Mode segment -->
+    <string name="ui_mode_select">Select</string>
+    <string name="ui_mode_draw">Draw</string>
+    <string name="ui_mode_nodes">Shape</string>
+    <string name="ui_path_close">Close</string>
+    <string name="ui_path_open">Open</string>
+    <!-- Bend sheet -->
+    <string name="ui_bend">Bend</string>
+    <string name="ui_bend_hint">Bend: drag the handle up or down. Two fingers pan and zoom.</string>
+    <string name="ui_bend_straight">Straight</string>
+    <string name="ui_bend_advanced">Advanced</string>
+    <!-- Editing bar -->
+    <string name="ui_flip">Flip</string>
+    <string name="ui_more">More</string>
+    <string name="ui_align">Align</string>
 </resources>

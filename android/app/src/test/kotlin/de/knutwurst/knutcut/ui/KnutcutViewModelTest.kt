@@ -3,10 +3,12 @@ package de.knutwurst.knutcut.ui
 import de.knutwurst.knutcut.data.Layer
 import de.knutwurst.knutcut.data.PlotterSvgLibrary
 import de.knutwurst.knutcut.data.ProjectIO
+import de.knutwurst.knutcut.data.TextSpec
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Pt
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -145,5 +147,89 @@ class KnutcutViewModelTest {
         assertEquals(10, vm.cutCopies)
         vm.changeCutCopies(3)
         assertEquals(3, vm.cutCopies)
+    }
+
+    // -----------------------------------------------------------------------
+    // applyTextCurve tests
+    // -----------------------------------------------------------------------
+
+    private fun textLayer(curve: Int = 0) = listOf(
+        Polyline(listOf(Pt(0.0, 0.0), Pt(10.0, 0.0), Pt(10.0, 5.0)), closed = true)
+    )
+
+    @Test
+    fun applyTextCurveUpdatesPolylinesAndCurveValue() {
+        val vm = vm()
+        val spec = TextSpec("Hi", fontIndex = 0, heightMm = 20.0, curve = 0)
+        vm.addLayer("Text: Hi", textLayer(), Tool.PEN, textSpec = spec)
+        vm.selectLayer(0)
+
+        val newPoly = listOf(Polyline(listOf(Pt(1.0, 2.0), Pt(3.0, 4.0)), closed = false))
+        vm.applyTextCurve(0, 50, newPoly)
+
+        assertEquals("polylines updated", newPoly, vm.layers[0].polylines)
+        assertEquals("curve stored in textSpec", 50, vm.layers[0].textSpec?.curve)
+    }
+
+    @Test
+    fun applyTextCurveIsOneUndoStep() {
+        val vm = vm()
+        val spec = TextSpec("Hi", fontIndex = 0, heightMm = 20.0, curve = 0)
+        vm.addLayer("Text: Hi", textLayer(), Tool.PEN, textSpec = spec)
+        vm.selectLayer(0)
+
+        val newPoly = listOf(Polyline(listOf(Pt(1.0, 2.0), Pt(3.0, 4.0)), closed = false))
+        vm.applyTextCurve(0, 50, newPoly)
+
+        assertTrue("can undo after applyTextCurve", vm.canUndo)
+        vm.undo()
+        assertEquals("undo restores original curve", 0, vm.layers[0].textSpec?.curve)
+    }
+
+    @Test
+    fun setSelectedTextCurveStoresCurveAndIsOneUndoStep() {
+        val vm = vm()
+        val spec = TextSpec("Hi", fontIndex = 0, heightMm = 20.0, curve = 0)
+        vm.addLayer("Text: Hi", textLayer(), Tool.PEN, textSpec = spec)
+        vm.selectLayer(0)
+
+        // One drag: snapshot once, then several live ticks.
+        vm.beginTextCurve()
+        vm.setSelectedTextCurve(60)
+        vm.setSelectedTextCurve(80)
+
+        assertEquals("latest curve stored", 80, vm.layers[0].textSpec?.curve)
+        assertTrue("can undo the bend", vm.canUndo)
+        vm.undo()
+        assertEquals("one undo step restores the pre-bend curve", 0, vm.layers[0].textSpec?.curve)
+    }
+
+    @Test
+    fun startBendingTextOnlyForTextLayers() {
+        val vm = vm()
+        vm.addLayer("Form", square(0.0), Tool.KNIFE)
+        vm.selectLayer(0)
+        vm.startBendingText()
+        assertTrue("a non-text layer cannot be bent", !vm.bendingText)
+
+        vm.addLayer("Text: Hi", textLayer(), Tool.PEN, textSpec = TextSpec("Hi", 0, 20.0, 0))
+        vm.selectLayer(1)
+        vm.startBendingText()
+        assertTrue("a text layer enters bend mode", vm.bendingText)
+        vm.stopBendingText()
+        assertTrue("stop leaves bend mode", !vm.bendingText)
+    }
+
+    @Test
+    fun applyTextCurveNoOpOnNonTextLayer() {
+        val vm = vm()
+        vm.addLayer("Form", square(0.0), Tool.KNIFE)
+        vm.selectLayer(0)
+        val before = vm.layers.toList()
+
+        vm.applyTextCurve(0, 50, square(0.0))
+
+        // No-op: layer without textSpec must not be changed, and no history pushed.
+        assertEquals("layer unchanged", before, vm.layers.toList())
     }
 }

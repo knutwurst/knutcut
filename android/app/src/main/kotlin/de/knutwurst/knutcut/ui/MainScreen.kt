@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,24 +38,29 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Slider
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.FormatAlignLeft
 import androidx.compose.material.icons.automirrored.filled.FormatAlignRight
-import androidx.compose.material.icons.automirrored.filled.NoteAdd
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AspectRatio
-import androidx.compose.material.icons.filled.CenterFocusStrong
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -62,10 +68,12 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.FormatAlignCenter
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VerticalAlignBottom
@@ -80,7 +88,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -92,6 +99,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -122,6 +130,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -129,7 +138,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import de.knutwurst.knutcut.BuildConfig
 import de.knutwurst.knutcut.R
+import de.knutwurst.knutcut.data.CircleDeform
+import de.knutwurst.knutcut.data.TextSpec
+import de.knutwurst.knutcut.data.bendToCircleDeform
+import de.knutwurst.knutcut.data.bendValue
 import de.knutwurst.knutcut.data.Devices
+import de.knutwurst.knutcut.svgcore.TextArc
 import de.knutwurst.knutcut.data.DisplayUnit
 import de.knutwurst.knutcut.data.Materials
 import de.knutwurst.knutcut.data.Mats
@@ -144,6 +158,7 @@ import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Bounds
 import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Shapes
+import de.knutwurst.knutcut.ui.EditorTool
 import java.util.Locale
 import kotlin.math.min
 import kotlinx.coroutines.Dispatchers
@@ -186,7 +201,7 @@ fun MainScreen(vm: KnutcutViewModel) {
 
     Surface(color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
-            // Top bar
+            // Top bar: logo + title/subtitle (weighted) + Undo + Redo + Add + Settings
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Image(
                     painterResource(R.drawable.logo),
@@ -197,18 +212,20 @@ fun MainScreen(vm: KnutcutViewModel) {
                 )
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Knutcut", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Knutcut",
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     Text(
                         stringResource(R.string.ui_header_sub, version),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.clickable { showChangelog = true },
                     )
-                }
-                if (vm.hasDesign) {
-                    IconButton(onClick = { showNewConfirm = true }, enabled = !vm.cutting) {
-                        Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = stringResource(R.string.ui_neu))
-                    }
                 }
                 IconButton(onClick = { vm.undo() }, enabled = vm.canUndo && !vm.cutting) {
                     Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = stringResource(R.string.ui_undo))
@@ -223,9 +240,11 @@ fun MainScreen(vm: KnutcutViewModel) {
                     AddMenu(
                         expanded = showAdd,
                         onDismiss = { showAdd = false },
+                        onNew = { showAdd = false; showNewConfirm = true },
                         onOpenFile = { showAdd = false; openFile() },
                         onLibrary = { showAdd = false; showLibrary = true },
                         onText = { showAdd = false; showText = true },
+                        onDraw = { showAdd = false; vm.editorTool = EditorTool.DRAW },
                         onShape = { vm.addLayer(it.first, listOf(it.second)); showAdd = false },
                     )
                 }
@@ -244,14 +263,18 @@ fun MainScreen(vm: KnutcutViewModel) {
             when {
                 vm.cutting -> CuttingBar(vm)
                 !vm.hasDesign -> EmptyState(onOpen = { openFile() }, onLibrary = { showLibrary = true }, onAddShape = { showAdd = true })
-                else -> EditingBar(
-                    vm,
-                    onSize = { showTransform = true },
-                    onLayers = { showLayers = true },
-                    onMaterial = { showMaterial = true },
-                    onConnectOrCut = { if (vm.connected) showCut = true else openDevices() },
-                    onDelete = { showDeleteConfirm = true },
-                )
+                else -> {
+                    ModeSegment(vm)
+                    EditingBar(
+                        vm,
+                        onSize = { showTransform = true },
+                        onLayers = { showLayers = true },
+                        onMaterial = { showMaterial = true },
+                        onConnectOrCut = { if (vm.connected) showCut = true else openDevices() },
+                        onDelete = { showDeleteConfirm = true },
+                        onDeform = { vm.startBendingText() },
+                    )
+                }
             }
         }
     }
@@ -348,6 +371,8 @@ private fun TextDialog(vm: KnutcutViewModel, fonts: FontRepository, onDismiss: (
     var height by remember { mutableStateOf(25) }
     var fontMenu by remember { mutableStateOf(false) }
     val chosen = options.getOrNull(fontIndex)
+    // Preview the chosen outline font right in the input field; stroke fonts have no system face.
+    val previewFamily = chosen?.previewTypeface?.let { FontFamily(it) }
     val namePrefix = stringResource(R.string.ui_text_colon)
     val simplifiedMsg = stringResource(R.string.ui_text_added_simplified)
     AlertDialog(
@@ -355,16 +380,30 @@ private fun TextDialog(vm: KnutcutViewModel, fonts: FontRepository, onDismiss: (
         title = { Text(stringResource(R.string.ui_add_text)) },
         text = {
             Column {
-                OutlinedTextField(text, { if (it.length <= MAX_TEXT_CHARS) text = it }, label = { Text(stringResource(R.string.ui_text)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    text,
+                    { if (it.length <= MAX_TEXT_CHARS) text = it },
+                    label = { Text(stringResource(R.string.ui_text)) },
+                    // The empty field previews the selected font; typing shows the text in it too.
+                    placeholder = { Text(stringResource(R.string.ui_text), fontFamily = previewFamily) },
+                    textStyle = LocalTextStyle.current.copy(fontFamily = previewFamily),
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 Spacer(Modifier.height(8.dp))
                 Box {
                     OutlinedButton(onClick = { fontMenu = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(chosen?.let { it.label + if (it.stroke) stringResource(R.string.ui_suffix_singleline) else "" } ?: stringResource(R.string.ui_pick_font), maxLines = 1)
+                        Text(
+                            chosen?.let { it.label + if (it.stroke) stringResource(R.string.ui_suffix_singleline) else "" } ?: stringResource(R.string.ui_pick_font),
+                            fontFamily = previewFamily,
+                            maxLines = 1,
+                        )
                     }
                     DropdownMenu(expanded = fontMenu, onDismissRequest = { fontMenu = false }) {
                         options.forEachIndexed { i, o ->
+                            // Each item is shown in its own font, so the list previews every face.
+                            val itemFamily = o.previewTypeface?.let { FontFamily(it) }
                             DropdownMenuItem(
-                                text = { Text(o.label + if (o.stroke) stringResource(R.string.ui_font_singleline_pen) else "") },
+                                text = { Text(o.label + if (o.stroke) stringResource(R.string.ui_font_singleline_pen) else "", fontFamily = itemFamily, maxLines = 1) },
                                 onClick = { fontIndex = i; fontMenu = false },
                             )
                         }
@@ -392,7 +431,13 @@ private fun TextDialog(vm: KnutcutViewModel, fonts: FontRepository, onDismiss: (
                     val result = opt.render(text, height.toDouble())
                     if (result.polylines.isNotEmpty()) {
                         val name = namePrefix + text.replace("\n", " ").trim().take(16)
-                        vm.addLayer(name, result.polylines, if (opt.stroke) Tool.PEN else vm.tool)
+                        val spec = TextSpec(
+                            text = text.replace("\n", ""),
+                            fontIndex = fontIndex,
+                            heightMm = height.toDouble(),
+                            curve = 0,
+                        )
+                        vm.addLayer(name, result.polylines, if (opt.stroke) Tool.PEN else vm.tool, textSpec = spec)
                         if (result.simplified) vm.status = simplifiedMsg
                     }
                     onDismiss()
@@ -403,30 +448,52 @@ private fun TextDialog(vm: KnutcutViewModel, fonts: FontRepository, onDismiss: (
     )
 }
 
-/** Add menu: open a file, add text, open the library, or drop in a primitive shape. */
+/** Add menu: new, open a file, add text, open the library, or drop in a primitive shape. */
 @Composable
 private fun AddMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
+    onNew: () -> Unit,
     onOpenFile: () -> Unit,
     onLibrary: () -> Unit,
     onText: () -> Unit,
+    onDraw: () -> Unit,
     onShape: (Pair<String, de.knutwurst.knutcut.svgcore.Polyline>) -> Unit,
 ) {
+    // The shapes live behind a "Formen…" entry so the main menu stays short. The same dropdown
+    // swaps to the shape list (with a back row) instead of nesting a second menu.
+    var showShapes by remember { mutableStateOf(false) }
+    LaunchedEffect(expanded) { if (!expanded) showShapes = false }
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
-        DropdownMenuItem(text = { Text(stringResource(R.string.ui_open_svg_plt)) }, onClick = onOpenFile)
-        DropdownMenuItem(text = { Text(stringResource(R.string.ui_library_menu)) }, onClick = onLibrary)
-        DropdownMenuItem(text = { Text(stringResource(R.string.ui_text_menu)) }, onClick = onText)
-        HorizontalDivider()
-        listOf(
-            stringResource(R.string.ui_square) to Shapes.rect(40.0, 40.0),
-            stringResource(R.string.ui_rect) to Shapes.rect(60.0, 40.0),
-            stringResource(R.string.ui_circle) to Shapes.circle(40.0),
-            stringResource(R.string.ui_triangle) to Shapes.regularPolygon(3, 40.0),
-            stringResource(R.string.ui_pentagon) to Shapes.regularPolygon(5, 40.0),
-            stringResource(R.string.ui_hexagon) to Shapes.regularPolygon(6, 40.0),
-            stringResource(R.string.ui_star) to Shapes.star(5, 40.0),
-        ).forEach { shape -> DropdownMenuItem(text = { Text(shape.first) }, onClick = { onShape(shape) }) }
+        if (!showShapes) {
+            DropdownMenuItem(text = { Text(stringResource(R.string.ui_neu)) }, onClick = onNew)
+            HorizontalDivider()
+            DropdownMenuItem(text = { Text(stringResource(R.string.ui_open_svg_plt)) }, onClick = onOpenFile)
+            DropdownMenuItem(text = { Text(stringResource(R.string.ui_library_menu)) }, onClick = onLibrary)
+            DropdownMenuItem(text = { Text(stringResource(R.string.ui_text_menu)) }, onClick = onText)
+            DropdownMenuItem(text = { Text(stringResource(R.string.ui_mode_draw)) }, onClick = onDraw)
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.ui_shapes_menu)) },
+                trailingIcon = { Icon(Icons.Default.KeyboardArrowRight, contentDescription = null) },
+                onClick = { showShapes = true },
+            )
+        } else {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.ui_back)) },
+                leadingIcon = { Icon(Icons.Default.KeyboardArrowLeft, contentDescription = null) },
+                onClick = { showShapes = false },
+            )
+            HorizontalDivider()
+            listOf(
+                stringResource(R.string.ui_square) to Shapes.rect(40.0, 40.0),
+                stringResource(R.string.ui_rect) to Shapes.rect(60.0, 40.0),
+                stringResource(R.string.ui_circle) to Shapes.circle(40.0),
+                stringResource(R.string.ui_triangle) to Shapes.regularPolygon(3, 40.0),
+                stringResource(R.string.ui_pentagon) to Shapes.regularPolygon(5, 40.0),
+                stringResource(R.string.ui_hexagon) to Shapes.regularPolygon(6, 40.0),
+                stringResource(R.string.ui_star) to Shapes.star(5, 40.0),
+            ).forEach { shape -> DropdownMenuItem(text = { Text(shape.first) }, onClick = { onShape(shape) }) }
+        }
     }
 }
 
@@ -685,6 +752,124 @@ private fun CuttingBar(vm: KnutcutViewModel) {
     OutlinedButton(onClick = { vm.cancelCut() }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.ui_cancel)) }
 }
 
+/**
+ * Mode segment row + slim gesture hint below it. Shown only when a design is on the mat.
+ * "Auswählen" always resets to SELECT. "Knoten" is available only when the selected layer
+ * can be node-edited; tapping it converts the layer if needed and enters NODES mode.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ModeSegment(vm: KnutcutViewModel) {
+    // While bending text on the mat, the segment is replaced by a focused bend bar.
+    if (vm.bendingText) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    stringResource(R.string.ui_bend_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            OutlinedButton(onClick = { vm.stopBendingText() }) { Text(stringResource(R.string.ui_done), maxLines = 1) }
+        }
+        return
+    }
+
+    val layer = vm.layers.getOrNull(vm.selectedLayer)
+    val canEditNodes = !vm.matSelected && layer != null &&
+        (layer.editPath != null || layer.polylines.size == 1)
+
+    val options = listOf(
+        stringResource(R.string.ui_mode_select),
+        stringResource(R.string.ui_mode_draw),
+        stringResource(R.string.ui_mode_nodes),
+    )
+    val selectedIndex = when (vm.editorTool) {
+        EditorTool.SELECT -> 0
+        EditorTool.DRAW   -> 1
+        EditorTool.NODES  -> 2
+    }
+
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+        options.forEachIndexed { i, label ->
+            val enabled = when (i) {
+                2 -> canEditNodes   // Knoten only when a compatible layer is selected
+                else -> true
+            }
+            SegmentedButton(
+                shape = SegmentedButtonDefaults.itemShape(index = i, count = options.size),
+                onClick = {
+                    when (i) {
+                        0 -> vm.editorTool = EditorTool.SELECT
+                        1 -> vm.editorTool = EditorTool.DRAW
+                        2 -> {
+                            if (layer?.editPath == null) vm.convertSelectedToEditablePath()
+                            vm.editorTool = EditorTool.NODES
+                        }
+                    }
+                },
+                selected = selectedIndex == i,
+                enabled = enabled,
+            ) {
+                Text(label, maxLines = 1)
+            }
+        }
+    }
+
+    // Slim one-line gesture hint, shown only when a non-SELECT mode is active.
+    val hint = when (vm.editorTool) {
+        EditorTool.DRAW  -> stringResource(R.string.ui_mode_draw_hint)
+        EditorTool.NODES -> stringResource(R.string.ui_mode_nodes_hint)
+        else -> null
+    }
+    if (hint != null) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    hint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            // In the node editor: flip the path between open and closed (the manual override for
+            // the freehand auto-close, so any shape can be made cleanly cuttable or opened back up).
+            if (vm.editorTool == EditorTool.NODES && vm.selectedEditPath != null) {
+                OutlinedButton(
+                    onClick = { vm.toggleSelectedPathClosed() },
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        stringResource(if (vm.selectedPathClosed) R.string.ui_path_open else R.string.ui_path_close),
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
+}
+
 /** A compact icon button used in the editing toolbar (Canva/Figma style). */
 @Composable
 private fun IconAction(label: String, icon: ImageVector, rotate: Float = 0f, enabled: Boolean = true, onClick: () -> Unit) {
@@ -693,8 +878,7 @@ private fun IconAction(label: String, icon: ImageVector, rotate: Float = 0f, ena
     }
 }
 
-/** The contextual bar shown while editing: a single icon toolbar, then material + a cut summary. */
-@OptIn(ExperimentalLayoutApi::class)
+/** The contextual bar shown while editing: a single scrollable icon row, then material + cut button. */
 @Composable
 private fun EditingBar(
     vm: KnutcutViewModel,
@@ -703,26 +887,77 @@ private fun EditingBar(
     onMaterial: () -> Unit,
     onConnectOrCut: () -> Unit,
     onDelete: () -> Unit,
+    onDeform: () -> Unit,
 ) {
-    // Per-layer actions only make sense with a layer selected; greyed out when the mat is selected.
     val perLayer = !vm.matSelected
-    // One toolbar row, spread across the full width (wraps to a new row if it can't fit).
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+    var showFlipMenu by remember { mutableStateOf(false) }
+    var showMoreMenu by remember { mutableStateOf(false) }
+    var showAlignDialog by remember { mutableStateOf(false) }
+
+    // Single non-wrapping row; horizontalScroll acts as a safety valve for very small screens.
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        // Größe
         IconAction(stringResource(R.string.ui_size_angle), Icons.Default.AspectRatio, enabled = perLayer, onClick = onSize)
+        // Drehen 90°
         IconAction(stringResource(R.string.ui_rotate90), Icons.AutoMirrored.Filled.RotateRight, enabled = perLayer) { vm.rotate90() }
-        IconAction(stringResource(R.string.ui_flip_h), Icons.Default.Flip, enabled = perLayer) { vm.mirrorSelectedHorizontal() }
-        IconAction(stringResource(R.string.ui_flip_v), Icons.Default.Flip, rotate = 90f, enabled = perLayer) { vm.mirrorSelectedVertical() }
+        // Spiegeln → small dropdown
+        Box {
+            IconAction(stringResource(R.string.ui_flip), Icons.Default.Flip, enabled = perLayer) { showFlipMenu = true }
+            DropdownMenu(expanded = showFlipMenu, onDismissRequest = { showFlipMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.ui_flip_h)) },
+                    onClick = { showFlipMenu = false; vm.mirrorSelectedHorizontal() },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.ui_flip_v)) },
+                    onClick = { showFlipMenu = false; vm.mirrorSelectedVertical() },
+                )
+            }
+        }
+        // Duplizieren
         IconAction(stringResource(R.string.ui_duplicate), Icons.Default.ContentCopy, enabled = perLayer) { vm.duplicateSelected() }
-        IconAction(stringResource(R.string.ui_delete), Icons.Default.Delete, enabled = perLayer, onClick = onDelete)
-        IconAction(
-            if (vm.matSelected) stringResource(R.string.ui_reset_all) else stringResource(R.string.ui_reset_layer),
-            Icons.Default.Refresh,
-        ) { if (vm.matSelected) vm.resetAll() else vm.resetSelectedPlacement() }
-        IconAction(stringResource(R.string.ui_reset_view), Icons.Default.CenterFocusStrong) { vm.resetView() }
+        // Biegen — only enabled when the selected layer has a TextSpec (curved text is text-only).
+        val isTextLayer = !vm.matSelected && vm.layers.getOrNull(vm.selectedLayer)?.textSpec != null
+        IconAction(stringResource(R.string.ui_bend), Icons.Default.AutoFixHigh, enabled = isTextLayer, onClick = onDeform)
+        // ⋯ Mehr
+        Box {
+            IconAction(stringResource(R.string.ui_more), Icons.Default.MoreVert) { showMoreMenu = true }
+            DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.ui_align)) },
+                    onClick = { showMoreMenu = false; showAlignDialog = true },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.ui_reset_layer)) },
+                    enabled = perLayer,
+                    onClick = { showMoreMenu = false; vm.resetSelectedPlacement() },
+                )
+                if (vm.matSelected) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.ui_reset_all)) },
+                        onClick = { showMoreMenu = false; vm.resetAll() },
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        // Löschen — error tint, pushed far right
+        FilledTonalIconButton(
+            onClick = onDelete,
+            enabled = perLayer,
+            modifier = Modifier.size(40.dp),
+        ) {
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = stringResource(R.string.ui_delete),
+                modifier = Modifier.size(20.dp),
+                tint = if (perLayer) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            )
+        }
     }
 
     Spacer(Modifier.height(8.dp))
@@ -737,6 +972,15 @@ private fun EditingBar(
                 !vm.connected -> stringResource(R.string.ui_connect_plotter)
                 else -> vm.cutActionLabel()
             }
+        )
+    }
+
+    if (showAlignDialog) {
+        AlertDialog(
+            onDismissRequest = { showAlignDialog = false },
+            title = { Text(stringResource(R.string.ui_align)) },
+            text = { AlignmentControls(vm) },
+            confirmButton = { TextButton(onClick = { showAlignDialog = false }) { Text(stringResource(R.string.ui_close)) } },
         )
     }
 }
@@ -1115,6 +1359,14 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                         Text(stringResource(R.string.ui_align_guides_hint), style = MaterialTheme.typography.bodySmall)
                     }
                     Switch(checked = vm.alignGuides, onCheckedChange = { vm.changeAlignGuides(it) })
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.ui_auto_close), style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.ui_auto_close_hint), style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(checked = vm.autoCloseDrawn, onCheckedChange = { vm.changeAutoCloseDrawn(it) })
                 }
             }
 

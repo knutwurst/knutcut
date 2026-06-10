@@ -34,6 +34,30 @@ class HersheyFont private constructor(private val glyphs: Map<Char, Glyph>) {
         return out
     }
 
+    /**
+     * Render [text] as a list of per-glyph [GlyphRun]s, scaled so a capital is about [heightMm]
+     * tall. Newlines are stripped; only single-line text is supported here (curved text is always
+     * single-line). Each glyph's strokes are in glyph-local coordinates (x=0 at the left bound,
+     * baseline y=0), and [GlyphRun.advanceMm] is the distance to advance the pen after drawing.
+     * A space glyph produces an empty polyline list with a non-zero advance.
+     */
+    fun renderGlyphs(text: String, heightMm: Double): List<GlyphRun> {
+        val scale = heightMm / CAP_UNITS
+        val result = ArrayList<GlyphRun>()
+        for (ch in text) {
+            if (ch == '\n') continue   // curved text is single-line
+            val g = glyphs[ch] ?: glyphs[' '] ?: continue
+            val advance = (g.right - g.left) * scale
+            // Shift strokes so g.left maps to x=0, keeping baseline at y=0.
+            val dx = -g.left
+            val polylines = g.strokes.map { stroke ->
+                Polyline(stroke.map { Pt((it.xMm + dx) * scale, it.yMm * scale) }, closed = false)
+            }
+            result.add(GlyphRun(polylines, advance))
+        }
+        return result
+    }
+
     companion object {
         private const val CAP_UNITS = 21.0   // Hershey capitals span ~21 units (top -12 .. baseline +9)
         private const val LINE_UNITS = 32.0  // line-to-line advance

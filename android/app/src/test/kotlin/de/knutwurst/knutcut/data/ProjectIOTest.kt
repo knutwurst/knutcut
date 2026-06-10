@@ -3,6 +3,7 @@ package de.knutwurst.knutcut.data
 import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Pt
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -64,5 +65,29 @@ class ProjectIOTest {
         // A one-point polyline isn't a path; it must not survive a round-trip as a layer.
         val layers = listOf(Layer("x", listOf(Polyline(listOf(Pt(0.0, 0.0)), false)), Tool.PEN, true))
         assertTrue(ProjectIO.fromJson(ProjectIO.toJson(layers)).isEmpty())
+    }
+
+    @Test
+    fun textSpecRoundTrip() {
+        val poly = listOf(Polyline(listOf(Pt(0.0, 0.0), Pt(5.0, 5.0)), closed = false))
+        val spec = TextSpec(text = "Hallo", fontIndex = 2, heightMm = 30.0, curve = 42)
+        val layer = Layer("Text: Hallo", poly, Tool.PEN, visible = true, textSpec = spec)
+
+        val back = ProjectIO.fromJson(ProjectIO.toJson(listOf(layer)))[0]
+
+        assertEquals("Hallo", back.textSpec?.text)
+        assertEquals(2, back.textSpec?.fontIndex)
+        assertEquals(30.0, back.textSpec?.heightMm ?: 0.0, 1e-9)
+        assertEquals(42, back.textSpec?.curve)
+    }
+
+    @Test
+    fun textSpecBackCompatAbsentMeansNull() {
+        // A project file without "textSpec" must load with textSpec == null (old files stay valid).
+        val json = """[{"name":"Kreis","tool":"KNIFE","visible":true,"cx":0.0,"cy":0.0,
+            "sx":1.0,"sy":1.0,"rot":0.0,"fx":false,"fy":false,
+            "polys":[{"c":false,"p":[[0.0,0.0],[1.0,1.0]]}]}]"""
+        val layer = ProjectIO.fromJson(json)[0]
+        assertNull("absent textSpec must load as null", layer.textSpec)
     }
 }
