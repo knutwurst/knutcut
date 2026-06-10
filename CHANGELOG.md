@@ -3,6 +3,16 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.56.4
+- Reworked editor toolbar: Select and Draw are round toggle buttons, a context-aware Magic button
+  bends a text layer or edits a shape's points (disabled when neither fits), the active tool glows,
+  and Delete moved into the ⋯ menu.
+- Long-press a layer on the mat for a context menu with the same actions (including delete).
+- In the shape editor you can now drag the shape to move it (not just pan); tapping the mat while
+  bending returns to Select.
+- Tiling uses a tap-to-pick mini grid with a live columns × rows preview, instead of two steppers.
+- Loading a project closes the settings sheet so you see it right away.
+
 ## 0.56.3
 - The gesture hint under the mat sits in a fixed slot and wraps to two lines: it's no longer cut
   off, and the mode buttons no longer jump up when a hint appears. The hint shows directly below the
