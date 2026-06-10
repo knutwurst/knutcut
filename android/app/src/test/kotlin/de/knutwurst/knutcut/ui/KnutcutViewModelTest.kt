@@ -187,6 +187,40 @@ class KnutcutViewModelTest {
     }
 
     @Test
+    fun setSelectedTextCurveStoresCurveAndIsOneUndoStep() {
+        val vm = vm()
+        val spec = TextSpec("Hi", fontIndex = 0, heightMm = 20.0, curve = 0)
+        vm.addLayer("Text: Hi", textLayer(), Tool.PEN, textSpec = spec)
+        vm.selectLayer(0)
+
+        // One drag: snapshot once, then several live ticks.
+        vm.beginTextCurve()
+        vm.setSelectedTextCurve(60)
+        vm.setSelectedTextCurve(80)
+
+        assertEquals("latest curve stored", 80, vm.layers[0].textSpec?.curve)
+        assertTrue("can undo the bend", vm.canUndo)
+        vm.undo()
+        assertEquals("one undo step restores the pre-bend curve", 0, vm.layers[0].textSpec?.curve)
+    }
+
+    @Test
+    fun startBendingTextOnlyForTextLayers() {
+        val vm = vm()
+        vm.addLayer("Form", square(0.0), Tool.KNIFE)
+        vm.selectLayer(0)
+        vm.startBendingText()
+        assertTrue("a non-text layer cannot be bent", !vm.bendingText)
+
+        vm.addLayer("Text: Hi", textLayer(), Tool.PEN, textSpec = TextSpec("Hi", 0, 20.0, 0))
+        vm.selectLayer(1)
+        vm.startBendingText()
+        assertTrue("a text layer enters bend mode", vm.bendingText)
+        vm.stopBendingText()
+        assertTrue("stop leaves bend mode", !vm.bendingText)
+    }
+
+    @Test
     fun applyTextCurveNoOpOnNonTextLayer() {
         val vm = vm()
         vm.addLayer("Form", square(0.0), Tool.KNIFE)

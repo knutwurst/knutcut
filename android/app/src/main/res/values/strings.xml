@@ -316,6 +316,7 @@
     <string name="ui_path_open">Open</string>
     <!-- Bend sheet -->
     <string name="ui_bend">Bend</string>
+    <string name="ui_bend_hint">Bend: drag the handle up or down. Two fingers pan and zoom.</string>
     <string name="ui_bend_straight">Straight</string>
     <string name="ui_bend_advanced">Advanced</string>
     <!-- Editing bar -->

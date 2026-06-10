@@ -52,8 +52,11 @@ import de.knutwurst.knutcut.svgcore.nearestHandle
 import de.knutwurst.knutcut.svgcore.nearestNode
 import de.knutwurst.knutcut.svgcore.nearestSegment
 import de.knutwurst.knutcut.svgcore.Pt
+import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 // Minimum spacing between consecutive sampled points while a DRAW stroke is already in progress.
 // This is NOT used to gate the first point — that's handled by touchSlop.
@@ -88,6 +91,8 @@ private const val NODE_HANDLE_RADIUS_DP = 5f     // smaller dot for a control ha
 private const val NODE_SELECTED_GROW_DP = 4f     // the selected anchor grows by this much
 private const val NODE_HIT_DP = 16f              // touch radius for nodes/handles in the node editor
 private const val DOUBLE_TAP_MS = 350L           // max gap between taps to count as a double-tap
+// Vertical drag (in mm) that sweeps the text curve across its full ±100 range when bending on the mat.
+private const val BEND_DRAG_RANGE_MM = 80.0
 
 /**
  * The placement mat. Pinch or one-finger-drag on empty space moves/zooms the *work area* (like a
@@ -159,6 +164,53 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 var ppm = ppmFor(sizePx, vm.mat, vm.camScale)
                 if (ppm <= 0f) return@awaitEachGesture
                 var origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
+
+                // ---- BEND mode (on-mat text curve handle) ----
+                // Drag up/down anywhere to bend the selected text: up arches it (rainbow), down
+                // bows it the other way. Two fingers hand off to the camera. One undo step per drag.
+                if (vm.bendingText) {
+                    val layerIdx = vm.selectedLayer
+                    val spec = vm.layers.getOrNull(layerIdx)?.textSpec
+                    if (spec != null) {
+                        val startCurve = spec.curve
+                        val downWorldY = screenToWorld(down.position, origin, ppm).yMm
+                        var pushed = false
+                        var totalMoved = 0f
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val pressed = event.changes.filter { it.pressed }
+                            if (pressed.isEmpty()) break
+                            if (pressed.size >= 2) {
+                                if (pushed) vm.undo()   // abort the partial bend, hand off to camera
+                                val (np, no) = applyTwoFingerCamera(pressed[0], pressed[1], ppm, origin)
+                                ppm = np; origin = no
+                                event.changes.forEach { it.consume() }
+                                while (true) {
+                                    val ev2 = awaitPointerEvent()
+                                    val pr2 = ev2.changes.filter { it.pressed }
+                                    if (pr2.isEmpty()) break
+                                    if (pr2.size >= 2) { val (a, b) = applyTwoFingerCamera(pr2[0], pr2[1], ppm, origin); ppm = a; origin = b }
+                                    ev2.changes.forEach { it.consume() }
+                                }
+                                return@awaitEachGesture
+                            }
+                            val p = pressed[0]
+                            totalMoved += p.positionChange().getDistance()
+                            if (!pushed && totalMoved > viewConfiguration.touchSlop) { vm.beginTextCurve(); pushed = true }
+                            if (pushed) {
+                                ppm = ppmFor(sizePx, vm.mat, vm.camScale)
+                                origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
+                                val curWorldY = screenToWorld(p.position, origin, ppm).yMm
+                                // Screen y grows downward, so dragging up is a negative dy → +curve.
+                                val dyMm = curWorldY - downWorldY
+                                val curve = (startCurve - dyMm / BEND_DRAG_RANGE_MM * 100.0).roundToInt()
+                                vm.setSelectedTextCurve(curve)
+                            }
+                            p.consume()
+                        }
+                        return@awaitEachGesture
+                    }
+                }
 
                 // ---- DRAW mode ----
                 // State machine: finger-down does NOT seed a stroke. Only after the finger has moved
@@ -730,6 +782,36 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                     drawCircle(nodeColor, radius = anchorR, center = anchorScreen, style = Fill)
                     drawCircle(nodeSurfaceColor, radius = anchorR, center = anchorScreen, style = Stroke(width = 1.5f * density))
                 }
+            }
+        }
+
+        // On-mat text-bend overlay: a vertical guide, a ghost circle of the arc, and a draggable knob.
+        if (vm.bendingText) {
+            val bi = vm.selectedLayer
+            val bspec = vm.layers.getOrNull(bi)?.textSpec
+            val corners = if (bspec != null) vm.layerCorners(bi) else emptyList()
+            if (bspec != null && corners.size == 4) {
+                val cx = (corners.minOf { it.xMm } + corners.maxOf { it.xMm }) / 2.0
+                val cyc = (corners.minOf { it.yMm } + corners.maxOf { it.yMm }) / 2.0
+                val wMm = (corners.maxOf { it.xMm } - corners.minOf { it.xMm }).coerceAtLeast(1.0)
+                val c = bspec.curve
+
+                // Ghost circle: the arc the text wraps around (skip when nearly straight).
+                if (abs(c) >= 4) {
+                    val r = wMm / (c / 100.0 * 2.0 * PI)   // signed radius; >0 = centre below baseline
+                    val rPx = (abs(r) * ppm).toFloat()
+                    if (rPx < 6000f) drawCircle(deformGuideColor, radius = rPx, center = s(Pt(cx, cyc + r)), style = Stroke(width = 1.5f))
+                }
+
+                // Vertical guide track through the text centre.
+                drawLine(guideColor.copy(alpha = 0.5f), s(Pt(cx, cyc - BEND_DRAG_RANGE_MM)), s(Pt(cx, cyc + BEND_DRAG_RANGE_MM)), strokeWidth = 1.5f)
+
+                // Knob at the current curve (up = arch up).
+                val knobW = s(Pt(cx, cyc - c / 100.0 * BEND_DRAG_RANGE_MM))
+                val knobR = 11f * density
+                drawCircle(nodeSurfaceColor, radius = knobR + 2f * density, center = knobW, style = Fill)
+                drawCircle(guideColor, radius = knobR, center = knobW, style = Fill)
+                drawCircle(nodeSurfaceColor, radius = knobR, center = knobW, style = Stroke(width = 2f * density))
             }
         }
       }

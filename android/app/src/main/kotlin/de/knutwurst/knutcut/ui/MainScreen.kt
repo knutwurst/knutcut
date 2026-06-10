@@ -178,7 +178,6 @@ fun MainScreen(vm: KnutcutViewModel) {
     var showNewConfirm by remember { mutableStateOf(false) }
     var showText by remember { mutableStateOf(false) }
     var showLibrary by remember { mutableStateOf(false) }
-    var showDeform by remember { mutableStateOf(false) }
     val fontRepo = remember(context) { FontRepository(context) }
     var showChangelog by remember { mutableStateOf(false) }
     val changelogText = remember { runCatching { context.assets.open("changelog.md").bufferedReader().use { it.readText() } }.getOrDefault("") }
@@ -271,7 +270,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                         onMaterial = { showMaterial = true },
                         onConnectOrCut = { if (vm.connected) showCut = true else openDevices() },
                         onDelete = { showDeleteConfirm = true },
-                        onDeform = { showDeform = true },
+                        onDeform = { vm.startBendingText() },
                     )
                 }
             }
@@ -359,7 +358,6 @@ fun MainScreen(vm: KnutcutViewModel) {
     if (showCut && vm.hasDesign) CutSheet(vm, onDismiss = { showCut = false })
     if (showText) TextDialog(vm, fontRepo, onDismiss = { showText = false })
     if (showLibrary) LibrarySheet(vm, onDismiss = { showLibrary = false })
-    if (showDeform && !vm.matSelected) BendSheet(vm, fontRepo, onDismiss = { showDeform = false })
 }
 
 /** Add a text layer: type the text, pick a font (outline or single-stroke), choose a height. */
@@ -744,6 +742,32 @@ private fun CuttingBar(vm: KnutcutViewModel) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ModeSegment(vm: KnutcutViewModel) {
+    // While bending text on the mat, the segment is replaced by a focused bend bar.
+    if (vm.bendingText) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    stringResource(R.string.ui_bend_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            OutlinedButton(onClick = { vm.stopBendingText() }) { Text(stringResource(R.string.ui_done), maxLines = 1) }
+        }
+        return
+    }
+
     val layer = vm.layers.getOrNull(vm.selectedLayer)
     val canEditNodes = !vm.matSelected && layer != null &&
         (layer.editPath != null || layer.polylines.size == 1)
@@ -958,81 +982,6 @@ private fun AlignmentControls(vm: KnutcutViewModel) {
             OutlinedIconButton(onClick = { vm.alignVertical(-1) }) { Icon(Icons.Default.VerticalAlignTop, stringResource(R.string.ui_top)) }
             OutlinedIconButton(onClick = { vm.alignVertical(0) }) { Icon(Icons.Default.VerticalAlignCenter, stringResource(R.string.ui_center)) }
             OutlinedIconButton(onClick = { vm.alignVertical(1) }) { Icon(Icons.Default.VerticalAlignBottom, stringResource(R.string.ui_bottom)) }
-        }
-    }
-}
-
-/**
- * BendSheet: single-slider sheet for bending a text layer along a circular arc.
- * The slider maps −100..100 to [TextArc.layoutOnArc] (curve = value / 100.0); value 0 = straight.
- * Enabled only when the selected layer has a [TextSpec] — non-text layers cannot use this sheet.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun BendSheet(vm: KnutcutViewModel, fontRepo: FontRepository, onDismiss: () -> Unit) {
-    val idx = vm.selectedLayer
-    val layer = vm.layers.getOrNull(idx) ?: return
-    val spec = layer.textSpec ?: return
-
-    // Seed the slider from the stored curve value.
-    var sliderValue by remember { mutableStateOf(spec.curve.toFloat()) }
-
-    // Push history once per sheet session, not on every slider tick.
-    var pushedHistory by remember { mutableStateOf(false) }
-
-    fun applyArc(value: Int) {
-        val opt = fontRepo.options.getOrNull(spec.fontIndex) ?: return
-        val glyphs = opt.renderGlyphs(spec.text, spec.heightMm)
-        val poly = TextArc.layoutOnArc(glyphs, value / 100.0)
-        if (!pushedHistory) {
-            pushedHistory = true
-            // applyTextCurve always pushes history internally; that is the one step for this session.
-        }
-        vm.applyTextCurve(idx, value, poly)
-    }
-
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(
-            Modifier
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 24.dp)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            Text(stringResource(R.string.ui_bend), style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(12.dp))
-
-            // Bend slider: −100 = full circle downward, 0 = straight, +100 = full circle upward.
-            Slider(
-                value = sliderValue,
-                onValueChange = { v ->
-                    sliderValue = v
-                    applyArc(v.toInt())
-                },
-                valueRange = -100f..100f,
-                steps = 0,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text("−100", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    stringResource(R.string.ui_bend_straight),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text("+100", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            TextButton(
-                onClick = { applyArc(0); onDismiss() },
-                modifier = Modifier.align(Alignment.Start),
-            ) {
-                Text(stringResource(R.string.ui_deform_remove))
-            }
         }
     }
 }

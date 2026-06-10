@@ -77,6 +77,7 @@ import de.knutwurst.knutcut.svgcore.Pt
 import de.knutwurst.knutcut.svgcore.Query
 import de.knutwurst.knutcut.svgcore.Snap
 import de.knutwurst.knutcut.svgcore.SvgParser
+import de.knutwurst.knutcut.svgcore.TextArc
 import de.knutwurst.knutcut.svgcore.UNITS_PER_MM
 import de.knutwurst.knutcut.svgcore.responseState
 import de.knutwurst.knutcut.svgcore.responseStateReady
@@ -169,6 +170,14 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Freehand draw mode toggle; SELECT is the default (normal move/resize interaction). */
     var editorTool by mutableStateOf(EditorTool.SELECT)
+
+    /** When true, the selected text layer is being bent via the on-mat handle (overlay + drag).
+     *  Mutually exclusive with the normal move/resize gesture while active. */
+    var bendingText by mutableStateOf(false); private set
+
+    /** Fonts for re-rendering curved text during a live bend. Built lazily off the app context. */
+    private val fontRepo by lazy { FontRepository(getApplication()) }
+
     var penForce by mutableStateOf(15); private set
 
     // Connection.
@@ -600,7 +609,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return group.map { it.copy(centerMm = Pt(it.centerMm.xMm + dx, it.centerMm.yMm + dy)) }
     }
 
-    fun selectLayer(i: Int) { if (i in layers.indices) selectedLayer = i }
+    fun selectLayer(i: Int) { if (i in layers.indices) { selectedLayer = i; bendingText = false } }
 
     /** Rename a layer (trimmed; blank keeps the old name). */
     fun renameLayer(i: Int, name: String) {
@@ -625,7 +634,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun resetView() { camScale = 1f; camOffset = Offset.Zero }
 
     /** Clear the layer selection and any marks — the mat itself becomes the active selection. */
-    fun deselectLayers() { selectedLayer = -1; markedLayers = emptySet() }
+    fun deselectLayers() { selectedLayer = -1; markedLayers = emptySet(); bendingText = false }
 
     /** Start over: remove every layer and reset the view (undoable). Keeps device/material settings. */
     fun clearAll() {
@@ -634,8 +643,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         layers = emptyList()
         selectedLayer = -1
         markedLayers = emptySet()
-        // A node-edit or deform mode must not survive the loss of all layers.
+        // A node-edit, deform, or bend mode must not survive the loss of all layers.
         editorTool = EditorTool.SELECT
+        bendingText = false
         pruneBoundsCache()
         camScale = 1f
         camOffset = Offset.Zero
@@ -688,6 +698,41 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         pushHistory()
         layers = layers.mapIndexed { i, l ->
             if (i == index) l.copy(polylines = newPolylines, textSpec = spec.copy(curve = curve)) else l
+        }
+        pruneBoundsCache()
+    }
+
+    // -------------------------------------------------------------------------
+    // On-mat text bending (drag a handle on the canvas instead of a slider)
+    // -------------------------------------------------------------------------
+
+    /** Enter on-mat bend mode for the selected text layer. No-op when it isn't a text layer. */
+    fun startBendingText() {
+        if (layers.getOrNull(selectedLayer)?.textSpec == null) return
+        editorTool = EditorTool.SELECT
+        bendingText = true
+    }
+
+    /** Leave on-mat bend mode. */
+    fun stopBendingText() { bendingText = false }
+
+    /** Snapshot history once at the start of a bend drag (one undo step for the whole gesture). */
+    fun beginTextCurve() { pushHistory() }
+
+    /**
+     * Re-render the selected text layer at [curve] (−100..100) and update its polylines + stored
+     * curve, WITHOUT pushing history — call [beginTextCurve] once at the drag start. No-op when the
+     * selected layer is not a text layer or the font is unavailable.
+     */
+    fun setSelectedTextCurve(curve: Int) {
+        val idx = selectedLayer
+        val layer = layers.getOrNull(idx) ?: return
+        val spec = layer.textSpec ?: return
+        val c = curve.coerceIn(-100, 100)
+        val opt = fontRepo.options.getOrNull(spec.fontIndex) ?: return
+        val poly = TextArc.layoutOnArc(opt.renderGlyphs(spec.text, spec.heightMm), c / 100.0)
+        layers = layers.mapIndexed { i, l ->
+            if (i == idx) l.copy(polylines = poly, textSpec = spec.copy(curve = c)) else l
         }
         pruneBoundsCache()
     }
@@ -925,8 +970,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         layers = layers.filterIndexed { idx, _ -> idx != i }
         selectedLayer = selectedLayer.coerceIn(0, (layers.size - 1).coerceAtLeast(0))
         markedLayers = emptySet()
-        // A node-edit or deform mode must not outlive the layer it was editing.
+        // A node-edit, deform, or bend mode must not outlive the layer it was editing.
         editorTool = EditorTool.SELECT
+        bendingText = false
         pruneBoundsCache()
     }
 
