@@ -19,12 +19,15 @@ private const val REF_SIZE = 256f
 /** Result of vectorising text: the polylines plus whether it had to be simplified/truncated. */
 data class TextResult(val polylines: List<Polyline>, val simplified: Boolean)
 
-/** A selectable font for the text tool. [stroke] = single-line (pen) versus an outline (cut or draw). */
+/** A selectable font for the text tool. [stroke] = single-line (pen) versus an outline (cut or draw).
+ *  [previewTypeface] is the system typeface to render a UI preview with (null for stroke fonts, which
+ *  have no system typeface — they preview via their own rendered strokes instead). */
 class FontOption(
     val label: String,
     val stroke: Boolean,
     private val renderer: (text: String, heightMm: Double) -> TextResult,
     private val glyphRenderer: ((text: String, heightMm: Double) -> List<GlyphRun>)? = null,
+    val previewTypeface: Typeface? = null,
 ) {
     fun render(text: String, heightMm: Double): TextResult {
         val truncated = text.length > MAX_TEXT_CHARS
@@ -47,6 +50,8 @@ class FontOption(
 class FontRepository(context: Context) {
     private val assets = context.assets
 
+    // NOTE: the order here is the saved TextSpec.fontIndex, so existing projects keep their font.
+    // Add new fonts at the END only; don't reorder the first block.
     val options: List<FontOption> = buildList {
         add(outline("Sans", Typeface.SANS_SERIF))
         add(outline("Serif", Typeface.SERIF))
@@ -57,6 +62,16 @@ class FontRepository(context: Context) {
         bundledStroke("Einlinie Sans", "hershey/futural.jhf")
         bundledStroke("Einlinie Serif", "hershey/rowmans.jhf")
         bundledStroke("Einlinie Script", "hershey/scripts.jhf")
+        // Appended: more system faces (named families fall back to Sans on a ROM that lacks them).
+        add(outline("Sans fett", Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)))
+        add(outline("Sans leicht", Typeface.create("sans-serif-light", Typeface.NORMAL)))
+        add(outline("Sans schmal", Typeface.create("sans-serif-condensed", Typeface.NORMAL)))
+        add(outline("Sans schwarz", Typeface.create("sans-serif-black", Typeface.NORMAL)))
+        add(outline("Kapitälchen", Typeface.create("sans-serif-smallcaps", Typeface.NORMAL)))
+        add(outline("Serif fett", Typeface.create(Typeface.SERIF, Typeface.BOLD)))
+        add(outline("Serif kursiv", Typeface.create(Typeface.SERIF, Typeface.ITALIC)))
+        add(outline("Handschrift", Typeface.create("casual", Typeface.NORMAL)))
+        add(outline("Schreibschrift", Typeface.create("cursive", Typeface.NORMAL)))
     }
 
     private fun outline(label: String, tf: Typeface) =
@@ -65,6 +80,7 @@ class FontRepository(context: Context) {
             stroke = false,
             renderer = { t, h -> outlineText(tf, t, h) },
             glyphRenderer = { t, h -> outlineGlyphs(tf, t, h) },
+            previewTypeface = tf,
         )
 
     private fun MutableList<FontOption>.bundledOutline(label: String, asset: String) {

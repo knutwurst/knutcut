@@ -99,6 +99,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -129,6 +130,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -369,6 +371,8 @@ private fun TextDialog(vm: KnutcutViewModel, fonts: FontRepository, onDismiss: (
     var height by remember { mutableStateOf(25) }
     var fontMenu by remember { mutableStateOf(false) }
     val chosen = options.getOrNull(fontIndex)
+    // Preview the chosen outline font right in the input field; stroke fonts have no system face.
+    val previewFamily = chosen?.previewTypeface?.let { FontFamily(it) }
     val namePrefix = stringResource(R.string.ui_text_colon)
     val simplifiedMsg = stringResource(R.string.ui_text_added_simplified)
     AlertDialog(
@@ -376,16 +380,30 @@ private fun TextDialog(vm: KnutcutViewModel, fonts: FontRepository, onDismiss: (
         title = { Text(stringResource(R.string.ui_add_text)) },
         text = {
             Column {
-                OutlinedTextField(text, { if (it.length <= MAX_TEXT_CHARS) text = it }, label = { Text(stringResource(R.string.ui_text)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    text,
+                    { if (it.length <= MAX_TEXT_CHARS) text = it },
+                    label = { Text(stringResource(R.string.ui_text)) },
+                    // The empty field previews the selected font; typing shows the text in it too.
+                    placeholder = { Text(stringResource(R.string.ui_text), fontFamily = previewFamily) },
+                    textStyle = LocalTextStyle.current.copy(fontFamily = previewFamily),
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 Spacer(Modifier.height(8.dp))
                 Box {
                     OutlinedButton(onClick = { fontMenu = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(chosen?.let { it.label + if (it.stroke) stringResource(R.string.ui_suffix_singleline) else "" } ?: stringResource(R.string.ui_pick_font), maxLines = 1)
+                        Text(
+                            chosen?.let { it.label + if (it.stroke) stringResource(R.string.ui_suffix_singleline) else "" } ?: stringResource(R.string.ui_pick_font),
+                            fontFamily = previewFamily,
+                            maxLines = 1,
+                        )
                     }
                     DropdownMenu(expanded = fontMenu, onDismissRequest = { fontMenu = false }) {
                         options.forEachIndexed { i, o ->
+                            // Each item is shown in its own font, so the list previews every face.
+                            val itemFamily = o.previewTypeface?.let { FontFamily(it) }
                             DropdownMenuItem(
-                                text = { Text(o.label + if (o.stroke) stringResource(R.string.ui_font_singleline_pen) else "") },
+                                text = { Text(o.label + if (o.stroke) stringResource(R.string.ui_font_singleline_pen) else "", fontFamily = itemFamily, maxLines = 1) },
                                 onClick = { fontIndex = i; fontMenu = false },
                             )
                         }
