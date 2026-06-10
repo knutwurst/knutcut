@@ -67,6 +67,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Public
@@ -433,23 +435,40 @@ private fun AddMenu(
     onDraw: () -> Unit,
     onShape: (Pair<String, de.knutwurst.knutcut.svgcore.Polyline>) -> Unit,
 ) {
+    // The shapes live behind a "Formen…" entry so the main menu stays short. The same dropdown
+    // swaps to the shape list (with a back row) instead of nesting a second menu.
+    var showShapes by remember { mutableStateOf(false) }
+    LaunchedEffect(expanded) { if (!expanded) showShapes = false }
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
-        DropdownMenuItem(text = { Text(stringResource(R.string.ui_neu)) }, onClick = onNew)
-        HorizontalDivider()
-        DropdownMenuItem(text = { Text(stringResource(R.string.ui_open_svg_plt)) }, onClick = onOpenFile)
-        DropdownMenuItem(text = { Text(stringResource(R.string.ui_library_menu)) }, onClick = onLibrary)
-        DropdownMenuItem(text = { Text(stringResource(R.string.ui_text_menu)) }, onClick = onText)
-        DropdownMenuItem(text = { Text(stringResource(R.string.ui_mode_draw)) }, onClick = onDraw)
-        HorizontalDivider()
-        listOf(
-            stringResource(R.string.ui_square) to Shapes.rect(40.0, 40.0),
-            stringResource(R.string.ui_rect) to Shapes.rect(60.0, 40.0),
-            stringResource(R.string.ui_circle) to Shapes.circle(40.0),
-            stringResource(R.string.ui_triangle) to Shapes.regularPolygon(3, 40.0),
-            stringResource(R.string.ui_pentagon) to Shapes.regularPolygon(5, 40.0),
-            stringResource(R.string.ui_hexagon) to Shapes.regularPolygon(6, 40.0),
-            stringResource(R.string.ui_star) to Shapes.star(5, 40.0),
-        ).forEach { shape -> DropdownMenuItem(text = { Text(shape.first) }, onClick = { onShape(shape) }) }
+        if (!showShapes) {
+            DropdownMenuItem(text = { Text(stringResource(R.string.ui_neu)) }, onClick = onNew)
+            HorizontalDivider()
+            DropdownMenuItem(text = { Text(stringResource(R.string.ui_open_svg_plt)) }, onClick = onOpenFile)
+            DropdownMenuItem(text = { Text(stringResource(R.string.ui_library_menu)) }, onClick = onLibrary)
+            DropdownMenuItem(text = { Text(stringResource(R.string.ui_text_menu)) }, onClick = onText)
+            DropdownMenuItem(text = { Text(stringResource(R.string.ui_mode_draw)) }, onClick = onDraw)
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.ui_shapes_menu)) },
+                trailingIcon = { Icon(Icons.Default.KeyboardArrowRight, contentDescription = null) },
+                onClick = { showShapes = true },
+            )
+        } else {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.ui_back)) },
+                leadingIcon = { Icon(Icons.Default.KeyboardArrowLeft, contentDescription = null) },
+                onClick = { showShapes = false },
+            )
+            HorizontalDivider()
+            listOf(
+                stringResource(R.string.ui_square) to Shapes.rect(40.0, 40.0),
+                stringResource(R.string.ui_rect) to Shapes.rect(60.0, 40.0),
+                stringResource(R.string.ui_circle) to Shapes.circle(40.0),
+                stringResource(R.string.ui_triangle) to Shapes.regularPolygon(3, 40.0),
+                stringResource(R.string.ui_pentagon) to Shapes.regularPolygon(5, 40.0),
+                stringResource(R.string.ui_hexagon) to Shapes.regularPolygon(6, 40.0),
+                stringResource(R.string.ui_star) to Shapes.star(5, 40.0),
+            ).forEach { shape -> DropdownMenuItem(text = { Text(shape.first) }, onClick = { onShape(shape) }) }
+        }
     }
 }
 

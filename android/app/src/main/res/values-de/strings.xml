@@ -101,6 +101,8 @@
     <string name="ui_lib_cat_vehicles">Fahrzeuge</string>
     <string name="ui_lib_cat_labels">Etiketten</string>
     <string name="ui_text_menu">Text…</string>
+    <string name="ui_shapes_menu">Formen…</string>
+    <string name="ui_back">Zurück</string>
     <string name="ui_square">Quadrat</string>
     <string name="ui_rect">Rechteck</string>
     <string name="ui_circle">Kreis</string>

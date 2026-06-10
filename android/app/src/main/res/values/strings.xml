@@ -103,6 +103,8 @@
     <string name="ui_lib_cat_vehicles">Vehicles</string>
     <string name="ui_lib_cat_labels">Labels</string>
     <string name="ui_text_menu">Text…</string>
+    <string name="ui_shapes_menu">Shapes…</string>
+    <string name="ui_back">Back</string>
     <string name="ui_square">Square</string>
     <string name="ui_rect">Rectangle</string>
     <string name="ui_circle">Circle</string>
