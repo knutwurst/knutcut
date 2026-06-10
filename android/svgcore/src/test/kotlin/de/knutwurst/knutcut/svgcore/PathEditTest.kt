@@ -723,4 +723,132 @@ class PathEditTest {
         val m = Matrix.scale(0.0, 1.0)
         assertNull(m.inverse())
     }
+
+    // -----------------------------------------------------------------------
+    // dragSegment
+    // -----------------------------------------------------------------------
+
+    /** Evaluate a cubic Bézier at [t] for test verification. */
+    private fun cubicAt(p0: Pt, p1: Pt, p2: Pt, p3: Pt, t: Double): Pt {
+        val u = 1.0 - t
+        val uu = u * u; val tt = t * t
+        val uuu = uu * u; val ttt = tt * t
+        return Pt(
+            uuu * p0.xMm + 3.0 * uu * t * p1.xMm + 3.0 * u * tt * p2.xMm + ttt * p3.xMm,
+            uuu * p0.yMm + 3.0 * uu * t * p1.yMm + 3.0 * u * tt * p2.yMm + ttt * p3.yMm,
+        )
+    }
+
+    /** Extract the cubic control points for segment [si] of [path]. */
+    private fun segmentPoints(path: EditablePath, si: Int): Array<Pt> {
+        val n = path.nodes.size
+        val fromIdx = si
+        val toIdx = if (path.closed) (si + 1) % n else si + 1
+        val from = path.nodes[fromIdx]
+        val to   = path.nodes[toIdx]
+        return arrayOf(
+            from.anchor,
+            from.handleOut ?: from.anchor,
+            to.handleIn    ?: to.anchor,
+            to.anchor,
+        )
+    }
+
+    @Test
+    fun dragSegmentStraightMidpointReachesTarget() {
+        // Straight horizontal segment (0,0)→(100,0); drag midpoint to (50,20).
+        val path = EditablePath(listOf(PathNode(Pt(0.0, 0.0)), PathNode(Pt(100.0, 0.0))))
+        val target = Pt(50.0, 20.0)
+        val after = path.dragSegment(0, 0.5, target)
+
+        val (p0, p1, p2, p3) = segmentPoints(after, 0)
+        val actual = cubicAt(p0, p1, p2, p3, 0.5)
+        assertEquals("x at t=0.5", target.xMm, actual.xMm, 1.0)
+        assertEquals("y at t=0.5", target.yMm, actual.yMm, 1.0)
+    }
+
+    @Test
+    fun dragSegmentEndpointsUnchanged() {
+        val path = EditablePath(listOf(PathNode(Pt(0.0, 0.0)), PathNode(Pt(100.0, 0.0))))
+        val after = path.dragSegment(0, 0.5, Pt(50.0, 20.0))
+        // Anchors must not move.
+        assertPtEq(Pt(0.0, 0.0),   after.nodes[0].anchor, 1e-9)
+        assertPtEq(Pt(100.0, 0.0), after.nodes[1].anchor, 1e-9)
+    }
+
+    @Test
+    fun dragSegmentAtTQuarterMovesCorrectly() {
+        // Drag at t=0.25; check that the curve point at t=0.25 is closer to the target
+        // than the original was.
+        val path = EditablePath(listOf(PathNode(Pt(0.0, 0.0)), PathNode(Pt(100.0, 0.0))))
+        val target = Pt(25.0, 30.0)
+        val after = path.dragSegment(0, 0.25, target)
+
+        val (p0, p1, p2, p3) = segmentPoints(after, 0)
+        val actual = cubicAt(p0, p1, p2, p3, 0.25)
+        // Should be closer to target than the original (0,0)→(100,0) at t=0.25 → (25,0).
+        val distAfter  = hypot(actual.xMm - target.xMm, actual.yMm - target.yMm)
+        val distBefore = hypot(25.0 - target.xMm, 0.0 - target.yMm)
+        assertTrue("drag must move curve toward target (before=$distBefore after=$distAfter)",
+            distAfter < distBefore)
+        // Endpoints still fixed.
+        assertPtEq(Pt(0.0, 0.0),   after.nodes[0].anchor, 1e-9)
+        assertPtEq(Pt(100.0, 0.0), after.nodes[1].anchor, 1e-9)
+    }
+
+    @Test
+    fun dragSegmentSmoothNodeKeepsC1() {
+        // fromNode is smooth; after dragging, its in- and out-handles must remain collinear
+        // through the anchor.
+        val anchor = Pt(50.0, 0.0)
+        val fromNode = PathNode(
+            anchor    = anchor,
+            handleIn  = Pt(30.0, 0.0),
+            handleOut = Pt(70.0, 0.0),
+            smooth    = true,
+        )
+        val path = EditablePath(
+            listOf(
+                PathNode(Pt(0.0, 0.0)),
+                fromNode,
+                PathNode(Pt(100.0, 0.0)),
+            )
+        )
+        // Drag segment 1 (fromNode → last node) so that fromNode's handleOut is adjusted.
+        val after = path.dragSegment(1, 0.5, Pt(75.0, 20.0))
+
+        val fn = after.nodes[1]
+        val hIn  = fn.handleIn  ?: return  // smooth node must have handles
+        val hOut = fn.handleOut ?: return
+
+        // Collinearity: cross product (anchor→out) × (anchor→in) ≈ 0.
+        val ox = hOut.xMm - anchor.xMm; val oy = hOut.yMm - anchor.yMm
+        val ix = hIn.xMm  - anchor.xMm; val iy = hIn.yMm  - anchor.yMm
+        val cross = ox * iy - oy * ix
+        assertEquals("handles must be collinear (smooth node)", 0.0, cross, 1e-6)
+        // Opposite directions.
+        val dot = ox * ix + oy * iy
+        assertTrue("handles must point away from each other", dot <= 0.0)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun dragSegmentOutOfRangeThrows() {
+        val path = EditablePath(listOf(PathNode(Pt(0.0, 0.0)), PathNode(Pt(10.0, 0.0))))
+        path.dragSegment(99, 0.5, Pt(5.0, 5.0))
+    }
+
+    @Test
+    fun dragSegmentOtherSegmentsUnchanged() {
+        // Three-node path; drag segment 0 only; segment 1 control points must be identical.
+        val n0 = PathNode(Pt(0.0, 0.0))
+        val n1 = PathNode(Pt(50.0, 0.0))
+        val n2 = PathNode(Pt(100.0, 0.0))
+        val path = EditablePath(listOf(n0, n1, n2))
+        val after = path.dragSegment(0, 0.5, Pt(25.0, 15.0))
+
+        // Segment 1 goes from node[1] to node[2]; node[2] must be completely untouched.
+        assertPtEq(n2.anchor, after.nodes[2].anchor, 1e-9)
+        assertEquals(null, after.nodes[2].handleIn)
+        assertEquals(null, after.nodes[2].handleOut)
+    }
 }

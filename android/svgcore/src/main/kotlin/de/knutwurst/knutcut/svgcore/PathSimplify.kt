@@ -72,6 +72,64 @@ private fun rdpRecursive(
  * For a [closed] path the tangent of the first node also considers its predecessor (the last point)
  * and vice versa.
  */
+/**
+ * Reduce a dense polyline to a smooth [EditablePath] with at most ~[targetNodes] nodes (hard cap
+ * [hardCap]).  Binary-searches the RDP tolerance in [[minEpsMm]..[maxEpsMm]] mm until the node
+ * count fits, then smooths.  Used when converting a warp-baked (very dense) layer to editable
+ * nodes.
+ *
+ * - Inputs already under budget are smoothed directly, without further simplification.
+ * - If even [maxEpsMm] cannot reach [targetNodes], the result at [maxEpsMm] is used; but if that
+ *   still exceeds [hardCap], the binary search returns the last epsilon whose result was ≤
+ *   [hardCap] instead.
+ * - Endpoints are always preserved (RDP guarantee).
+ * - Empty or single-point inputs are returned as-is via [smoothToPath].
+ */
+fun simplifyToBudget(
+    points: List<Pt>,
+    closed: Boolean,
+    targetNodes: Int = 40,
+    hardCap: Int = 120,
+    minEpsMm: Double = 0.1,
+    maxEpsMm: Double = 2.0,
+): EditablePath {
+    // Trivial: already within budget.
+    if (points.size <= targetNodes) return smoothToPath(points, closed)
+
+    // Binary-search for the smallest epsilon that brings the count to ≤ targetNodes.
+    // We track the last candidate whose count was ≤ hardCap so we can fall back to it
+    // if we overshoot the hard cap even at maxEpsMm.
+    var lo = minEpsMm
+    var hi = maxEpsMm
+    var bestUnderHardCap: List<Pt>? = null
+
+    // Quick check: does maxEpsMm already satisfy targetNodes?
+    val atMax = simplifyRdp(points, maxEpsMm)
+    if (atMax.size <= hardCap) bestUnderHardCap = atMax
+    if (atMax.size <= targetNodes) return smoothToPath(atMax, closed)
+
+    // ≤ 16 iterations are more than enough for any [minEps..maxEps] range.
+    repeat(16) {
+        val mid = (lo + hi) / 2.0
+        val reduced = simplifyRdp(points, mid)
+        if (reduced.size <= hardCap) bestUnderHardCap = reduced
+        when {
+            reduced.size <= targetNodes -> hi = mid   // good — try smaller eps (fewer dropped pts)
+            else                        -> lo = mid   // still too many — push tolerance up
+        }
+    }
+
+    // Use the result at the converged hi (≤ targetNodes if achievable), otherwise the best
+    // result that stayed within the hard cap.
+    val finalReduced = simplifyRdp(points, hi)
+    val chosen = when {
+        finalReduced.size <= targetNodes -> finalReduced
+        bestUnderHardCap != null         -> bestUnderHardCap!!
+        else                             -> finalReduced   // nothing satisfied hardCap — accept as-is
+    }
+    return smoothToPath(chosen, closed)
+}
+
 fun smoothToPath(points: List<Pt>, closed: Boolean = false): EditablePath {
     if (points.isEmpty()) return EditablePath(emptyList(), closed)
     if (points.size == 1) return EditablePath(listOf(PathNode(points[0])), closed)

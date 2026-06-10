@@ -4,6 +4,8 @@ import de.knutwurst.knutcut.svgcore.Bounds
 import de.knutwurst.knutcut.svgcore.PathNode
 import de.knutwurst.knutcut.svgcore.Pt
 import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 // ---------------------------------------------------------------------------
 // EnvelopeDeform (Phase 5: 4-corner cage / bilinear warp)
@@ -95,6 +97,55 @@ fun circleDeformDefault(
         clockwise = true,
         baseline = baseline,
     )
+}
+
+// ---------------------------------------------------------------------------
+// Bend slider → CircleDeform mapping
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps a signed bend slider value (-100..100; 0 = straight) to a [CircleDeform], or null when
+ * the value is within the snap-to-zero detent (|value| < 3).
+ *
+ * At |value| = 100 the source width wraps exactly once around the circle (radius = widthMm / 2π),
+ * matching [circleDeformDefault]. The sign selects bend direction: positive = counter-clockwise
+ * (outside/upward arc), negative = clockwise (inside/downward arc).
+ *
+ * Math: b = clamp(value / 100, -1, 1); θ = |b| * 2π; radius = widthMm / θ.
+ */
+fun bendToCircleDeform(
+    bounds: Bounds,
+    value: Int,
+    startAngleDeg: Double = 90.0,
+    baseline: DeformBaseline = DeformBaseline.BOTTOM,
+): CircleDeform? {
+    if (abs(value) < 3) return null
+    val b = (value / 100.0).coerceIn(-1.0, 1.0)
+    val theta = abs(b) * 2.0 * PI
+    val radius = (bounds.widthMm / theta).coerceAtLeast(5.0)
+    val cx = (bounds.minX + bounds.maxX) / 2.0
+    val cy = (bounds.minY + bounds.maxY) / 2.0
+    return CircleDeform(
+        centerXMm = cx,
+        centerYMm = cy,
+        radiusMm = radius,
+        startAngleDeg = startAngleDeg,
+        clockwise = value < 0,
+        baseline = baseline,
+    )
+}
+
+/**
+ * Recover the approximate slider value (-100..100) that a [CircleDeform] corresponds to.
+ *
+ * Inverse of [bendToCircleDeform]: θ = widthMm / radius; value = round(θ / 2π * 100) with the
+ * sign taken from [CircleDeform.clockwise]. Result is clamped to [-100, 100].
+ */
+fun CircleDeform.bendValue(bounds: Bounds): Int {
+    val theta = bounds.widthMm / radiusMm
+    val raw = (theta / (2.0 * PI) * 100.0).roundToInt()
+    val signed = if (clockwise) -raw else raw
+    return signed.coerceIn(-100, 100)
 }
 
 // ---------------------------------------------------------------------------

@@ -3,7 +3,10 @@ package de.knutwurst.knutcut.svgcore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.sin
 
 class PathSimplifyTest {
 
@@ -172,6 +175,95 @@ class PathSimplifyTest {
         val poly = path.toPolyline(0.05)
         val maxX = poly.points.maxOf { kotlin.math.abs(it.xMm) }
         assertTrue("vertical closed path has large x deviation ($maxX mm)", maxX < 2.0)
+    }
+
+    // -----------------------------------------------------------------------
+    // simplifyToBudget
+    // -----------------------------------------------------------------------
+
+    /** 500-point sampled circle at radius 40 mm. */
+    private fun sampleCircle(radius: Double = 40.0, n: Int = 500): List<Pt> =
+        (0 until n).map { i ->
+            val a = 2 * PI * i / n
+            Pt(radius * cos(a), radius * sin(a))
+        }
+
+    @Test
+    fun budgetCircle500ptsReducesToAtMost40Nodes() {
+        val pts = sampleCircle()
+        val result = simplifyToBudget(pts, closed = true, targetNodes = 40)
+        assertTrue(
+            "Expected ≤ 40 nodes for a 500-pt circle, got ${result.nodes.size}",
+            result.nodes.size <= 40,
+        )
+    }
+
+    @Test
+    fun budgetCircleNodesStayNearRadius() {
+        val radius = 40.0
+        val pts = sampleCircle(radius)
+        val result = simplifyToBudget(pts, closed = true, targetNodes = 40)
+        // Every anchor node should be within ~2 mm of the circle radius.
+        for (node in result.nodes) {
+            val r = hypot(node.anchor.xMm, node.anchor.yMm)
+            assertTrue(
+                "Node at (${node.anchor.xMm}, ${node.anchor.yMm}) is ${kotlin.math.abs(r - radius)} mm off the circle",
+                kotlin.math.abs(r - radius) < 2.0,
+            )
+        }
+    }
+
+    @Test
+    fun budgetSimple4PointSquarePreservesShape() {
+        // A 4-point square is well under the default budget; it must come back smoothed
+        // with the same 4 anchors and with all anchors within tolerance of the original corners.
+        val side = 30.0
+        val pts = listOf(Pt(0.0, 0.0), Pt(side, 0.0), Pt(side, side), Pt(0.0, side))
+        val result = simplifyToBudget(pts, closed = true, targetNodes = 40)
+        assertTrue("Square: expected ≤ 40 nodes, got ${result.nodes.size}", result.nodes.size <= 40)
+        // Each original corner should be represented by an anchor within 0.5 mm.
+        for (corner in pts) {
+            val closest = result.nodes.minByOrNull { hypot(it.anchor.xMm - corner.xMm, it.anchor.yMm - corner.yMm) }!!
+            val dist = hypot(closest.anchor.xMm - corner.xMm, closest.anchor.yMm - corner.yMm)
+            assertTrue("Corner $corner not preserved (closest anchor $dist mm away)", dist < 0.5)
+        }
+    }
+
+    @Test
+    fun budgetAlreadyUnderBudgetSmoothedWithoutOverSimplifying() {
+        // A small zig-zag with fewer points than the budget.
+        // The result must have the same number of nodes as input points (no extra dropping).
+        val pts = listOf(
+            Pt(0.0, 0.0), Pt(5.0, 3.0), Pt(10.0, 0.0),
+            Pt(15.0, 3.0), Pt(20.0, 0.0),
+        )
+        val result = simplifyToBudget(pts, closed = false, targetNodes = 40)
+        assertEquals(
+            "Small zig-zag under budget: node count should equal input size",
+            pts.size, result.nodes.size,
+        )
+    }
+
+    @Test
+    fun budgetClosedFlagCarriedThrough() {
+        val pts = sampleCircle(n = 50)
+        val openResult   = simplifyToBudget(pts, closed = false,  targetNodes = 40)
+        val closedResult = simplifyToBudget(pts, closed = true,   targetNodes = 40)
+        assertEquals(false, openResult.closed)
+        assertEquals(true,  closedResult.closed)
+    }
+
+    @Test
+    fun budgetEmptyInputDoesNotCrash() {
+        val result = simplifyToBudget(emptyList(), closed = false)
+        assertTrue(result.nodes.isEmpty())
+    }
+
+    @Test
+    fun budgetSinglePointDoesNotCrash() {
+        val result = simplifyToBudget(listOf(Pt(1.0, 2.0)), closed = false)
+        assertEquals(1, result.nodes.size)
+        assertEquals(Pt(1.0, 2.0), result.nodes.first().anchor)
     }
 
     @Test

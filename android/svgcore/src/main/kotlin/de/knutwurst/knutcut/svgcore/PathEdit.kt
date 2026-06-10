@@ -393,6 +393,118 @@ fun EditablePath.nearestSegment(p: Pt, maxDistMm: Double, sampleCount: Int = 64)
 }
 
 // ---------------------------------------------------------------------------
+// dragSegment — reshape by dragging a point on the curve
+// ---------------------------------------------------------------------------
+
+/**
+ * Reshape a path by dragging the point at parameter [t] on segment [segmentIndex] to [to].
+ *
+ * Adjusts the segment's two control handles so the on-curve point at t follows the finger.
+ * For a cubic B(t) = (1-t)^3 P0 + 3(1-t)^2 t C1 + 3(1-t) t^2 C2 + t^3 P3:
+ *   delta = to - B(t)
+ *   C1 += delta * (1-t)
+ *   C2 += delta * t
+ * The endpoints are unaffected; the mid-curve follows the drag.
+ *
+ * Straight segments (null handles) gain real handles at the anchor position before the delta
+ * is applied. If an involved node is smooth, its opposite handle is mirrored to keep C1
+ * continuity. Returns a new EditablePath; the original is not modified.
+ *
+ * Requires [segmentIndex] in [nodes.indices]. For open paths also requires
+ * [segmentIndex] < lastIndex (there is no segment beyond the last node on an open path).
+ * [t] is clamped to (0, 1) exclusive so the endpoints are never moved.
+ */
+fun EditablePath.dragSegment(segmentIndex: Int, t: Double, to: Pt): EditablePath {
+    val n = nodes.size
+    require(segmentIndex in nodes.indices) { "segmentIndex out of range" }
+    val fromIdx = segmentIndex
+    val toIdx = if (closed) (segmentIndex + 1) % n else segmentIndex + 1
+    require(toIdx in nodes.indices) { "segmentIndex out of range for open path" }
+
+    // Clamp t away from the endpoints so anchors are never displaced.
+    val tc = t.coerceIn(1e-6, 1.0 - 1e-6)
+
+    val fromNode = nodes[fromIdx]
+    val toNode   = nodes[toIdx]
+
+    // Resolve null handles to the anchor (straight segment).
+    val p0 = fromNode.anchor
+    val p1 = fromNode.handleOut ?: fromNode.anchor
+    val p2 = toNode.handleIn    ?: toNode.anchor
+    val p3 = toNode.anchor
+
+    // Current on-curve position and the displacement to apply.
+    val current = cubicAt(p0, p1, p2, p3, tc)
+    val dx = to.xMm - current.xMm
+    val dy = to.yMm - current.yMm
+
+    // Distribute delta onto C1 and C2 so that B(tc) exactly reaches `to`.
+    //
+    // The on-curve point shift from adding alpha*(1-t) to C1 and alpha*t to C2 is:
+    //   ΔB(t) = 3t(1-t)[(1-t)² + t²] * alpha
+    // Solving for alpha = delta / (3t(1-t)[(1-t)²+t²]) gives exact placement.
+    // C1 += alpha*(1-t),  C2 += alpha*t  (endpoints are unaffected because their
+    // basis weights are t³ and (1-t)³, neither contains the handles).
+    val influence = 3.0 * tc * (1.0 - tc) * ((1.0 - tc) * (1.0 - tc) + tc * tc)
+    val scale = if (influence > 1e-12) 1.0 / influence else 0.0
+    val w1 = (1.0 - tc) * scale
+    val w2 = tc * scale
+    val newP1 = Pt(p1.xMm + dx * w1, p1.yMm + dy * w1)
+    val newP2 = Pt(p2.xMm + dx * w2, p2.yMm + dy * w2)
+
+    // Build updated nodes; start as a mutable copy.
+    val result = nodes.toMutableList()
+
+    // Update fromNode's handleOut.
+    val updatedFrom = fromNode.copy(handleOut = newP1)
+    result[fromIdx] = updatedFrom
+
+    // If fromNode is smooth, mirror the opposite (handleIn) to keep C1.
+    if (updatedFrom.smooth) {
+        val dox = newP1.xMm - fromNode.anchor.xMm
+        val doy = newP1.yMm - fromNode.anchor.yMm
+        val dist = hypot(dox, doy)
+        val oldIn = fromNode.handleIn
+        val newIn = if (oldIn != null && dist > 1e-12) {
+            val oldInDist = hypot(oldIn.xMm - fromNode.anchor.xMm, oldIn.yMm - fromNode.anchor.yMm)
+            Pt(fromNode.anchor.xMm - dox / dist * oldInDist,
+               fromNode.anchor.yMm - doy / dist * oldInDist)
+        } else if (dist > 1e-12) {
+            Pt(fromNode.anchor.xMm - dox / dist * dist,
+               fromNode.anchor.yMm - doy / dist * dist)
+        } else {
+            fromNode.handleIn
+        }
+        result[fromIdx] = result[fromIdx].copy(handleIn = newIn)
+    }
+
+    // Update toNode's handleIn.
+    val updatedTo = toNode.copy(handleIn = newP2)
+    result[toIdx] = updatedTo
+
+    // If toNode is smooth, mirror the opposite (handleOut) to keep C1.
+    if (updatedTo.smooth) {
+        val dix = newP2.xMm - toNode.anchor.xMm
+        val diy = newP2.yMm - toNode.anchor.yMm
+        val dist = hypot(dix, diy)
+        val oldOut = toNode.handleOut
+        val newOut = if (oldOut != null && dist > 1e-12) {
+            val oldOutDist = hypot(oldOut.xMm - toNode.anchor.xMm, oldOut.yMm - toNode.anchor.yMm)
+            Pt(toNode.anchor.xMm - dix / dist * oldOutDist,
+               toNode.anchor.yMm - diy / dist * oldOutDist)
+        } else if (dist > 1e-12) {
+            Pt(toNode.anchor.xMm - dix / dist * dist,
+               toNode.anchor.yMm - diy / dist * dist)
+        } else {
+            toNode.handleOut
+        }
+        result[toIdx] = result[toIdx].copy(handleOut = newOut)
+    }
+
+    return EditablePath(result, closed)
+}
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
