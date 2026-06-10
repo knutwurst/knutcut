@@ -261,6 +261,9 @@ fun MainScreen(vm: KnutcutViewModel) {
                 Modifier.fillMaxWidth().weight(1f).padding(vertical = 8.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp)),
+                onSize = { showTransform = true },
+                onAlign = { showAlignDialog = true },
+                onDelete = { showDeleteConfirm = true },
             )
 
             when {
