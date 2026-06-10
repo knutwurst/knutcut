@@ -2,7 +2,13 @@ package de.knutwurst.knutcut.svgcore
 
 import kotlin.math.abs
 import kotlin.math.hypot
+import kotlin.math.min
 import kotlin.math.sqrt
+
+// A node whose incoming/outgoing directions turn by more than ~70° is treated as a sharp corner and
+// kept crisp (no rounding). cos(70°) ≈ 0.342: the corner test fires when the direction dot-product
+// drops below this. Gentle turns (a coarse circle's ≤60° steps) stay smooth.
+private const val CORNER_COS = 0.342
 
 // ---------------------------------------------------------------------------
 // Ramer–Douglas–Peucker polyline simplification
@@ -188,22 +194,37 @@ fun smoothToPath(points: List<Pt>, closed: Boolean = false): EditablePath {
             if (nd > 1e-12) (ndx / nd) to (ndy / nd) else (1.0 to 0.0)
         }
 
-        // Nodes with a neighbour on both sides (interior, or any node on a closed path) are smooth
-        // with symmetric, equal-length handles, so editing one side mirrors the other. Open-path
-        // endpoints keep their single handle and stay corners.
+        // Nodes with a neighbour on both sides (interior, or any node on a closed path) can be smooth;
+        // open-path endpoints keep their single handle.
         val symmetric = closed || (i in 1 until n - 1)
-        val len = if (symmetric) (distIn + distOut) / 6.0 else 0.0
-        val lenOut = if (symmetric) len else distOut / 3.0
-        val lenIn  = if (symmetric) len else distIn / 3.0
 
-        val hOut = if (distOut > 1e-12) Pt(curr.xMm + ux * lenOut, curr.yMm + uy * lenOut) else null
-        val hIn  = if (distIn  > 1e-12) Pt(curr.xMm - ux * lenIn,  curr.yMm - uy * lenIn)  else null
+        // Corner detection: where the path turns sharply, keep a crisp corner (no handles) so squares,
+        // stars, hearts and other pointed shapes are not rounded off. Gentle turns stay smooth.
+        val isCorner = symmetric && run {
+            val inx = curr.xMm - prev.xMm; val iny = curr.yMm - prev.yMm
+            val outx = next.xMm - curr.xMm; val outy = next.yMm - curr.yMm
+            val li = hypot(inx, iny); val lo = hypot(outx, outy)
+            li > 1e-9 && lo > 1e-9 && (inx * outx + iny * outy) / (li * lo) < CORNER_COS
+        }
 
-        // First and last nodes of an open path only have one handle.
-        val finalIn  = if (!closed && i == 0)     null else hIn
-        val finalOut = if (!closed && i == n - 1) null else hOut
+        if (isCorner) {
+            PathNode(curr, handleIn = null, handleOut = null, smooth = false)
+        } else {
+            // Equal-length handles, clamped to 1/3 of the SHORTER neighbour so they never overshoot —
+            // an overshooting handle bulges the curve past its neighbour and distorts the shape.
+            val len = if (symmetric) min(distIn, distOut) / 3.0 else 0.0
+            val lenOut = if (symmetric) len else distOut / 3.0
+            val lenIn  = if (symmetric) len else distIn / 3.0
 
-        PathNode(curr, handleIn = finalIn, handleOut = finalOut, smooth = symmetric)
+            val hOut = if (distOut > 1e-12) Pt(curr.xMm + ux * lenOut, curr.yMm + uy * lenOut) else null
+            val hIn  = if (distIn  > 1e-12) Pt(curr.xMm - ux * lenIn,  curr.yMm - uy * lenIn)  else null
+
+            // First and last nodes of an open path only have one handle.
+            val finalIn  = if (!closed && i == 0)     null else hIn
+            val finalOut = if (!closed && i == n - 1) null else hOut
+
+            PathNode(curr, handleIn = finalIn, handleOut = finalOut, smooth = symmetric)
+        }
     }
 
     return EditablePath(nodes, closed)

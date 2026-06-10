@@ -135,6 +135,27 @@ class PathSimplifyTest {
     }
 
     @Test
+    fun smoothToPathKeepsSharpCornersCrisp() {
+        // A square: every 90° turn must stay a crisp corner (no handles), not be rounded off.
+        val square = listOf(Pt(0.0, 0.0), Pt(30.0, 0.0), Pt(30.0, 30.0), Pt(0.0, 30.0))
+        val path = smoothToPath(square, closed = true)
+        for (node in path.nodes) {
+            assertEquals("square corner must stay sharp", false, node.smooth)
+            assertTrue("sharp corner has no in-handle", node.handleIn == null)
+            assertTrue("sharp corner has no out-handle", node.handleOut == null)
+        }
+    }
+
+    @Test
+    fun smoothToPathKeepsGentleTurnsSmooth() {
+        // A regular octagon: 45° turns are gentle, so every node stays smooth (rounded), not a corner.
+        val n = 8
+        val octagon = (0 until n).map { val a = 2 * PI * it / n; Pt(20.0 * cos(a), 20.0 * sin(a)) }
+        val path = smoothToPath(octagon, closed = true)
+        assertTrue("gentle turns must stay smooth", path.nodes.all { it.smooth })
+    }
+
+    @Test
     fun smoothToPathClosedFlagPropagated() {
         val pts = listOf(Pt(0.0, 0.0), Pt(10.0, 0.0), Pt(5.0, 8.0))
         val open   = smoothToPath(pts, closed = false)
