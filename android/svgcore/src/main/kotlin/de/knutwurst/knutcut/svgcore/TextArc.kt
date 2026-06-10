@@ -66,7 +66,8 @@ object TextArc {
 
         for (glyph in glyphs) {
             // Arc-length position of this glyph's baseline center.
-            val s = cumulative + glyph.advanceMm / 2.0
+            val half = glyph.advanceMm / 2.0
+            val s = cumulative + half
 
             // Angle from the apex (text midpoint is at φ = 0, i.e. directly above the center).
             // φ is measured along the arc; positive φ rotates clockwise (to the right).
@@ -98,10 +99,16 @@ object TextArc {
             val cosP = cos(phi)
             val sinP = sin(phi)
 
+            // Rotate each point about the glyph's baseline CENTRE (half, 0) — the same point that is
+            // placed on the arc at (glyphOriginX, glyphOriginY). Pivoting about the local origin (left
+            // edge) instead would offset every glyph by half its width and make it tilt about the wrong
+            // axis, which shows up as uneven spacing / overlap.
             for (poly in glyph.polylines) {
                 val transformed = poly.points.map { p ->
-                    val rx = p.xMm * cosP - p.yMm * sinP
-                    val ry = p.xMm * sinP + p.yMm * cosP
+                    val lx = p.xMm - half
+                    val ly = p.yMm
+                    val rx = lx * cosP - ly * sinP
+                    val ry = lx * sinP + ly * cosP
                     Pt(glyphOriginX + rx, glyphOriginY + ry)
                 }
                 result.add(Polyline(transformed, poly.closed))

@@ -46,6 +46,34 @@ class TextArcTest {
     }
 
     // ---------------------------------------------------------------------------
+    // Each glyph rotates about its own baseline centre and lands ON the arc.
+    // ---------------------------------------------------------------------------
+
+    @Test
+    fun eachGlyphBaselineCentreSitsOnTheArc() {
+        // Three squares, W = 30. The baseline midpoint of every glyph (midpoint of its two y=0
+        // corners, points[0]=(0,0) and points[1]=(10,0) locally) must lie exactly on the arc circle.
+        // If a glyph were rotated about its left edge instead of its centre, the midpoint would be
+        // pushed off the circle — the bug that caused uneven spacing / overlapping letters.
+        val glyphs = listOf(square(), square(), square())
+        val curve = 0.5
+        val result = TextArc.layoutOnArc(glyphs, curve)
+
+        val w = 30.0
+        val r = w / (curve * 2.0 * PI)   // signed radius
+        val cx = w / 2.0
+        val cy = r                       // centre at (W/2, R)
+
+        for (i in 0 until 3) {
+            val p = result[i].points
+            val midX = (p[0].xMm + p[1].xMm) / 2.0
+            val midY = (p[0].yMm + p[1].yMm) / 2.0
+            val dist = hypot(midX - cx, midY - cy)
+            assertEquals("glyph $i baseline centre must be on the arc (radius |R|)", abs(r), dist, 1e-6)
+        }
+    }
+
+    // ---------------------------------------------------------------------------
     // Straight layout (curve = 0)
     // ---------------------------------------------------------------------------
 
