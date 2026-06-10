@@ -3,6 +3,19 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.56.0
+- Freehand drawing: sketch a shape on the mat with your finger. A stroke whose ends roughly meet
+  closes into a cuttable shape; sharp turns stay crisp corners while curves stay round. Auto-close
+  can be switched off in the settings.
+- Shape editor ("Formen"): turn any layer into editable points. Drag the anchor or its two
+  (always equal-length) handles; double-tap or long-press the line to add a point; double-tap a
+  point to toggle between a smooth and a corner node; open or close the whole path. The node dots
+  are larger and easier to hit, and a dragged point stays on the mat instead of flying off.
+- Curved text: bend a text layer along an arc by dragging a handle directly on the mat, with a
+  live preview circle. Each letter is placed on its own, so the text stays readable.
+- Text tool: more fonts to choose from, and the input field and the font list now render in the
+  selected font as a preview.
+
 ## 0.55.3
 - Self-update now downloads the APK from a GitHub release asset (with the raw repo copy as a
   fallback), so the releases repo no longer grows with every version. Older installs keep updating
