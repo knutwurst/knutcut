@@ -3,6 +3,15 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.56.2
+- Drawn shapes close less eagerly, so an open line isn't turned into a cut contour by accident (the
+  node editor's Open/Close button still closes one on demand).
+- Node editor: smooth/corner now toggles on a real double-tap (not on any re-tap); the resize/rotate
+  and node handles are larger and easier to hit on high-resolution screens; bend a text layer by
+  dragging its handle, while dragging elsewhere just pans.
+- Back leaves the active tool (draw/shape/bend) before it backgrounds the app.
+- SVG export and freehand drawing handle large or self-intersecting input more robustly.
+
 ## 0.56.1
 - Settings → Projekt: export the visible design as an SVG (stroked outlines at real millimetre
   size, placement baked in), so the design opens in other vector tools and re-imports here.

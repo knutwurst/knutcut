@@ -25,8 +25,8 @@ android {
         applicationId = "de.knutwurst.knutcut"
         minSdk = 26
         targetSdk = 34
-        versionCode = 132
-        versionName = "0.56.1"
+        versionCode = 133
+        versionName = "0.56.2"
     }
 
     signingConfigs {
