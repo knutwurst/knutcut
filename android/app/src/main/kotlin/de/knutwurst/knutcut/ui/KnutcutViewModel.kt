@@ -634,7 +634,14 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return group.map { it.copy(centerMm = Pt(it.centerMm.xMm + dx, it.centerMm.yMm + dy)) }
     }
 
-    fun selectLayer(i: Int) { if (i in layers.indices) { selectedLayer = i; bendingText = false } }
+    fun selectLayer(i: Int) {
+        if (i !in layers.indices) return
+        // Switching layers returns to plain SELECT, so an active bend/node mode (and its toolbar
+        // highlight) can't linger on a layer it no longer applies to.
+        selectedLayer = i
+        bendingText = false
+        editorTool = EditorTool.SELECT
+    }
 
     /** Rename a layer (trimmed; blank keeps the old name). */
     fun renameLayer(i: Int, name: String) {

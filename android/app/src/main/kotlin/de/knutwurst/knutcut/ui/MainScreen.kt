@@ -46,9 +46,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Slider
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -61,6 +58,8 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.Gesture
+import androidx.compose.material.icons.filled.OpenWith
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -88,7 +87,9 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -117,6 +118,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
@@ -177,6 +179,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     var showAdd by remember { mutableStateOf(false) }
     var showCut by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showAlignDialog by remember { mutableStateOf(false) }
     var showNewConfirm by remember { mutableStateOf(false) }
     var showText by remember { mutableStateOf(false) }
     var showLibrary by remember { mutableStateOf(false) }
@@ -264,12 +267,9 @@ fun MainScreen(vm: KnutcutViewModel) {
                 vm.cutting -> CuttingBar(vm)
                 !vm.hasDesign -> EmptyState(onOpen = { openFile() }, onLibrary = { showLibrary = true }, onAddShape = { showAdd = true })
                 else -> {
-                    // Fixed-height hint directly under the mat, then the mode segment, then the
-                    // actions. The hint slot is always reserved so entering a mode never shifts the
-                    // buttons.
+                    // Fixed-height hint directly under the mat, then the toolbar. The hint slot is
+                    // always reserved so switching modes never shifts the buttons.
                     EditorHintBar(vm)
-                    Spacer(Modifier.height(6.dp))
-                    ModeSegment(vm)
                     Spacer(Modifier.height(8.dp))
                     EditingBar(
                         vm,
@@ -278,7 +278,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                         onMaterial = { showMaterial = true },
                         onConnectOrCut = { if (vm.connected) showCut = true else openDevices() },
                         onDelete = { showDeleteConfirm = true },
-                        onDeform = { vm.startBendingText() },
+                        onAlign = { showAlignDialog = true },
                     )
                 }
             }
@@ -365,6 +365,14 @@ fun MainScreen(vm: KnutcutViewModel) {
     if (showMaterial) MaterialSheet(vm, onDismiss = { showMaterial = false })
     if (showLayers) LayersSheet(vm, onDismiss = { showLayers = false })
     if (showTransform && vm.hasDesign) TransformDialog(vm, onDismiss = { showTransform = false })
+    if (showAlignDialog && vm.hasDesign) {
+        AlertDialog(
+            onDismissRequest = { showAlignDialog = false },
+            title = { Text(stringResource(R.string.ui_align)) },
+            text = { AlignmentControls(vm) },
+            confirmButton = { TextButton(onClick = { showAlignDialog = false }) { Text(stringResource(R.string.ui_close)) } },
+        )
+    }
     if (showCut && vm.hasDesign) CutSheet(vm, onDismiss = { showCut = false })
     if (showText) TextDialog(vm, fontRepo, onDismiss = { showText = false })
     if (showLibrary) LibrarySheet(vm, onDismiss = { showLibrary = false })
@@ -817,52 +825,53 @@ private fun EditorHintBar(vm: KnutcutViewModel) {
 }
 
 /**
- * Mode segment row (Auswählen / Zeichnen / Formen). Shown only when a design is on the mat.
- * "Formen" is enabled only when the selected layer can be node-edited; tapping it converts the layer
- * if needed. Any choice also leaves the on-mat bend mode.
+ * A round tool-mode toggle that glows (filled in the brand colour with a soft shadow) while active
+ * and sits flat/tonal when inactive. Used for Select / Draw / Magic in the toolbar.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ModeSegment(vm: KnutcutViewModel) {
-    val layer = vm.layers.getOrNull(vm.selectedLayer)
-    val canEditNodes = !vm.matSelected && layer != null &&
-        (layer.editPath != null || layer.polylines.size == 1)
-
-    val options = listOf(
-        stringResource(R.string.ui_mode_select),
-        stringResource(R.string.ui_mode_draw),
-        stringResource(R.string.ui_mode_nodes),
-    )
-    // No segment is selected while bending — bend isn't one of the three modes.
-    val selectedIndex = if (vm.bendingText) -1 else when (vm.editorTool) {
-        EditorTool.SELECT -> 0
-        EditorTool.DRAW   -> 1
-        EditorTool.NODES  -> 2
+private fun ModeToggle(label: String, icon: ImageVector, active: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+    val glow = MaterialTheme.colorScheme.primary
+    if (active) {
+        FilledIconButton(
+            onClick = onClick,
+            enabled = enabled,
+            colors = IconButtonDefaults.filledIconButtonColors(containerColor = glow, contentColor = MaterialTheme.colorScheme.onPrimary),
+            modifier = Modifier
+                .size(40.dp)
+                .shadow(elevation = 10.dp, shape = CircleShape, clip = false, ambientColor = glow, spotColor = glow),
+        ) {
+            Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+        }
+    } else {
+        FilledTonalIconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(40.dp)) {
+            Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+        }
     }
+}
 
-    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-        options.forEachIndexed { i, label ->
-            val enabled = when (i) {
-                2 -> canEditNodes   // Formen only when a compatible layer is selected
-                else -> true
-            }
-            SegmentedButton(
-                shape = SegmentedButtonDefaults.itemShape(index = i, count = options.size),
-                onClick = {
-                    vm.stopBendingText()   // choosing a mode leaves the on-mat bend
-                    when (i) {
-                        0 -> vm.editorTool = EditorTool.SELECT
-                        1 -> vm.editorTool = EditorTool.DRAW
-                        2 -> {
-                            if (layer?.editPath == null) vm.convertSelectedToEditablePath()
-                            vm.editorTool = EditorTool.NODES
-                        }
-                    }
-                },
-                selected = selectedIndex == i,
-                enabled = enabled,
-            ) {
-                Text(label, maxLines = 1)
+/**
+ * A compact tile-arrangement picker (the touch take on Word/Excel's "insert table" grid): tap a cell
+ * to set columns × rows. The top-left block up to the tapped cell is highlighted as a live preview.
+ */
+@Composable
+private fun TileGridPicker(cols: Int, rows: Int, maxCols: Int, maxRows: Int, onPick: (Int, Int) -> Unit) {
+    val active = MaterialTheme.colorScheme.primary
+    val inactive = MaterialTheme.colorScheme.surfaceVariant
+    val outline = MaterialTheme.colorScheme.outlineVariant
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        for (r in 0 until maxRows) {
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                for (c in 0 until maxCols) {
+                    val on = c < cols && r < rows
+                    Box(
+                        Modifier
+                            .size(30.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (on) active else inactive)
+                            .border(1.dp, if (on) active else outline, RoundedCornerShape(4.dp))
+                            .clickable { onPick(c + 1, r + 1) },
+                    )
+                }
             }
         }
     }
@@ -876,7 +885,12 @@ private fun IconAction(label: String, icon: ImageVector, rotate: Float = 0f, ena
     }
 }
 
-/** The contextual bar shown while editing: a single scrollable icon row, then material + cut button. */
+/**
+ * The contextual toolbar shown while editing: the tool modes (Select / Draw / context-aware Magic),
+ * then the edit actions, then the layers/material buttons and the connect/cut button. The Magic
+ * button bends a text layer or node-edits an editable shape, and is disabled when neither applies;
+ * the active mode glows. Delete lives in the ⋯ menu.
+ */
 @Composable
 private fun EditingBar(
     vm: KnutcutViewModel,
@@ -885,12 +899,23 @@ private fun EditingBar(
     onMaterial: () -> Unit,
     onConnectOrCut: () -> Unit,
     onDelete: () -> Unit,
-    onDeform: () -> Unit,
+    onAlign: () -> Unit,
 ) {
     val perLayer = !vm.matSelected
     var showFlipMenu by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
-    var showAlignDialog by remember { mutableStateOf(false) }
+
+    val sel = vm.layers.getOrNull(vm.selectedLayer)
+    val isTextLayer = perLayer && sel?.textSpec != null
+    val canNodeEdit = perLayer && sel != null && (sel.editPath != null || sel.polylines.size == 1)
+    val magicEnabled = isTextLayer || canNodeEdit
+    val magicActive = (isTextLayer && vm.bendingText) ||
+        (!isTextLayer && canNodeEdit && vm.editorTool == EditorTool.NODES)
+    val magicLabel = when {
+        isTextLayer -> stringResource(R.string.ui_bend)
+        canNodeEdit -> stringResource(R.string.ui_mode_nodes)
+        else -> stringResource(R.string.ui_magic)
+    }
 
     // Single non-wrapping row; horizontalScroll acts as a safety valve for very small screens.
     Row(
@@ -898,63 +923,47 @@ private fun EditingBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        // Größe
+        // Tool modes (round, glow when active).
+        ModeToggle(stringResource(R.string.ui_mode_select), Icons.Default.OpenWith, active = !vm.bendingText && vm.editorTool == EditorTool.SELECT) {
+            vm.stopBendingText(); vm.editorTool = EditorTool.SELECT
+        }
+        ModeToggle(stringResource(R.string.ui_mode_draw), Icons.Default.Gesture, active = vm.editorTool == EditorTool.DRAW) {
+            vm.stopBendingText(); vm.editorTool = EditorTool.DRAW
+        }
+        ModeToggle(magicLabel, Icons.Default.AutoFixHigh, active = magicActive, enabled = magicEnabled) {
+            when {
+                isTextLayer -> if (vm.bendingText) vm.stopBendingText() else vm.startBendingText()
+                canNodeEdit -> if (vm.editorTool == EditorTool.NODES) vm.editorTool = EditorTool.SELECT
+                               else { if (sel?.editPath == null) vm.convertSelectedToEditablePath(); vm.editorTool = EditorTool.NODES }
+            }
+        }
+        Spacer(Modifier.width(10.dp))   // gap between the tool modes and the edit actions
         IconAction(stringResource(R.string.ui_size_angle), Icons.Default.AspectRatio, enabled = perLayer, onClick = onSize)
-        // Drehen 90°
         IconAction(stringResource(R.string.ui_rotate90), Icons.AutoMirrored.Filled.RotateRight, enabled = perLayer) { vm.rotate90() }
-        // Spiegeln → small dropdown
         Box {
             IconAction(stringResource(R.string.ui_flip), Icons.Default.Flip, enabled = perLayer) { showFlipMenu = true }
             DropdownMenu(expanded = showFlipMenu, onDismissRequest = { showFlipMenu = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.ui_flip_h)) },
-                    onClick = { showFlipMenu = false; vm.mirrorSelectedHorizontal() },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.ui_flip_v)) },
-                    onClick = { showFlipMenu = false; vm.mirrorSelectedVertical() },
-                )
+                DropdownMenuItem(text = { Text(stringResource(R.string.ui_flip_h)) }, onClick = { showFlipMenu = false; vm.mirrorSelectedHorizontal() })
+                DropdownMenuItem(text = { Text(stringResource(R.string.ui_flip_v)) }, onClick = { showFlipMenu = false; vm.mirrorSelectedVertical() })
             }
         }
-        // Duplizieren
         IconAction(stringResource(R.string.ui_duplicate), Icons.Default.ContentCopy, enabled = perLayer) { vm.duplicateSelected() }
-        // Biegen — only enabled when the selected layer has a TextSpec (curved text is text-only).
-        val isTextLayer = !vm.matSelected && vm.layers.getOrNull(vm.selectedLayer)?.textSpec != null
-        IconAction(stringResource(R.string.ui_bend), Icons.Default.AutoFixHigh, enabled = isTextLayer, onClick = onDeform)
-        // ⋯ Mehr
         Box {
             IconAction(stringResource(R.string.ui_more), Icons.Default.MoreVert) { showMoreMenu = true }
             DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.ui_align)) },
-                    onClick = { showMoreMenu = false; showAlignDialog = true },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.ui_reset_layer)) },
-                    enabled = perLayer,
-                    onClick = { showMoreMenu = false; vm.resetSelectedPlacement() },
-                )
+                DropdownMenuItem(text = { Text(stringResource(R.string.ui_align)) }, onClick = { showMoreMenu = false; onAlign() })
+                DropdownMenuItem(text = { Text(stringResource(R.string.ui_reset_layer)) }, enabled = perLayer, onClick = { showMoreMenu = false; vm.resetSelectedPlacement() })
                 if (vm.matSelected) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.ui_reset_all)) },
-                        onClick = { showMoreMenu = false; vm.resetAll() },
-                    )
+                    DropdownMenuItem(text = { Text(stringResource(R.string.ui_reset_all)) }, onClick = { showMoreMenu = false; vm.resetAll() })
                 }
+                HorizontalDivider()
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.ui_delete)) },
+                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = if (perLayer) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)) },
+                    enabled = perLayer,
+                    onClick = { showMoreMenu = false; onDelete() },
+                )
             }
-        }
-        Spacer(Modifier.weight(1f))
-        // Löschen — error tint, pushed far right
-        FilledTonalIconButton(
-            onClick = onDelete,
-            enabled = perLayer,
-            modifier = Modifier.size(40.dp),
-        ) {
-            Icon(
-                Icons.Default.Delete,
-                contentDescription = stringResource(R.string.ui_delete),
-                modifier = Modifier.size(20.dp),
-                tint = if (perLayer) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-            )
         }
     }
 
@@ -970,15 +979,6 @@ private fun EditingBar(
                 !vm.connected -> stringResource(R.string.ui_connect_plotter)
                 else -> vm.cutActionLabel()
             }
-        )
-    }
-
-    if (showAlignDialog) {
-        AlertDialog(
-            onDismissRequest = { showAlignDialog = false },
-            title = { Text(stringResource(R.string.ui_align)) },
-            text = { AlignmentControls(vm) },
-            confirmButton = { TextButton(onClick = { showAlignDialog = false }) { Text(stringResource(R.string.ui_close)) } },
         )
     }
 }
@@ -1111,13 +1111,14 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             Spacer(Modifier.height(8.dp))
             var cols by remember { mutableStateOf(2) }
             var rows by remember { mutableStateOf(2) }
-            Text(stringResource(R.string.ui_tiles), style = MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                EditableStepper(cols, 1, 20, step = 1) { cols = it }
-                Text("×")
-                EditableStepper(rows, 1, 20, step = 1) { rows = it }
+                Text(stringResource(R.string.ui_tiles), style = MaterialTheme.typography.bodyMedium)
+                Text("$cols × $rows", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
             }
+            Spacer(Modifier.height(6.dp))
+            // Tap a cell to choose the columns × rows; the highlighted block previews the arrangement.
+            TileGridPicker(cols, rows, maxCols = 6, maxRows = 6) { c, r -> cols = c; rows = r }
+            Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = { vm.tileSelected(cols, rows) }, enabled = vm.selectedLayer in vm.layers.indices, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.ui_tile_selected), maxLines = 1)
             }
@@ -1282,7 +1283,8 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                     Spacer(Modifier.height(6.dp))
                 }
                 val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri -> uri?.let { vm.saveProject(it) } }
-                val loadLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.loadProject(it) } }
+                // Loading closes the settings sheet so you immediately see what you loaded.
+                val loadLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.loadProject(it); onDismiss() } }
                 val svgLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/svg+xml")) { uri -> uri?.let { vm.exportSvg(it) } }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { loadLauncher.launch(arrayOf("*/*")) }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.ui_load), maxLines = 1) }
