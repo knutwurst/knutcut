@@ -294,4 +294,94 @@ class NodeEditorViewModelTest {
         // Back to the baseline state — canUndo equals beforeActions.
         assertEquals("back to pre-action undo state after 3 undos", beforeActions, vm.canUndo)
     }
+
+    // -------------------------------------------------------------------------
+    // dragSelectedSegment
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun dragSelectedSegmentUpdatesPolylinesAndEditPath() {
+        val vm = vmWithDrawnLayer()
+        val pathBefore = vm.layers[0].editPath!!
+        val polyBefore = vm.layers[0].polylines[0].points.toList()
+
+        // Simulate a segment drag: beginNodeEdit (history) + dragSelectedSegment (no extra history).
+        vm.beginNodeEdit()
+        vm.dragSelectedSegment(0, 0.5, Pt(pathBefore.nodes[0].anchor.xMm + 5.0, pathBefore.nodes[0].anchor.yMm + 5.0))
+
+        val pathAfter = vm.layers[0].editPath!!
+        val polyAfter = vm.layers[0].polylines[0].points
+
+        // The path must have changed.
+        assertFalse("editPath changed after segment drag", pathBefore == pathAfter)
+        // polylines must stay in sync with editPath.toPolyline().
+        val expected = pathAfter.toPolyline().points
+        assertEquals("polyline point count matches editPath", expected.size, polyAfter.size)
+
+        // The entire drag is ONE undo step (beginNodeEdit pushed it, dragSelectedSegment does not).
+        vm.undo()
+        assertEquals("polyline restored after undo", polyBefore.size, vm.layers[0].polylines[0].points.size)
+    }
+
+    @Test
+    fun dragSelectedSegmentIsOneUndoStep() {
+        val vm = vmWithDrawnLayer()
+        // Capture the layer state before the drag (the drawn layer's polyline).
+        val polylinesBefore = vm.layers[0].polylines
+
+        // One beginNodeEdit + several dragSelectedSegment calls must add exactly one undo step.
+        vm.beginNodeEdit()
+        val anchor0 = vm.layers[0].editPath!!.nodes[0].anchor
+        repeat(5) { i ->
+            vm.dragSelectedSegment(0, 0.5, Pt(anchor0.xMm + i.toDouble(), anchor0.yMm + i.toDouble()))
+        }
+
+        // After the drag the polylines differ from the pre-drag state.
+        val polylinesAfterDrag = vm.layers[0].polylines
+        assertFalse("polylines changed by drag", polylinesBefore === polylinesAfterDrag)
+
+        // One undo must restore exactly the pre-drag state (proving only one step was pushed).
+        assertTrue("undo available", vm.canUndo)
+        vm.undo()
+        val polylinesAfterUndo = vm.layers[0].polylines
+        assertEquals("polyline point count restored after one undo",
+            polylinesBefore[0].points.size, polylinesAfterUndo[0].points.size)
+    }
+
+    @Test
+    fun dragSelectedSegmentOutOfRangeIsNoOp() {
+        val vm = vmWithDrawnLayer()
+        val polyBefore = vm.layers[0].polylines[0].points.toList()
+
+        // Out-of-range segment index: no crash, no state change.
+        vm.beginNodeEdit()
+        vm.dragSelectedSegment(999, 0.5, Pt(0.0, 0.0))
+
+        assertEquals("polyline unchanged on out-of-range drag",
+            polyBefore.size, vm.layers[0].polylines[0].points.size)
+    }
+
+    // -------------------------------------------------------------------------
+    // convertSelectedToEditablePath — budget node count on dense input
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun convertDensePolylineYieldsAtMost40Nodes() {
+        val vm = vm()
+        // Build a 300-point single polyline (denser than the 40-node budget).
+        val points = (0 until 300).map { i -> Pt(i * 0.5, kotlin.math.sin(i * 0.1) * 10) }
+        val polylines = listOf(de.knutwurst.knutcut.svgcore.Polyline(points, false))
+        vm.addLayer("Dense", polylines, Tool.PEN)
+        vm.selectLayer(0)
+
+        vm.convertSelectedToEditablePath()
+
+        val editPath = vm.layers[0].editPath
+        assertNotNull("editPath created for dense layer", editPath)
+        val nodeCount = editPath!!.nodes.size
+        // simplifyToBudget targets 40, hard cap 120. A 300-point input must land well under 120.
+        assertTrue("node count ≤ 120 (hard cap)", nodeCount <= 120)
+        // For a nicely-reducible sinusoidal stroke the budget of 40 should be reachable.
+        assertTrue("node count ≤ 50 (near budget)", nodeCount <= 50)
+    }
 }

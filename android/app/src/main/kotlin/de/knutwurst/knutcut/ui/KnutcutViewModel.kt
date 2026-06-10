@@ -41,12 +41,14 @@ import de.knutwurst.knutcut.svgcore.CutOrder
 import de.knutwurst.knutcut.svgcore.EditablePath
 import de.knutwurst.knutcut.svgcore.HandleSide
 import de.knutwurst.knutcut.svgcore.deleteNode
+import de.knutwurst.knutcut.svgcore.dragSegment
 import de.knutwurst.knutcut.svgcore.insertNode
 import de.knutwurst.knutcut.svgcore.inverse
 import de.knutwurst.knutcut.svgcore.moveAnchor
 import de.knutwurst.knutcut.svgcore.moveHandle
 import de.knutwurst.knutcut.svgcore.setSmooth
 import de.knutwurst.knutcut.svgcore.simplifyRdp
+import de.knutwurst.knutcut.svgcore.simplifyToBudget
 import de.knutwurst.knutcut.svgcore.smoothToPath
 import de.knutwurst.knutcut.svgcore.toEditablePath
 import de.knutwurst.knutcut.svgcore.DragKnife
@@ -795,6 +797,17 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         applyEditPath(path.moveHandle(i, side, toLocal))
     }
 
+    /**
+     * Bend the curve by dragging a point on segment [segmentIndex] at parameter [t] to [toLocal].
+     * Does not push history — call [beginNodeEdit] once at the start of the drag gesture.
+     * No-op when there is no selected editable path or the segment index is out of range.
+     */
+    fun dragSelectedSegment(segmentIndex: Int, t: Double, toLocal: Pt) {
+        val path = selectedEditPath ?: return
+        if (segmentIndex < 0 || segmentIndex >= path.nodes.size) return
+        applyEditPath(path.dragSegment(segmentIndex, t, toLocal))
+    }
+
     /** Insert a node on segment [segmentIndex] at parameter [t]. Pushes one undo step. */
     fun insertSelectedNode(segmentIndex: Int, t: Double) {
         val path = selectedEditPath ?: return
@@ -831,7 +844,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         if (layer.editPath != null) return
         if (layer.polylines.size != 1) return
         pushHistory()
-        val newPath = layer.polylines[0].toEditablePath()
+        val poly = layer.polylines[0]
+        // simplifyToBudget keeps the node count manageable (~40) even for dense warped polylines.
+        // For sparse paths (already ≤ 40 points) it smooths directly without further reduction.
+        val newPath = simplifyToBudget(poly.points, poly.closed)
         layers = layers.mapIndexed { idx, l ->
             // Bake away any active warp: the node positions come from the warped polyline.
             if (idx == i) l.copy(editPath = newPath, deform = null, deformSource = null) else l

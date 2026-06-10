@@ -10,6 +10,7 @@ import de.knutwurst.knutcut.svgcore.Pt
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -135,10 +136,22 @@ class DeformNodeInvariantTest {
         // deform and deformSource must be cleared.
         assertNull("deform cleared after convert on deformed layer", vm.layers[0].deform)
         assertNull("deformSource cleared after convert on deformed layer", vm.layers[0].deformSource)
-        // The editPath's polyline must reproduce the warped geometry.
-        val fromPath = vm.layers[0].editPath!!.toPolyline()
-        assertEquals("editPath reproduces warped geometry (point count)",
-            warpedPolylines[0].points.size, fromPath.points.size)
+        // The editPath must approximate the warped geometry. simplifyToBudget may reduce the node
+        // count to ~40, so we only verify that it stays within the hard cap and that the bounding
+        // box of the resulting polyline overlaps the warped one (shape preserved, not blown up).
+        val editPath = vm.layers[0].editPath!!
+        assertTrue("node count within hard cap (120)", editPath.nodes.size <= 120)
+        val fromPath = editPath.toPolyline()
+        assertTrue("at least 2 points in output polyline", fromPath.points.size >= 2)
+        // Bounding-box centres should be close (within 5 mm) — the simplification preserves shape.
+        val warpedPts = warpedPolylines[0].points
+        val wCx = (warpedPts.minOf { it.xMm } + warpedPts.maxOf { it.xMm }) / 2
+        val wCy = (warpedPts.minOf { it.yMm } + warpedPts.maxOf { it.yMm }) / 2
+        val fPts = fromPath.points
+        val fCx = (fPts.minOf { it.xMm } + fPts.maxOf { it.xMm }) / 2
+        val fCy = (fPts.minOf { it.yMm } + fPts.maxOf { it.yMm }) / 2
+        assertEquals("bbox centre-x preserved within 5 mm", wCx, fCx, 5.0)
+        assertEquals("bbox centre-y preserved within 5 mm", wCy, fCy, 5.0)
     }
 
     @Test
