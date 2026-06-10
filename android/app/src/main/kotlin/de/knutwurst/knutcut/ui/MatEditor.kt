@@ -238,8 +238,9 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                         val downWorld = screenToWorld(down.position, origin, ppm)
                         val downLocal = vm.worldToLayerLocal(layerIdx, downWorld) ?: downWorld
 
-                        // Priority: handles → anchors → segments.
-                        val handleHit = editPath.nearestHandle(downLocal, hitMm)
+                        // Priority: handles → anchors → segments. Only the SELECTED node's handles are
+                        // drawn, so only those are grabbable; ignore hits on other nodes' hidden handles.
+                        val handleHit = editPath.nearestHandle(downLocal, hitMm)?.takeIf { it.nodeIndex == selectedNodeIndex }
                         val anchorHit = if (handleHit == null) editPath.nearestNode(downLocal, hitMm) else null
 
                         val nodeDrag: Drag? = when {
@@ -278,7 +279,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                                 if (pushedNodeHistory) {
                                     ppm = ppmFor(sizePx, vm.mat, vm.camScale)
                                     origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
-                                    val curWorld = screenToWorld(p.position, origin, ppm)
+                                    val curWorld = clampToMat(screenToWorld(p.position, origin, ppm), vm.mat.widthMm, vm.mat.heightMm)
                                     val curLocal = vm.worldToLayerLocal(layerIdx, curWorld) ?: curWorld
                                     when (nodeDrag) {
                                         is Drag.NodeAnchor -> vm.moveSelectedAnchor(nodeDrag.index, curLocal)
@@ -353,7 +354,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                                     }
                                     ppm = ppmFor(sizePx, vm.mat, vm.camScale)
                                     origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
-                                    val curWorld = screenToWorld(p.position, origin, ppm)
+                                    val curWorld = clampToMat(screenToWorld(p.position, origin, ppm), vm.mat.widthMm, vm.mat.heightMm)
                                     val curLocal = vm.worldToLayerLocal(layerIdx, curWorld) ?: curWorld
                                     vm.dragSelectedSegment(segHit.segmentIndex, segHit.t, curLocal)
                                 }
@@ -612,8 +613,9 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
             drawPath(strokePath, penColor, style = Stroke(width = 2f))
         }
 
-        // selection box + handles
-        val corners = vm.placedCorners().map { s(it) }
+        // Selection box + resize/rotate handles — only in SELECT mode. In DRAW/NODES they are noise
+        // and their rotate/resize handles must not compete with drawing or node editing.
+        val corners = if (vm.editorTool == EditorTool.SELECT) vm.placedCorners().map { s(it) } else emptyList()
         if (corners.size == 4) {
             val box = Path().apply {
                 moveTo(corners[0].x, corners[0].y)
@@ -688,23 +690,26 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 val anchorScreen = localToScreen(node.anchor)
                 val isSelected = ni == selectedNodeIndex
 
-                // Handle lines and dots.
-                node.handleIn?.let { hin ->
-                    val hinScreen = localToScreen(hin)
-                    drawLine(handleLineColor, anchorScreen, hinScreen, strokeWidth = 1.2f)
-                    drawCircle(nodeColor, radius = NODE_HANDLE_RADIUS_PX, center = hinScreen, style = Fill)
-                }
-                node.handleOut?.let { hout ->
-                    val houtScreen = localToScreen(hout)
-                    drawLine(handleLineColor, anchorScreen, houtScreen, strokeWidth = 1.2f)
-                    drawCircle(nodeColor, radius = NODE_HANDLE_RADIUS_PX, center = houtScreen, style = Fill)
+                // Bézier handles are drawn ONLY for the selected node, so the path stays readable and
+                // you only manipulate the node you actually picked.
+                if (isSelected) {
+                    node.handleIn?.let { hin ->
+                        val hinScreen = localToScreen(hin)
+                        drawLine(handleLineColor, anchorScreen, hinScreen, strokeWidth = 1.4f)
+                        drawCircle(nodeColor, radius = NODE_HANDLE_RADIUS_PX, center = hinScreen, style = Fill)
+                    }
+                    node.handleOut?.let { hout ->
+                        val houtScreen = localToScreen(hout)
+                        drawLine(handleLineColor, anchorScreen, houtScreen, strokeWidth = 1.4f)
+                        drawCircle(nodeColor, radius = NODE_HANDLE_RADIUS_PX, center = houtScreen, style = Fill)
+                    }
                 }
 
-                // Anchor dot — highlighted when selected.
-                val anchorFill = if (isSelected) nodeSelectedColor else nodeColor
-                drawCircle(anchorFill, radius = NODE_ANCHOR_RADIUS_PX, center = anchorScreen, style = Fill)
-                // Outline ring so it reads on any background.
-                drawCircle(nodeSurfaceColor, radius = NODE_ANCHOR_RADIUS_PX, center = anchorScreen, style = Stroke(width = 1.5f))
+                // Anchor dot: the selected one is larger and highlighted so it is obvious which node is
+                // active; the rest are plain dots you tap to select.
+                val r = if (isSelected) NODE_ANCHOR_RADIUS_PX + 3f else NODE_ANCHOR_RADIUS_PX
+                drawCircle(if (isSelected) nodeSelectedColor else nodeColor, radius = r, center = anchorScreen, style = Fill)
+                drawCircle(nodeSurfaceColor, radius = r, center = anchorScreen, style = Stroke(width = 1.5f))
             }
         }
       }
@@ -840,6 +845,14 @@ private fun worldToScreen(p: Pt, origin: Offset, ppm: Float): Offset =
 
 private fun screenToWorld(o: Offset, origin: Offset, ppm: Float): Pt =
     Pt(((o.x - origin.x) / ppm).toDouble(), ((o.y - origin.y) / ppm).toDouble())
+
+/** Keep a dragged world point on (or just around) the mat, so a node/handle can't be flung far off
+ *  the work area and out of sight. Clamps to the mat rectangle expanded by [marginMm]. */
+private fun clampToMat(p: Pt, matWidthMm: Double, matHeightMm: Double, marginMm: Double = 30.0): Pt =
+    Pt(
+        p.xMm.coerceIn(-marginMm, matWidthMm + marginMm),
+        p.yMm.coerceIn(-marginMm, matHeightMm + marginMm),
+    )
 
 private fun rotateHandlePos(corners: List<Offset>, center: Offset): Offset {
     val topMid = (corners[0] + corners[1]) / 2f
