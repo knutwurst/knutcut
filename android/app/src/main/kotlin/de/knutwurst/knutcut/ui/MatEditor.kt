@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntSize
@@ -79,10 +80,13 @@ private const val ROTATE_DOT_PX = 8f    // drawn radius of the rotate handle dot
 // Smart-guide line colour: a high-contrast magenta that reads on both light and dark mats.
 private val GUIDE_COLOR = Color(0xFFFF4081)
 
-// Node editor visual constants
-private const val NODE_ANCHOR_RADIUS_PX = 8f     // filled dot for an anchor
-private const val NODE_HANDLE_RADIUS_PX = 5f     // smaller dot for a control handle
-private const val NODE_HIT_PX = 28f              // touch radius for nodes/handles in the node editor
+// Node editor visual constants, in dp (multiplied by the screen density at the draw site so the
+// dots stay a sensible physical size on every screen — raw pixels are far too small on a dense
+// phone display).
+private const val NODE_ANCHOR_RADIUS_DP = 7f     // filled dot for an anchor
+private const val NODE_HANDLE_RADIUS_DP = 5f     // smaller dot for a control handle
+private const val NODE_SELECTED_GROW_DP = 4f     // the selected anchor grows by this much
+private const val NODE_HIT_DP = 16f              // touch radius for nodes/handles in the node editor
 private const val DOUBLE_TAP_MS = 350L           // max gap between taps to count as a double-tap
 
 /**
@@ -122,6 +126,8 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     // Captured for use inside the Canvas draw scope (which is not a Composable context).
     val nodeSurfaceColor = MaterialTheme.colorScheme.surface
     val nodeSelectedColor = MaterialTheme.colorScheme.error
+    // Screen density: used to size node dots and touch targets in physical dp, not raw pixels.
+    val density = LocalDensity.current.density
     val readout = vm.selectionReadout() ?: vm.overallReadout()
     val matSummary = readout?.let { "Arbeitsfläche: $it" } ?: "Arbeitsfläche, Matte ausgewählt"
 
@@ -233,8 +239,8 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                         // Fall through to camera/selection handling below.
                     } else {
                         val layerIdx = vm.selectedLayer
-                        // Hit-radius in mm. Cap to 8 mm so the targets don't grow huge at low zoom.
-                        val hitMm = min(NODE_HIT_PX / ppm, 8f).toDouble()
+                        // Hit-radius in mm. Cap to 9 mm so the targets don't grow huge at low zoom.
+                        val hitMm = min(NODE_HIT_DP * density / ppm, 9f).toDouble()
                         val downWorld = screenToWorld(down.position, origin, ppm)
                         val downLocal = vm.worldToLayerLocal(layerIdx, downWorld) ?: downWorld
 
@@ -308,7 +314,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                         }
 
                         // Missed handles and anchors — check for segment hit.
-                        val segHitMm = min(NODE_HIT_PX * 2 / ppm, 10f).toDouble()
+                        val segHitMm = min(NODE_HIT_DP * density * 2 / ppm, 12f).toDouble()
                         val segHit = editPath.nearestSegment(downLocal, segHitMm)
                         if (segHit != null) {
                             val downTime = System.currentTimeMillis()
@@ -685,6 +691,10 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
             }
             val nodeColor = handleColor
             val handleLineColor = handleColor.copy(alpha = 0.55f)
+            val anchorR = NODE_ANCHOR_RADIUS_DP * density
+            val handleR = NODE_HANDLE_RADIUS_DP * density
+            val selectedR = anchorR + NODE_SELECTED_GROW_DP * density
+            val ringWidth = 2f * density
 
             for ((ni, node) in nodeEditPath.nodes.withIndex()) {
                 val anchorScreen = localToScreen(node.anchor)
@@ -695,21 +705,31 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 if (isSelected) {
                     node.handleIn?.let { hin ->
                         val hinScreen = localToScreen(hin)
-                        drawLine(handleLineColor, anchorScreen, hinScreen, strokeWidth = 1.4f)
-                        drawCircle(nodeColor, radius = NODE_HANDLE_RADIUS_PX, center = hinScreen, style = Fill)
+                        drawLine(handleLineColor, anchorScreen, hinScreen, strokeWidth = 1.4f * density)
+                        drawCircle(nodeSurfaceColor, radius = handleR + density, center = hinScreen, style = Fill)
+                        drawCircle(nodeColor, radius = handleR, center = hinScreen, style = Fill)
                     }
                     node.handleOut?.let { hout ->
                         val houtScreen = localToScreen(hout)
-                        drawLine(handleLineColor, anchorScreen, houtScreen, strokeWidth = 1.4f)
-                        drawCircle(nodeColor, radius = NODE_HANDLE_RADIUS_PX, center = houtScreen, style = Fill)
+                        drawLine(handleLineColor, anchorScreen, houtScreen, strokeWidth = 1.4f * density)
+                        drawCircle(nodeSurfaceColor, radius = handleR + density, center = houtScreen, style = Fill)
+                        drawCircle(nodeColor, radius = handleR, center = houtScreen, style = Fill)
                     }
                 }
 
-                // Anchor dot: the selected one is larger and highlighted so it is obvious which node is
-                // active; the rest are plain dots you tap to select.
-                val r = if (isSelected) NODE_ANCHOR_RADIUS_PX + 3f else NODE_ANCHOR_RADIUS_PX
-                drawCircle(if (isSelected) nodeSelectedColor else nodeColor, radius = r, center = anchorScreen, style = Fill)
-                drawCircle(nodeSurfaceColor, radius = r, center = anchorScreen, style = Stroke(width = 1.5f))
+                // Anchor dot. Every node first gets a surface-coloured backing disc so it reads on any
+                // mat colour. The selected node is noticeably larger, uses the highlight colour and is
+                // wrapped in an extra ring, so it's obvious at a glance which node is active.
+                if (isSelected) {
+                    drawCircle(nodeSelectedColor.copy(alpha = 0.22f), radius = selectedR + 7f * density, center = anchorScreen, style = Fill)
+                    drawCircle(nodeSurfaceColor, radius = selectedR + ringWidth, center = anchorScreen, style = Fill)
+                    drawCircle(nodeSelectedColor, radius = selectedR, center = anchorScreen, style = Fill)
+                    drawCircle(nodeSurfaceColor, radius = selectedR, center = anchorScreen, style = Stroke(width = ringWidth))
+                } else {
+                    drawCircle(nodeSurfaceColor, radius = anchorR + ringWidth, center = anchorScreen, style = Fill)
+                    drawCircle(nodeColor, radius = anchorR, center = anchorScreen, style = Fill)
+                    drawCircle(nodeSurfaceColor, radius = anchorR, center = anchorScreen, style = Stroke(width = 1.5f * density))
+                }
             }
         }
       }
