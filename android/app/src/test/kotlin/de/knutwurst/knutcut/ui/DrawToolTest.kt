@@ -145,6 +145,33 @@ class DrawToolTest {
     }
 
     @Test
+    fun autoCloseOffKeepsARoughlyClosedLoopOpen() {
+        val vm = vm()
+        vm.changeAutoCloseDrawn(false)
+        val loop = listOf(
+            Pt(0.0, 0.0), Pt(40.0, 0.0), Pt(40.0, 40.0), Pt(0.0, 40.0), Pt(2.0, 3.0),
+        )
+        vm.addDrawnPath(loop)
+        assertEquals("with auto-close off, a loop stays open", false, vm.layers[0].editPath!!.closed)
+    }
+
+    @Test
+    fun toggleSelectedPathClosedFlipsOpenAndClosed() {
+        val vm = vm()
+        // An open line (auto-close leaves it open).
+        vm.addDrawnPath(listOf(Pt(0.0, 0.0), Pt(20.0, 0.0), Pt(40.0, 10.0), Pt(60.0, 0.0)))
+        vm.selectLayer(0)
+        assertEquals("starts open", false, vm.selectedPathClosed)
+
+        vm.toggleSelectedPathClosed()
+        assertTrue("closed after toggle", vm.selectedPathClosed)
+        assertTrue("polyline reflects closed", vm.layers[0].polylines[0].closed)
+
+        vm.toggleSelectedPathClosed()
+        assertEquals("open again after second toggle", false, vm.selectedPathClosed)
+    }
+
+    @Test
     fun addDrawnPathHonoursExplicitClosedFlag() {
         val vm = vm()
         // Forcing closed = true must win even over an open-looking stroke.

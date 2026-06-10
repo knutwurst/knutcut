@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -791,19 +792,38 @@ private fun ModeSegment(vm: KnutcutViewModel) {
         else -> null
     }
     if (hint != null) {
-        Surface(
-            color = MaterialTheme.colorScheme.primaryContainer,
-            shape = RoundedCornerShape(8.dp),
+        Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                hint,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    hint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            // In the node editor: flip the path between open and closed (the manual override for
+            // the freehand auto-close, so any shape can be made cleanly cuttable or opened back up).
+            if (vm.editorTool == EditorTool.NODES && vm.selectedEditPath != null) {
+                OutlinedButton(
+                    onClick = { vm.toggleSelectedPathClosed() },
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        stringResource(if (vm.selectedPathClosed) R.string.ui_path_open else R.string.ui_path_close),
+                        maxLines = 1,
+                    )
+                }
+            }
         }
     }
 }
@@ -1372,6 +1392,14 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                         Text(stringResource(R.string.ui_align_guides_hint), style = MaterialTheme.typography.bodySmall)
                     }
                     Switch(checked = vm.alignGuides, onCheckedChange = { vm.changeAlignGuides(it) })
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.ui_auto_close), style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.ui_auto_close_hint), style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(checked = vm.autoCloseDrawn, onCheckedChange = { vm.changeAutoCloseDrawn(it) })
                 }
             }
 

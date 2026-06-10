@@ -200,6 +200,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var autoUpdate by mutableStateOf(settings.autoUpdate); private set
     var snapMm by mutableStateOf(settings.snapMm); private set
     var alignGuides by mutableStateOf(settings.alignGuides); private set
+    var autoCloseDrawn by mutableStateOf(settings.autoCloseDrawn); private set
     // Transient guide lines shown while a drag is snapped to another layer's (or the mat's) centre.
     var alignGuideX by mutableStateOf<Double?>(null); private set
     var alignGuideY by mutableStateOf<Double?>(null); private set
@@ -319,6 +320,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun changeAlignGuides(on: Boolean) { alignGuides = on; settings.alignGuides = on; if (!on) clearGuides() }
+
+    /** Toggle whether a freehand stroke auto-closes into a plottable shape. Persisted. */
+    fun changeAutoCloseDrawn(on: Boolean) { autoCloseDrawn = on; settings.autoCloseDrawn = on }
 
     /** Format a millimetre length in the chosen display unit, e.g. "4.0 cm". */
     fun formatLen(mm: Double): String =
@@ -698,8 +702,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      * [Layer.polylines] (the render/cut source of truth) and the editable path in [Layer.editPath].
      *
      * [closed] decides whether the shape is closed: null (the default, used by the draw gesture)
-     * auto-detects via [looksClosed], so sketching a heart and lifting near the start yields a
-     * closed, plottable outline; pass true/false to force it.
+     * closes the stroke when [autoCloseDrawn] is on and the ends roughly meet ([looksClosed]) — so
+     * sketching a heart and lifting near the start yields a closed, plottable outline. Pass
+     * true/false to force it. The open/close state can always be flipped later in the node editor.
      *
      * No-op when fewer than 2 distinct points are supplied.
      */
@@ -708,7 +713,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val distinct = worldPoints.distinctBy { it.xMm to it.yMm }
         if (distinct.size < 2) return
 
-        val shouldClose = closed ?: looksClosed(distinct)
+        val shouldClose = closed ?: (autoCloseDrawn && looksClosed(distinct))
         val simplified = simplifyRdp(distinct, RDP_TOLERANCE_MM)
         val path = simplifyToBudget(simplified, shouldClose)
         val poly = path.toPolyline()
@@ -845,6 +850,18 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val path = selectedEditPath ?: return
         pushHistory()
         applyEditPath(path.setSmooth(i, !path.nodes[i].smooth))
+    }
+
+    /** True when the selected editable path is a closed (plottable) shape. */
+    val selectedPathClosed: Boolean get() = selectedEditPath?.closed == true
+
+    /** Flip the selected editable path between open and closed. Pushes one undo step.
+     *  This is the manual override for the freehand auto-close: close any shape for a clean cut,
+     *  or open one back up. No-op when there is no editable path. */
+    fun toggleSelectedPathClosed() {
+        val path = selectedEditPath ?: return
+        pushHistory()
+        applyEditPath(EditablePath(path.nodes, !path.closed))
     }
 
     /** Delete node [i]. No-op when the index is out of range or too few nodes remain. Pushes one undo step. */

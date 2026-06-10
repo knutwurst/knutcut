@@ -175,6 +175,8 @@
     <string name="ui_off">Aus</string>
     <string name="ui_align_guides">Ausrichtungshilfe</string>
     <string name="ui_align_guides_hint">Mittelpunkte rasten an anderen Ebenen und der Mattenmitte ein.</string>
+    <string name="ui_auto_close">Gezeichnetes schließen</string>
+    <string name="ui_auto_close_hint">Ein Freihand-Strich, dessen Enden sich ungefähr treffen, wird zu einer geschlossenen, schneidbaren Form.</string>
     <string name="ui_unit">Einheit</string>
     <string name="ui_sil_speed">Silhouette-Geschwindigkeit</string>
     <string name="ui_project">Projekt</string>
@@ -308,6 +310,8 @@
     <string name="ui_mode_select">Auswählen</string>
     <string name="ui_mode_draw">Zeichnen</string>
     <string name="ui_mode_nodes">Formen</string>
+    <string name="ui_path_close">Schließen</string>
+    <string name="ui_path_open">Öffnen</string>
     <!-- Biegen-Sheet -->
     <string name="ui_bend">Biegen</string>
     <string name="ui_bend_straight">Gerade</string>

@@ -127,6 +127,11 @@ class Settings(context: Context) {
         get() = p.getBoolean("alignGuides", true)
         set(v) = p.edit().putBoolean("alignGuides", v).apply()
 
+    /** Close a freehand stroke into a plottable shape when its ends roughly meet. On by default. */
+    var autoCloseDrawn: Boolean
+        get() = p.getBoolean("autoCloseDrawn", true)
+        set(v) = p.edit().putBoolean("autoCloseDrawn", v).apply()
+
     /** Material ids used in an actual plot, most recent first (max 5). */
     var recentMaterialIds: List<String>
         get() = (p.getString("recentMaterials", "") ?: "").split(REC).filter { it.isNotBlank() }

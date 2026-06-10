@@ -82,7 +82,7 @@ private fun rdpRecursive(
  * stroke's bounding-box diagonal.  An open line or arc keeps its ends far apart (the gap is roughly
  * the whole extent) and stays open.  Fewer than three points can't enclose an area → false.
  */
-fun looksClosed(points: List<Pt>, absToleranceMm: Double = 12.0, relTolerance: Double = 0.30): Boolean {
+fun looksClosed(points: List<Pt>, absToleranceMm: Double = 18.0, relTolerance: Double = 0.45): Boolean {
     if (points.size < 3) return false
     val first = points.first()
     val last = points.last()
