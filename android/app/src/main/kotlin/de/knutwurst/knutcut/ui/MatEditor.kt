@@ -371,8 +371,8 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                         if (segHit != null) {
                             val downTime = System.currentTimeMillis()
                             var totalSegDrag = 0f
-                            var pushedSegHistory = false
                             var longPressed = false
+                            var panned = false
                             var cancelledByTwoFinger = false
 
                             while (true) {
@@ -382,8 +382,6 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                                 if (pressed.isEmpty()) break
 
                                 if (pressed.size >= 2) {
-                                    // Two-finger interrupts; undo partial segment drag if needed.
-                                    if (pushedSegHistory) vm.undo()
                                     cancelledByTwoFinger = true
                                     val (np, no) = applyTwoFingerCamera(pressed[0], pressed[1], ppm, origin)
                                     ppm = np; origin = no
@@ -392,11 +390,10 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                                 }
 
                                 val p = pressed[0]
-                                val moved = p.positionChange().getDistance()
-                                totalSegDrag += moved
+                                totalSegDrag += p.positionChange().getDistance()
 
-                                // Long-press on segment = insert node (more reliable than double-tap).
-                                if (!longPressed && !pushedSegHistory &&
+                                // Long-press on the line = insert a node (the line itself isn't draggable).
+                                if (!longPressed && !panned &&
                                     elapsed >= viewConfiguration.longPressTimeoutMillis &&
                                     totalSegDrag < TAP_SLOP_PX) {
                                     longPressed = true
@@ -404,22 +401,16 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                                     selectedNodeIndex = -1
                                 }
 
-                                // Drag beyond touchSlop = bend the curve (segment drag).
+                                // Drag on the line pans the view. The curve is reshaped with the node
+                                // handles, not by dragging the line itself.
                                 if (!longPressed && totalSegDrag > viewConfiguration.touchSlop) {
-                                    if (!pushedSegHistory) {
-                                        vm.beginNodeEdit()
-                                        pushedSegHistory = true
-                                    }
-                                    ppm = ppmFor(sizePx, vm.mat, vm.camScale)
-                                    origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
-                                    val curWorld = clampToMat(screenToWorld(p.position, origin, ppm), vm.mat.widthMm, vm.mat.heightMm)
-                                    val curLocal = vm.worldToLayerLocal(layerIdx, curWorld) ?: curWorld
-                                    vm.dragSelectedSegment(segHit.segmentIndex, segHit.t, curLocal)
+                                    panned = true
+                                    vm.camOffset += p.positionChange()
                                 }
                                 p.consume()
                             }
 
-                            if (!cancelledByTwoFinger && !longPressed && !pushedSegHistory) {
+                            if (!cancelledByTwoFinger && !longPressed && !panned) {
                                 // Plain tap on a segment: wait briefly for a second tap (double-tap = insert).
                                 val tapTime = System.currentTimeMillis()
                                 var gotSecondTap = false
