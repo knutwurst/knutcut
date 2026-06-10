@@ -33,6 +33,7 @@ import de.knutwurst.knutcut.data.PlotterSvgLibrary
 import de.knutwurst.knutcut.data.DeformEngine
 import de.knutwurst.knutcut.data.DeformSpec
 import de.knutwurst.knutcut.data.EnvelopeDeform
+import de.knutwurst.knutcut.data.TextSpec
 import de.knutwurst.knutcut.data.Settings
 import de.knutwurst.knutcut.data.ThemeMode
 import de.knutwurst.knutcut.data.Tool
@@ -661,14 +662,30 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Add a new layer (e.g. a primitive shape or text) centred on the mat and select it. */
-    fun addLayer(name: String, polylines: List<Polyline>, layerTool: Tool = tool) {
+    fun addLayer(name: String, polylines: List<Polyline>, layerTool: Tool = tool, textSpec: TextSpec? = null) {
         if (polylines.isEmpty()) return
         pushHistory()
-        val layer = Layer(name, polylines, layerTool, visible = true, centerMm = Pt(mat.widthMm / 2, mat.heightMm / 2))
+        val layer = Layer(name, polylines, layerTool, visible = true, centerMm = Pt(mat.widthMm / 2, mat.heightMm / 2), textSpec = textSpec)
         layers = layers + layer
         selectedLayer = layers.lastIndex
         markedLayers = emptySet()
         status = s(R.string.st_shape_added, name)
+    }
+
+    /**
+     * Re-render the selected text layer with a new arc curve and update both the polylines and the
+     * stored [TextSpec.curve].  No-op when the layer has no [TextSpec].  Pushes one undo step the
+     * first time it is called for a given gesture (caller controls [pushHistory]).
+     */
+    fun applyTextCurve(index: Int, curve: Int, newPolylines: List<Polyline>) {
+        if (index !in layers.indices) return
+        val layer = layers[index]
+        val spec = layer.textSpec ?: return
+        pushHistory()
+        layers = layers.mapIndexed { i, l ->
+            if (i == index) l.copy(polylines = newPolylines, textSpec = spec.copy(curve = curve)) else l
+        }
+        pruneBoundsCache()
     }
 
     /**

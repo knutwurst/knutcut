@@ -136,9 +136,11 @@ import androidx.compose.ui.unit.dp
 import de.knutwurst.knutcut.BuildConfig
 import de.knutwurst.knutcut.R
 import de.knutwurst.knutcut.data.CircleDeform
+import de.knutwurst.knutcut.data.TextSpec
 import de.knutwurst.knutcut.data.bendToCircleDeform
 import de.knutwurst.knutcut.data.bendValue
 import de.knutwurst.knutcut.data.Devices
+import de.knutwurst.knutcut.svgcore.TextArc
 import de.knutwurst.knutcut.data.DisplayUnit
 import de.knutwurst.knutcut.data.Materials
 import de.knutwurst.knutcut.data.Mats
@@ -356,7 +358,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     if (showCut && vm.hasDesign) CutSheet(vm, onDismiss = { showCut = false })
     if (showText) TextDialog(vm, fontRepo, onDismiss = { showText = false })
     if (showLibrary) LibrarySheet(vm, onDismiss = { showLibrary = false })
-    if (showDeform && !vm.matSelected) BendSheet(vm, onDismiss = { showDeform = false })
+    if (showDeform && !vm.matSelected) BendSheet(vm, fontRepo, onDismiss = { showDeform = false })
 }
 
 /** Add a text layer: type the text, pick a font (outline or single-stroke), choose a height. */
@@ -412,7 +414,13 @@ private fun TextDialog(vm: KnutcutViewModel, fonts: FontRepository, onDismiss: (
                     val result = opt.render(text, height.toDouble())
                     if (result.polylines.isNotEmpty()) {
                         val name = namePrefix + text.replace("\n", " ").trim().take(16)
-                        vm.addLayer(name, result.polylines, if (opt.stroke) Tool.PEN else vm.tool)
+                        val spec = TextSpec(
+                            text = text.replace("\n", ""),
+                            fontIndex = fontIndex,
+                            heightMm = height.toDouble(),
+                            curve = 0,
+                        )
+                        vm.addLayer(name, result.polylines, if (opt.stroke) Tool.PEN else vm.tool, textSpec = spec)
                         if (result.simplified) vm.status = simplifiedMsg
                     }
                     onDismiss()
@@ -850,8 +858,9 @@ private fun EditingBar(
         }
         // Duplizieren
         IconAction(stringResource(R.string.ui_duplicate), Icons.Default.ContentCopy, enabled = perLayer) { vm.duplicateSelected() }
-        // Biegen
-        IconAction(stringResource(R.string.ui_bend), Icons.Default.AutoFixHigh, enabled = perLayer, onClick = onDeform)
+        // Biegen — only enabled when the selected layer has a TextSpec (curved text is text-only).
+        val isTextLayer = !vm.matSelected && vm.layers.getOrNull(vm.selectedLayer)?.textSpec != null
+        IconAction(stringResource(R.string.ui_bend), Icons.Default.AutoFixHigh, enabled = isTextLayer, onClick = onDeform)
         // ⋯ Mehr
         Box {
             IconAction(stringResource(R.string.ui_more), Icons.Default.MoreVert) { showMoreMenu = true }
@@ -934,34 +943,32 @@ private fun AlignmentControls(vm: KnutcutViewModel) {
 }
 
 /**
- * BendSheet: a simple one-slider sheet for bending the selected layer onto a circle arc.
- * The slider maps -100..100 to a [CircleDeform] via [bendToCircleDeform]; values close to 0
- * (|value| < 3) restore the straight (no-deform) state. An "Erweitert" expander reveals the
- * start-angle stepper for users who need precise control.
+ * BendSheet: single-slider sheet for bending a text layer along a circular arc.
+ * The slider maps −100..100 to [TextArc.layoutOnArc] (curve = value / 100.0); value 0 = straight.
+ * Enabled only when the selected layer has a [TextSpec] — non-text layers cannot use this sheet.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BendSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
-    val sourceBounds = vm.selectedDeformSourceBounds() ?: return
-    val existingDeform = vm.layers.getOrNull(vm.selectedLayer)?.deform as? CircleDeform
+private fun BendSheet(vm: KnutcutViewModel, fontRepo: FontRepository, onDismiss: () -> Unit) {
+    val idx = vm.selectedLayer
+    val layer = vm.layers.getOrNull(idx) ?: return
+    val spec = layer.textSpec ?: return
 
-    // Seed slider and startAngle from the existing deform when one is active.
-    val initialValue = existingDeform?.bendValue(sourceBounds) ?: 0
-    var sliderValue by remember { mutableStateOf(initialValue.toFloat()) }
-    var startAngle by remember { mutableStateOf(existingDeform?.startAngleDeg?.toInt()?.coerceIn(0, 359) ?: 0) }
-    var advancedExpanded by remember { mutableStateOf(false) }
+    // Seed the slider from the stored curve value.
+    var sliderValue by remember { mutableStateOf(spec.curve.toFloat()) }
 
-    // Track whether the first deform of this sheet session has been pushed to history yet.
+    // Push history once per sheet session, not on every slider tick.
     var pushedHistory by remember { mutableStateOf(false) }
 
-    fun applyBend(value: Int, angle: Int) {
-        val spec = bendToCircleDeform(sourceBounds, value, angle.toDouble())
-        if (spec == null) {
-            vm.clearSelectedDeform()
-        } else {
-            vm.setSelectedDeform(spec, pushHistory = !pushedHistory)
+    fun applyArc(value: Int) {
+        val opt = fontRepo.options.getOrNull(spec.fontIndex) ?: return
+        val glyphs = opt.renderGlyphs(spec.text, spec.heightMm)
+        val poly = TextArc.layoutOnArc(glyphs, value / 100.0)
+        if (!pushedHistory) {
             pushedHistory = true
+            // applyTextCurve always pushes history internally; that is the one step for this session.
         }
+        vm.applyTextCurve(idx, value, poly)
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
@@ -974,12 +981,12 @@ private fun BendSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             Text(stringResource(R.string.ui_bend), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(12.dp))
 
-            // Main bend slider: -100 = full curve down, 0 = straight, +100 = full curve up.
+            // Bend slider: −100 = full circle downward, 0 = straight, +100 = full circle upward.
             Slider(
                 value = sliderValue,
                 onValueChange = { v ->
                     sliderValue = v
-                    applyBend(v.toInt(), startAngle)
+                    applyArc(v.toInt())
                 },
                 valueRange = -100f..100f,
                 steps = 0,
@@ -998,41 +1005,10 @@ private fun BendSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                 Text("+100", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            Spacer(Modifier.height(12.dp))
-
-            // "Erweitert" expander for start angle.
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { advancedExpanded = !advancedExpanded },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(R.string.ui_bend_advanced),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f),
-                )
-                Icon(
-                    if (advancedExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            }
-            AnimatedVisibility(visible = advancedExpanded) {
-                Column(Modifier.padding(top = 8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.ui_deform_start_angle), Modifier.weight(1f))
-                        EditableStepper(startAngle, 0, 359, step = 5) { v ->
-                            startAngle = v
-                            applyBend(sliderValue.toInt(), v)
-                        }
-                    }
-                }
-            }
-
             Spacer(Modifier.height(16.dp))
 
             TextButton(
-                onClick = { vm.clearSelectedDeform(); onDismiss() },
+                onClick = { applyArc(0); onDismiss() },
                 modifier = Modifier.align(Alignment.Start),
             ) {
                 Text(stringResource(R.string.ui_deform_remove))

@@ -39,6 +39,13 @@ object ProjectIO {
                 o.put("deformSrc", srcArr)
             }
             l.editPath?.let { o.put("editPath", serializeEditPath(it)) }
+            l.textSpec?.let { ts ->
+                o.put("textSpec", JSONObject()
+                    .put("text", ts.text)
+                    .put("font", ts.fontIndex)
+                    .put("h", ts.heightMm)
+                    .put("curve", ts.curve))
+            }
             arr.put(o)
         }
         return arr.toString()
@@ -81,6 +88,14 @@ object ProjectIO {
                 src.takeIf { it.isNotEmpty() }
             }
             val editPath = o.optJSONObject("editPath")?.let { deserializeEditPath(it) }
+            val textSpec = o.optJSONObject("textSpec")?.let { ts ->
+                TextSpec(
+                    text = ts.optString("text", ""),
+                    fontIndex = ts.optInt("font", 0),
+                    heightMm = ts.optDouble("h", 25.0),
+                    curve = ts.optInt("curve", 0),
+                )
+            }
             // Enforce invariant: deform is non-null iff deformSource is non-null. A file written with
             // a deform but without a deformSrc (e.g. a degenerate 1-point source that was dropped on
             // load) would leave the layer in a broken state where the next warp double-applies.
@@ -100,6 +115,7 @@ object ProjectIO {
                 deform = safeDeform,
                 deformSource = safeDeformSrc,
                 editPath = editPath,
+                textSpec = textSpec,
             ))
         }
         return out

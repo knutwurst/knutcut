@@ -41,6 +41,12 @@ data class Layer(
      * for rendering and cutting.
      */
     val editPath: EditablePath? = null,
+    /**
+     * Source text and font parameters for text layers.  Non-null only on layers created by the
+     * text tool; used by the curve-text feature to re-render glyphs at a new arc value without
+     * losing the original text.
+     */
+    val textSpec: TextSpec? = null,
 ) {
     /** Colour of each polyline, expanding the single [colorArgb] when no per-polyline list is set. */
     fun colorList(): List<Int?> = polylineColors ?: List(polylines.size) { colorArgb }

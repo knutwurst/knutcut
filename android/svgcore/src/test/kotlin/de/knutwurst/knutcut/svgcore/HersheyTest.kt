@@ -46,4 +46,46 @@ class HersheyTest {
         val big = HersheyFont.parse(twoGlyph).render("!", 42.0)[0].points
         assertEquals(small[0].yMm * 2, big[0].yMm, 1e-9)
     }
+
+    // -----------------------------------------------------------------------
+    // renderGlyphs tests
+    // -----------------------------------------------------------------------
+
+    @Test fun `renderGlyphs returns one run per non-newline character`() {
+        val runs = HersheyFont.parse(twoGlyph).renderGlyphs("! ", 21.0)
+        assertEquals(2, runs.size)
+    }
+
+    @Test fun `renderGlyphs glyph-local x starts at zero`() {
+        // The '!' glyph has left bound J = -8; after shifting, the minimum x must be ≥ 0.
+        val run = HersheyFont.parse(twoGlyph).renderGlyphs("!", 21.0)[0]
+        assertTrue("glyph x origin at 0", run.polylines[0].points.all { it.xMm >= -1e-9 })
+    }
+
+    @Test fun `renderGlyphs advance matches glyph width`() {
+        // '!' glyph: left J = -8, right Z = 8  → width 16 units; at scale 1.0 advance = 16.0 mm.
+        val run = HersheyFont.parse(twoGlyph).renderGlyphs("!", 21.0)[0]
+        assertEquals(16.0, run.advanceMm, 1e-9)
+    }
+
+    @Test fun `renderGlyphs space produces empty polylines but non-zero advance`() {
+        // Space glyph: bounds JZ → left -8, right 8 → advance 16.0 at scale 1.0; no strokes.
+        val run = HersheyFont.parse(twoGlyph).renderGlyphs(" ", 21.0)[0]
+        assertTrue("space has no strokes", run.polylines.isEmpty())
+        assertTrue("space still advances", run.advanceMm > 0.0)
+    }
+
+    @Test fun `renderGlyphs newlines are stripped`() {
+        val runs = HersheyFont.parse(twoGlyph).renderGlyphs("!\n!", 21.0)
+        assertEquals("newline stripped, 2 glyphs", 2, runs.size)
+    }
+
+    @Test fun `renderGlyphs total advance equals sum of individual advances`() {
+        val font = HersheyFont.parse(twoGlyph)
+        val runsAll = font.renderGlyphs("! !", 21.0)
+        val sum = runsAll.sumOf { it.advanceMm }
+        val excl = font.renderGlyphs("!", 21.0)[0].advanceMm
+        val spc = font.renderGlyphs(" ", 21.0)[0].advanceMm
+        assertEquals(excl + spc + excl, sum, 1e-9)
+    }
 }
