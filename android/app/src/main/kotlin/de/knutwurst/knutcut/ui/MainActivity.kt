@@ -7,6 +7,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.core.view.WindowCompat
 import de.knutwurst.knutcut.data.Settings
 import de.knutwurst.knutcut.ui.theme.KnutcutTheme
 
@@ -23,6 +24,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Edge-to-edge: draw behind the system bars so window insets — including the IME (keyboard) —
+        // are dispatched to Compose. Without this a ModalBottomSheet (its own window) never sees the
+        // keyboard inset, so imePadding can't lift a focused field above it. MainScreen already pads
+        // with safeDrawingPadding(), so the layout stays clear of the status/navigation bars.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         setContent { KnutcutTheme(vm.themeMode) { MainScreen(vm) } }
         handleIntent(intent)
     }
