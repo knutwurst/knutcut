@@ -3,6 +3,10 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.58.4
+- Colour picker: tapping the hex field now also scrolls it into view (not just expands the sheet),
+  so it sits above the keyboard without scrolling by hand.
+
 ## 0.58.3
 - Colour picker opens at half height again. It only expands to full when you tap the hex field, so
   the field stays visible above the keyboard.

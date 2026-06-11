@@ -1,6 +1,7 @@
 package de.knutwurst.knutcut.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +19,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -88,13 +91,15 @@ private val PALETTE: List<Int> = listOf(
  * A curated swatch palette covers the common case (tap = apply); an expandable custom section offers
  * a full hue + saturation/value picker with a hex field for an exact colour.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun LayerColorSheet(current: Int?, onPick: (Int?) -> Unit, onDismiss: () -> Unit) {
-    // Opens at the default (half) height. The content scrolls and lifts above the keyboard (imePadding);
-    // only when the hex field is focused does the sheet expand to full so the field stays visible.
+    // Opens at the default (half) height. The content scrolls and lifts above the keyboard (imePadding).
+    // When the hex field is focused the sheet expands to full AND scrolls the field into view, so the
+    // user doesn't have to scroll by hand.
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
+    val hexBringIntoView = remember { BringIntoViewRequester() }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
             Modifier
@@ -125,7 +130,11 @@ fun LayerColorSheet(current: Int?, onPick: (Int?) -> Unit, onDismiss: () -> Unit
             Spacer(Modifier.height(4.dp))
             Text(stringResource(R.string.ui_custom_color), style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
-            CustomColorPicker(current, onHexFocused = { scope.launch { sheetState.expand() } }) { onPick(it) }
+            CustomColorPicker(
+                current,
+                hexBringIntoView = hexBringIntoView,
+                onHexFocused = { scope.launch { sheetState.expand(); hexBringIntoView.bringIntoView() } },
+            ) { onPick(it) }
 
             // Picking a colour applies it but leaves the sheet open; this closes it.
             Spacer(Modifier.height(8.dp))
@@ -157,8 +166,9 @@ private fun Swatch(argb: Int, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun CustomColorPicker(current: Int?, onHexFocused: () -> Unit, onApply: (Int) -> Unit) {
+private fun CustomColorPicker(current: Int?, hexBringIntoView: BringIntoViewRequester, onHexFocused: () -> Unit, onApply: (Int) -> Unit) {
     val start = current ?: 0xFF1E88E5.toInt()
     val initHsv = remember { rgbToHsv(start) }
     var hue by remember { mutableStateOf(initHsv[0]) }
@@ -243,9 +253,11 @@ private fun CustomColorPicker(current: Int?, onHexFocused: () -> Unit, onApply: 
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                 capitalization = KeyboardCapitalization.Characters, keyboardType = KeyboardType.Ascii,
             ),
-            // Expand the sheet only when the user actually starts typing a hex value, so the field
+            // On focus the sheet expands and scrolls this field into view (see onHexFocused), so it
             // stays visible above the keyboard while the sheet still opens at half height.
-            modifier = Modifier.weight(1f).onFocusChanged { if (it.isFocused) onHexFocused() },
+            modifier = Modifier.weight(1f)
+                .bringIntoViewRequester(hexBringIntoView)
+                .onFocusChanged { if (it.isFocused) onHexFocused() },
         )
     }
     Spacer(Modifier.height(12.dp))
