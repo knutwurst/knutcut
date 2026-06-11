@@ -58,7 +58,7 @@ object Updater {
      */
     fun download(context: Context, info: UpdateInfo): File? {
         val dir = File(context.cacheDir, DIR).apply { mkdirs() }
-        val out = File(dir, info.apk)
+        val out = File(dir, downloadFileName(info))
         val urls = buildList {
             if (info.apkUrl.isNotBlank()) add(info.apkUrl)
             if (info.apk.isNotBlank()) add(BASE + info.apk)
@@ -72,6 +72,15 @@ object Updater {
             out.delete()
         }
         return null
+    }
+
+    /** The cache filename to download into: the `apk` field, else the last path component of `apkUrl`
+     *  (query stripped), else a fixed fallback. Always a bare name ending in .apk, never a directory
+     *  or a path — so a latest.json that carries only apkUrl can't write to an empty/invalid target. */
+    internal fun downloadFileName(info: UpdateInfo): String {
+        val raw = info.apk.ifBlank { info.apkUrl.substringBefore('?').substringBefore('#') }
+        val base = raw.substringAfterLast('/').substringAfterLast('\\').trim().ifBlank { "update.apk" }
+        return if (base.endsWith(".apk", ignoreCase = true)) base else "$base.apk"
     }
 
     /** Fetch [url] into [out]; true on a clean 200 download, false on any error. Redirects are followed

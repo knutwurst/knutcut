@@ -54,4 +54,16 @@ class UpdaterParseTest {
         assertNull(Updater.parseLatest("not json at all"))
         assertNull(Updater.parseLatest(""))
     }
+
+    @Test
+    fun downloadFileNameFavoursApkThenUrlThenFallback() {
+        fun info(apk: String, apkUrl: String = "") = UpdateInfo(1, "1.0", apk, "sha", apkUrl = apkUrl)
+        assertEquals("Knutcut-v1.0.apk", Updater.downloadFileName(info("Knutcut-v1.0.apk")))
+        // blank apk → last path component of the URL, query stripped
+        assertEquals("Knutcut-v1.0.apk", Updater.downloadFileName(info("", "https://x/releases/Knutcut-v1.0.apk?ts=9")))
+        // URL component without .apk → extension appended
+        assertEquals("asset123.apk", Updater.downloadFileName(info("", "https://x/download/asset123")))
+        // nothing usable → fixed fallback, never an empty/directory target
+        assertEquals("update.apk", Updater.downloadFileName(info("", "")))
+    }
 }

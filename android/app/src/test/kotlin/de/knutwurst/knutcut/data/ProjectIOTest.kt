@@ -61,6 +61,35 @@ class ProjectIOTest {
     }
 
     @Test
+    fun discardsLayerWithMissingCentre() {
+        // No cx/cy → optDouble returns NaN. The layer must be dropped, not placed at a NaN centre.
+        val json = """[{"name":"Broken","tool":"KNIFE","visible":true,
+            "polys":[{"c":true,"p":[[0,0],[10,0],[10,10]]}]}]"""
+        assertTrue("layer with non-finite centre is discarded", ProjectIO.fromJson(json).isEmpty())
+    }
+
+    @Test
+    fun dropsNonFinitePointsAndKeepsValidLayers() {
+        // One point has a missing y (NaN) and is dropped; the layer still has enough finite points.
+        val json = """[{"name":"OK","tool":"PEN","visible":true,"cx":5,"cy":5,
+            "polys":[{"c":false,"p":[[0,0],[10],[20,20]]}]}]"""
+        val back = ProjectIO.fromJson(json)
+        assertEquals(1, back.size)
+        assertEquals("the [10] point (missing y) is dropped", listOf(Pt(0.0, 0.0), Pt(20.0, 20.0)), back[0].polylines[0].points)
+    }
+
+    @Test
+    fun coercesNonFiniteScaleAndRotationToDefaults() {
+        // Scale/rotation default sources are absent → NaN → coerced to sane defaults, layer kept.
+        val json = """[{"name":"S","tool":"KNIFE","visible":true,"cx":1,"cy":1,
+            "polys":[{"c":true,"p":[[0,0],[10,0],[10,10]]}],"sx":"x","rot":"y"}]"""
+        val back = ProjectIO.fromJson(json)
+        assertEquals(1, back.size)
+        assertEquals(1.0, back[0].scaleX, 1e-9)
+        assertEquals(0.0, back[0].rotationDeg, 1e-9)
+    }
+
+    @Test
     fun dropsDegeneratePolylines() {
         // A one-point polyline isn't a path; it must not survive a round-trip as a layer.
         val layers = listOf(Layer("x", listOf(Polyline(listOf(Pt(0.0, 0.0)), false)), Tool.PEN, true))

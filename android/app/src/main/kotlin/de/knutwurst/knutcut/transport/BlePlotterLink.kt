@@ -7,6 +7,7 @@ import android.os.Build
 import de.knutwurst.knutcut.svgcore.EtxFramer
 import de.knutwurst.knutcut.svgcore.LinkTransport
 import de.knutwurst.knutcut.svgcore.ManagedLink
+import java.io.IOException
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
@@ -51,7 +52,7 @@ class BlePlotterLink(
     // ── PlotterLink ───────────────────────────────────────────────────────
 
     override fun write(text: String) {
-        if (!running) return
+        if (!running) throw IOException("BLE link is closed")
         val bytes = text.toByteArray(Charsets.UTF_8)
         val chunkSize = maxOf(20, mtu - 3)
         var offset = 0
@@ -65,12 +66,15 @@ class BlePlotterLink(
                 @Suppress("DEPRECATION") writeChar.value = chunk
                 @Suppress("DEPRECATION") gatt.writeCharacteristic(writeChar)
             }
-            // Serialise against the GATT queue (only one operation may be outstanding). Bail if the
-            // write never completes so a stalled link can't block the cut thread forever.
-            // Stop on timeout (null) or a failed write (false) so a dropped chunk isn't treated as sent.
-            if (writeAcks.poll(WRITE_TIMEOUT_MS, TimeUnit.MILLISECONDS) != true) break
+            // Serialise against the GATT queue (only one operation may be outstanding). A timeout
+            // (null) or a failed write (false) means the chunk didn't go out: throw so the caller
+            // (GpglSession.cut) aborts instead of treating an undelivered command stream as sent.
+            if (writeAcks.poll(WRITE_TIMEOUT_MS, TimeUnit.MILLISECONDS) != true) {
+                throw IOException("BLE write failed at byte $offset of ${bytes.size}")
+            }
             offset = end
         }
+        if (offset < bytes.size) throw IOException("BLE link closed mid-write")
     }
 
     override fun readLine(timeoutMs: Long): String? = tokens.poll(timeoutMs, TimeUnit.MILLISECONDS)

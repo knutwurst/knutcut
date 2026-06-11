@@ -35,7 +35,7 @@ object SvgParser {
         val root = buildDoc(svg).documentElement ?: return Result(emptyList(), 0)
         val shapes = ArrayList<SvgShape>()
         val skipped = intArrayOf(0)
-        walk(root, rootUnitMatrix(root), shapes, toleranceMm, intArrayOf(0), skipped, null)
+        walk(root, rootUnitMatrix(root), shapes, toleranceMm, intArrayOf(0), skipped, null, hidden = false)
         return Result(shapes, skipped[0])
     }
 
@@ -69,13 +69,26 @@ object SvgParser {
         return Matrix.scale(s, s)
     }
 
-    private fun walk(el: Element, parent: Matrix, shapes: MutableList<SvgShape>, tol: Double, count: IntArray, skipped: IntArray, inheritedColor: Int?) {
+    private fun walk(el: Element, parent: Matrix, shapes: MutableList<SvgShape>, tol: Double, count: IntArray, skipped: IntArray, inheritedColor: Int?, hidden: Boolean) {
+        // Hidden subtrees (construction/guide layers) must not become cut paths. display:none and
+        // opacity:0 remove the element and everything under it. visibility is inherited but a
+        // descendant can switch it back on, so it's tracked and re-evaluated per element.
+        if (cssOrAttr(el, "display").equals("none", ignoreCase = true)) return
+        val opacity = cssOrAttr(el, "opacity")?.toDoubleOrNull()
+        if (opacity != null && opacity <= 0.0) return
+        val effHidden = when (cssOrAttr(el, "visibility")?.lowercase()) {
+            "visible" -> false
+            "hidden", "collapse" -> true
+            else -> hidden
+        }
+
         // A malformed transform/geometry on one element must not abort the whole import — skip it and
         // count it. A bad transform falls back to the parent matrix so the element can still be drawn.
         val m = runCatching { parent * Matrix.parse(el.getAttribute("transform")) }.getOrElse { skipped[0]++; parent }
         val color = elementColor(el, inheritedColor)
         val subs = runCatching { shapeToSubPaths(el) }.getOrElse { skipped[0]++; null }
         if (subs != null) {
+            if (effHidden) return   // a hidden shape is not cut and not counted
             val polys = runCatching { subs.map { flatten(it, m, tol) }.filter { it.points.size >= 2 } }
                 .getOrElse { skipped[0]++; emptyList() }
             if (polys.isNotEmpty()) {
@@ -87,10 +100,14 @@ object SvgParser {
         }
         var child = el.firstChild
         while (child != null) {
-            if (child.nodeType == Node.ELEMENT_NODE) walk(child as Element, m, shapes, tol, count, skipped, color)
+            if (child.nodeType == Node.ELEMENT_NODE) walk(child as Element, m, shapes, tol, count, skipped, color, effHidden)
             child = child.nextSibling
         }
     }
+
+    /** A CSS property from the `style` attribute, else the presentation attribute; null if neither. */
+    private fun cssOrAttr(el: Element, name: String): String? =
+        (styleProp(el.getAttribute("style"), name) ?: el.getAttribute(name))?.trim()?.takeIf { it.isNotBlank() }
 
     /** The element's drawing colour as ARGB: its own fill (preferred) or stroke, read from the
      *  `style` attribute first then presentation attributes, falling back to the inherited group colour.

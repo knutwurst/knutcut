@@ -39,11 +39,20 @@ class PlotterSession(private val link: PlotterLink, private var cseq: Int = 0) {
     /** Frame and send one message, retrying on rejection/timeout. Returns the accepted response, or null. */
     fun send(msg: PlotterMessage, timeoutMs: Long = 5000, maxAttempts: Int = 5): String? {
         repeat(maxAttempts) {
-            link.write(Frame.encode(msg, cseq))
+            val sent = cseq
+            link.write(Frame.encode(msg, sent))
             cseq++
-            val resp = link.readLine(timeoutMs)
-            if (responseOk(resp)) return resp
-            // null (timeout), crc rejection, or success:false → try again with the next cseq
+            // Wait for the response to THIS message. The device echoes the cseq, so a late ack from a
+            // previous, timed-out send (carrying an older cseq) is discarded instead of being accepted
+            // for the current message — otherwise a stale ack could confirm the next command, pltFile
+            // chunks included. Responses without a cseq (devices that omit it) are accepted as before.
+            while (true) {
+                val resp = link.readLine(timeoutMs) ?: break   // timeout → resend on the next attempt
+                val cs = PlotterResponse.parse(resp).cseq
+                if (cs != null && cs != sent) continue          // stale / foreign ack → keep waiting
+                if (responseOk(resp)) return resp
+                break                                           // rejection for our cseq → resend
+            }
         }
         return null
     }

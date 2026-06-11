@@ -13,6 +13,7 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import java.io.Closeable
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
@@ -21,6 +22,8 @@ import java.util.concurrent.TimeUnit
 /** BLE (Bluetooth Low Energy) scan and GATT connection for Silhouette cutters. */
 @SuppressLint("MissingPermission")
 object BluetoothLePlotter {
+
+    private const val TAG = "BluetoothLePlotter"
 
     /** True if a BLE advertisement name matches a Silhouette plotter. */
     fun isCompatibleLe(name: String?): Boolean = de.knutwurst.knutcut.data.Devices.isCompatibleLe(name)
@@ -40,9 +43,16 @@ object BluetoothLePlotter {
                 // from unknown BLE devices (the latter sit behind the "other devices" warning).
                 onFound(result.device, result.scanRecord?.deviceName ?: result.device.name)
             }
+            // Surface async scan failures instead of dropping them silently.
+            override fun onScanFailed(errorCode: Int) { Log.w(TAG, "BLE scan failed: error $errorCode") }
         }
-        scanner.startScan(cb)
-        return Closeable { runCatching { scanner.stopScan(cb) } }
+        return try {
+            scanner.startScan(cb)
+            Closeable { runCatching { scanner.stopScan(cb) } }
+        } catch (e: Exception) {
+            Log.w(TAG, "BLE scan could not start", e)
+            Closeable {}
+        }
     }
 
     /**
@@ -88,7 +98,14 @@ object BluetoothLePlotter {
             }
 
             override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
-                if (latch.count > 0L) latch.countDown()
+                if (latch.count > 0L) {
+                    // A failed CCCD write means notifications are NOT active — fail the connect rather
+                    // than report "connected" to a device whose replies will never arrive.
+                    if (status != BluetoothGatt.GATT_SUCCESS) {
+                        error = Exception("Benachrichtigungen konnten nicht aktiviert werden (status=$status).")
+                    }
+                    latch.countDown()
+                }
             }
 
             override fun onCharacteristicWrite(g: BluetoothGatt, ch: BluetoothGattCharacteristic, status: Int) {

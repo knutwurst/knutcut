@@ -3,6 +3,28 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.58.0
+Robustness pass across the plotter link, file handling and SVG import:
+- VEVOR: a command's response is now matched to its cseq, so a late ack from a timed-out send can't
+  confirm the next command (pltFile chunks included).
+- Silhouette (BLE): a failed/timed-out write now aborts the cut instead of being treated as sent; a
+  failed notification (CCCD) setup fails the connect instead of reporting "connected"; scan failures
+  are logged instead of dropped.
+- Bluetooth permissions: both CONNECT and SCAN must be granted (a denied SCAN was previously treated
+  as fully granted, so discovery silently never started).
+- SPP: the socket is closed when connect() fails (no leak).
+- Saving a project/SVG reports failure when the file can't be opened (no false "saved").
+- Opening a project reads with the same 16 MB cap as a normal import.
+- A corrupt .kcp can no longer load NaN coordinates: non-finite points/centre/scale/rotation are
+  rejected or defaulted, and broken layers are dropped.
+- SVG import skips hidden elements (display:none, visibility:hidden, opacity:0) so construction
+  layers don't become cut paths; visibility is inherited and a child can override it.
+- Opening an SVG handed over as text/xml is now registered (many file managers do this).
+- The top origin offset now also applies to Silhouette cuts (it was VEVOR-only; default 0, so
+  existing cuts are unchanged).
+- A status message repeated identically is shown again instead of being swallowed.
+- The update download derives a valid filename even if a future latest.json carries only apkUrl.
+
 ## 0.57.6
 - Colour picker: the keyboard no longer hides the hex field. The sheet opens full height, its content
   scrolls, and it lifts above the on-screen keyboard so the focused hex field stays visible.

@@ -193,7 +193,14 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var cutting by mutableStateOf(false); private set
     var progress by mutableStateOf(0f); private set
 
-    var status by mutableStateOf<String?>(null)
+    // Status message plus a sequence that bumps on EVERY assignment, so the UI re-toasts even when the
+    // same message is set twice in a row (e.g. the identical error reported again).
+    private val _status = mutableStateOf<String?>(null)
+    private val _statusSeq = mutableStateOf(0)
+    var status: String?
+        get() = _status.value
+        set(v) { _status.value = v; _statusSeq.value++ }
+    val statusSeq: Int get() = _statusSeq.value
 
     var themeMode by mutableStateOf(settings.themeMode); private set
     var colorMode by mutableStateOf(settings.colorMode); private set
@@ -408,7 +415,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val json = de.knutwurst.knutcut.data.ProjectIO.toJson(layers)
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) {
-                runCatching { getApplication<Application>().contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) } }.isSuccess
+                runCatching {
+                    val resolver = getApplication<Application>().contentResolver
+                    (resolver.openOutputStream(uri) ?: error("openOutputStream returned null")).use { it.write(json.toByteArray()) }
+                }.isSuccess
             }
             if (ok) projectName = displayNameOf(uri)
             status = if (ok) s(R.string.st_project_saved) else s(R.string.st_project_save_failed)
@@ -433,7 +443,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 SvgExport.toSvg(strokes)
             }
             val ok = withContext(Dispatchers.IO) {
-                runCatching { getApplication<Application>().contentResolver.openOutputStream(uri)?.use { it.write(svg.toByteArray()) } }.isSuccess
+                runCatching {
+                    val resolver = getApplication<Application>().contentResolver
+                    (resolver.openOutputStream(uri) ?: error("openOutputStream returned null")).use { it.write(svg.toByteArray()) }
+                }.isSuccess
             }
             status = if (ok) s(R.string.st_svg_exported) else s(R.string.st_svg_export_failed)
         }
@@ -442,8 +455,13 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Load a .kcp project file, replacing the current layers with the saved arrangement. */
     fun loadProject(uri: Uri) {
         viewModelScope.launch {
-            val text = withContext(Dispatchers.IO) {
-                runCatching { getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } }.getOrNull()
+            // Read with the same size cap as a normal import, so a huge/garbage .kcp can't be slurped
+            // unbounded into memory.
+            val read = withContext(Dispatchers.IO) { readTextLimited(getApplication<Application>().contentResolver, uri) }
+            val text = when (read) {
+                is ImportText.Ok -> read.content
+                ImportText.TooBig -> { status = s(R.string.st_import_too_big, MAX_IMPORT_MB); return@launch }
+                ImportText.Failed -> null
             }
             val ls = text?.let { runCatching { de.knutwurst.knutcut.data.ProjectIO.fromJson(it) }.getOrNull() }
             if (ls.isNullOrEmpty()) { status = s(R.string.st_project_invalid); return@launch }
@@ -1738,9 +1756,13 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun runCutGpgl(l: ManagedLink) {
         val silDev = model.silhouetteDevice
         if (silDev == null) { finishCut(s(R.string.st_no_silhouette_profile)); return }
+        // Honour the origin offset here too (VEVOR already does in plotterPolylinesFor). Default is 0,
+        // so existing Silhouette cuts are unchanged; a non-zero value shifts Y down as the UI promises,
+        // and the area check below validates the shifted geometry against the device bounds.
+        val dy = originOffsetMm.toDouble()
         val placed = cutLayers().flatMap { layer ->
             val m = layerMatrix(layer)
-            layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
+            layer.polylines.map { pl -> Polyline(pl.points.map { val p = m.apply(it); Pt(p.xMm, p.yMm + dy) }, pl.closed) }
         }
         val ordered = if (optimizeCutOrder) CutOrder.optimize(placed) else placed
         val polylines = if (cutCopies > 1) (1..cutCopies).flatMap { ordered } else ordered
@@ -1772,6 +1794,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             withContext(NonCancellable + Dispatchers.IO) { runCatching { l.write(GpglProtocol.INIT) } }
             finishCut(s(R.string.st_cancelled))
             throw e
+        } catch (e: Exception) {
+            // A failed write (e.g. a dropped BLE chunk) throws out of cut() — report it instead of
+            // treating the stream as sent.
+            finishCut(s(R.string.st_error_generic, e.message))
         }
     }
 

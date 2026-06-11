@@ -123,4 +123,34 @@ class SvgParserTest {
             <rect x="0" y="0" width="10" height="10"/></svg>"""
         assertNull(SvgParser.parseShapes(svg).single().colorArgb)
     }
+
+    @Test
+    fun skipsDisplayNoneVisibilityHiddenAndOpacityZero() {
+        fun one(extra: String) = """<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="40mm" viewBox="0 0 40 40">
+            <rect x="0" y="0" width="10" height="10" $extra/></svg>"""
+        assertTrue("display:none skipped", SvgParser.parseShapes(one("""style="display:none"""")).isEmpty())
+        assertTrue("visibility:hidden skipped", SvgParser.parseShapes(one("""visibility="hidden"""")).isEmpty())
+        assertTrue("opacity:0 skipped", SvgParser.parseShapes(one("""style="opacity:0"""")).isEmpty())
+        assertEquals("a plain rect is kept", 1, SvgParser.parseShapes(one("")).size)
+    }
+
+    @Test
+    fun visibilityHiddenOnGroupIsOverriddenByVisibleChild() {
+        // visibility is inherited but a descendant can switch it back on.
+        val svg = """<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="40mm" viewBox="0 0 40 40">
+            <g visibility="hidden">
+                <rect x="0" y="0" width="10" height="10"/>
+                <rect x="20" y="20" width="10" height="10" visibility="visible"/>
+            </g></svg>"""
+        assertEquals("only the explicitly-visible child survives", 1, SvgParser.parseShapes(svg).size)
+    }
+
+    @Test
+    fun displayNoneOnGroupRemovesWholeSubtree() {
+        val svg = """<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="40mm" viewBox="0 0 40 40">
+            <g style="display:none">
+                <rect x="0" y="0" width="10" height="10" visibility="visible"/>
+            </g></svg>"""
+        assertTrue("display:none can't be overridden by a child", SvgParser.parseShapes(svg).isEmpty())
+    }
 }

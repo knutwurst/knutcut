@@ -48,6 +48,28 @@ class PlotterSessionTest {
     }
 
     @Test
+    fun discardsStaleAckWithWrongCseqAndWaitsForTheMatchingOne() {
+        // First read returns a late ack carrying an OLD cseq; it must be skipped, not accepted, and
+        // the correct ack (cseq 0, matching the first send) returned — without resending.
+        var reads = 0
+        val link = FakeLink {
+            reads++
+            if (reads == 1) "{\"type\":\"ack\",\"success\":true,\"cseq\":99}"
+            else "{\"type\":\"ack\",\"success\":true,\"cseq\":0}"
+        }
+        val session = PlotterSession(link)
+        assertEquals("{\"type\":\"ack\",\"success\":true,\"cseq\":0}", session.send(Handshake))
+        assertEquals("stale ack skipped, not retried", 1, link.writes.size)
+    }
+
+    @Test
+    fun matchingCseqIsAccepted() {
+        val link = FakeLink { "{\"type\":\"ack\",\"success\":true,\"cseq\":0}" }
+        assertEquals("{\"type\":\"ack\",\"success\":true,\"cseq\":0}", PlotterSession(link).send(Handshake))
+        assertEquals(1, link.writes.size)
+    }
+
+    @Test
     fun responseOkRules() {
         assertTrue(responseOk("{\"type\":\"ack\",\"success\":true}"))
         assertTrue(responseOk("{\"type\":\"pltFile\",\"index\":3}"))

@@ -199,7 +199,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     fun openFile() = openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "text/plain", "application/octet-stream", "image/vnd.dxf", "application/dxf"))
     fun openDevices() { if (hasBtPerm) showDevices = true else permLauncher.launch(bluetoothPermissions()) }
 
-    LaunchedEffect(vm.status) {
+    LaunchedEffect(vm.statusSeq) {
         if (!vm.cutting) vm.status?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
     }
     LaunchedEffect(hasBtPerm) { vm.autoConnect() }
@@ -1855,7 +1855,11 @@ private fun appVersion(context: Context): String =
 
 private fun hasBluetoothPermission(context: Context): Boolean {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
-    return context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+    // Need BOTH: CONNECT to talk to a paired device, SCAN to discover BLE devices. Checking only
+    // CONNECT would report "granted" while SCAN was denied, so a scan would silently never start and
+    // never be re-requested.
+    return context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED &&
+        context.checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
 }
 
 private fun bluetoothPermissions(): Array<String> =

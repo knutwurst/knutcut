@@ -55,7 +55,10 @@ object ProjectIO {
                 val points = ArrayList<Pt>(pts.length())
                 for (k in 0 until pts.length()) {
                     val pr = pts.optJSONArray(k) ?: continue
-                    points.add(Pt(pr.optDouble(0), pr.optDouble(1)))
+                    // Drop non-finite coordinates (missing/NaN from a corrupt file) rather than letting
+                    // them poison the geometry.
+                    val p = finitePt(pr.optDouble(0), pr.optDouble(1)) ?: continue
+                    points.add(p)
                 }
                 if (points.size >= 2) polys.add(Polyline(points, po.optBoolean("c")))
             }
@@ -63,16 +66,18 @@ object ProjectIO {
             val pcolors = o.optJSONArray("pcolors")?.let { pc ->
                 (0 until pc.length()).map { if (pc.isNull(it)) null else pc.optInt(it) }
             }
+            // A non-finite centre means a broken layer — discard it rather than place geometry at NaN.
+            val center = finitePt(o.optDouble("cx"), o.optDouble("cy")) ?: continue
             val editPath = o.optJSONObject("editPath")?.let { deserializeEditPath(it) }
             // Frozen edit pivot; only meaningful alongside an editPath. Legacy files lack it.
             val editOrigin = o.optJSONArray("editOrigin")
                 ?.takeIf { editPath != null && it.length() == 2 }
-                ?.let { Pt(it.optDouble(0), it.optDouble(1)) }
+                ?.let { finitePt(it.optDouble(0), it.optDouble(1)) }
             val textSpec = o.optJSONObject("textSpec")?.let { ts ->
                 TextSpec(
                     text = ts.optString("text", ""),
                     fontIndex = ts.optInt("font", 0),
-                    heightMm = ts.optDouble("h", 25.0),
+                    heightMm = ts.optDouble("h", 25.0).let { if (it.isFinite() && it > 0) it else 25.0 },
                     curve = ts.optInt("curve", 0),
                 )
             }
@@ -81,9 +86,9 @@ object ProjectIO {
                 polylines = polys,
                 tool = runCatching { Tool.valueOf(o.optString("tool")) }.getOrDefault(Tool.KNIFE),
                 visible = o.optBoolean("visible", true),
-                centerMm = Pt(o.optDouble("cx"), o.optDouble("cy")),
-                scaleX = o.optDouble("sx", 1.0), scaleY = o.optDouble("sy", 1.0),
-                rotationDeg = o.optDouble("rot", 0.0),
+                centerMm = center,
+                scaleX = finiteOr(o.optDouble("sx", 1.0), 1.0), scaleY = finiteOr(o.optDouble("sy", 1.0), 1.0),
+                rotationDeg = finiteOr(o.optDouble("rot", 0.0), 0.0),
                 flipX = o.optBoolean("fx"), flipY = o.optBoolean("fy"),
                 colorArgb = if (o.has("color")) o.optInt("color") else null,
                 polylineColors = pcolors,
@@ -94,6 +99,12 @@ object ProjectIO {
         }
         return out
     }
+
+    /** A [Pt] only when both coordinates are finite (guards against NaN/∞ from a corrupt file). */
+    private fun finitePt(x: Double, y: Double): Pt? = if (x.isFinite() && y.isFinite()) Pt(x, y) else null
+
+    /** [v] when finite, else [fallback]. */
+    private fun finiteOr(v: Double, fallback: Double): Double = if (v.isFinite()) v else fallback
 
     // ------------------------------------------------------------------
     // EditablePath serialisation helpers (for drawn layers)
@@ -118,9 +129,9 @@ object ProjectIO {
         val nodes = ArrayList<PathNode>(nodesArr.length())
         for (i in 0 until nodesArr.length()) {
             val n = nodesArr.optJSONObject(i) ?: continue
-            val anchor = Pt(n.optDouble("ax"), n.optDouble("ay"))
-            val handleIn  = if (n.has("inx"))  Pt(n.optDouble("inx"),  n.optDouble("iny"))  else null
-            val handleOut = if (n.has("outx")) Pt(n.optDouble("outx"), n.optDouble("outy")) else null
+            val anchor = finitePt(n.optDouble("ax"), n.optDouble("ay")) ?: continue
+            val handleIn  = if (n.has("inx"))  finitePt(n.optDouble("inx"),  n.optDouble("iny"))  else null
+            val handleOut = if (n.has("outx")) finitePt(n.optDouble("outx"), n.optDouble("outy")) else null
             nodes.add(PathNode(anchor, handleIn, handleOut, smooth = n.optBoolean("sm", false)))
         }
         if (nodes.isEmpty()) return null

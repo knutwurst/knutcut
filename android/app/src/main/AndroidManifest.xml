@@ -52,6 +52,8 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:mimeType="image/svg+xml" />
+                <!-- Many file managers hand SVGs over as text/xml (matches the SEND filter). -->
+                <data android:mimeType="text/xml" />
                 <data android:mimeType="image/vnd.dxf" />
                 <data android:mimeType="application/dxf" />
             </intent-filter>

@@ -53,7 +53,12 @@ object BluetoothPlotter {
     fun connect(context: Context, device: BluetoothDevice): SppPlotterLink {
         adapter(context)?.cancelDiscovery()
         val socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
-        socket.connect()
+        try {
+            socket.connect()
+        } catch (e: Exception) {
+            runCatching { socket.close() } // don't leak the socket when connect() fails
+            throw e
+        }
         return SppPlotterLink(socket)
     }
 }
