@@ -1019,7 +1019,8 @@ private fun EditingBar(
     if (showColorSheet && perLayer) {
         LayerColorSheet(
             current = vm.layers.getOrNull(vm.selectedLayer)?.colorArgb,
-            onPick = { vm.setSelectedColor(it); showColorSheet = false },
+            // Apply but keep the sheet open, so several colours can be tried; close via "Fertig"/swipe.
+            onPick = { vm.setSelectedColor(it) },
             onDismiss = { showColorSheet = false },
         )
     }

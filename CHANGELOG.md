@@ -3,6 +3,10 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.57.5
+- Colour picker stays open when you pick a colour, so you can try several; a "Fertig" button (or a
+  swipe) closes it. Picking still applies the colour immediately.
+
 ## 0.57.4
 - The colour fill fix now applies to layers of any size. The containment grouping is cached per
   layer (it's placement-independent), so the old 400-contour fallback — which reintroduced the

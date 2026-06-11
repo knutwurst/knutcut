@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -107,6 +108,12 @@ fun LayerColorSheet(current: Int?, onPick: (Int?) -> Unit, onDismiss: () -> Unit
             Text(stringResource(R.string.ui_custom_color), style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
             CustomColorPicker(current) { onPick(it) }
+
+            // Picking a colour applies it but leaves the sheet open; this closes it.
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.ui_done))
+            }
         }
     }
 }
