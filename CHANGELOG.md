@@ -3,6 +3,10 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.57.3
+- Colour picker: the custom colour picker is shown directly instead of behind an "Eigene Farbe"
+  expander — the sheet has the room.
+
 ## 0.57.2
 - Open/close a path is reachable again: while editing points (Formen), the ⋯ menu has an
   "Pfad öffnen"/"Pfad schließen" entry, so you can fix it when auto-close guessed wrong.

@@ -19,8 +19,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -104,16 +102,11 @@ fun LayerColorSheet(current: Int?, onPick: (Int?) -> Unit, onDismiss: () -> Unit
                 Spacer(Modifier.height(8.dp))
             }
 
-            // Custom HSV picker, collapsed by default.
-            var expanded by remember { mutableStateOf(false) }
-            Row(
-                Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(stringResource(R.string.ui_custom_color), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = null)
-            }
-            if (expanded) CustomColorPicker(current) { onPick(it) }
+            // Custom HSV picker, shown directly — the sheet has the room, no need to expand it.
+            Spacer(Modifier.height(4.dp))
+            Text(stringResource(R.string.ui_custom_color), style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+            CustomColorPicker(current) { onPick(it) }
         }
     }
 }
