@@ -26,16 +26,6 @@ data class Layer(
      *  aligned 1:1 with [polylines]. Null means every polyline uses [colorArgb]. */
     val polylineColors: List<Int?>? = null,
     /**
-     * Active deformation spec, or null when the geometry is not warped.
-     * Invariant: when non-null, [polylines] == DeformEngine.apply(deform, deformSource!!).
-     */
-    val deform: DeformSpec? = null,
-    /**
-     * Original (pre-warp) geometry preserved so the deformation can be changed or removed without
-     * losing the source.  Non-null if and only if [deform] is non-null.
-     */
-    val deformSource: List<Polyline>? = null,
-    /**
      * Editable Bézier path for freehand-drawn layers.  When non-null,
      * [polylines] == listOf(editPath.toPolyline()); [polylines] remains the single source of truth
      * for rendering and cutting.

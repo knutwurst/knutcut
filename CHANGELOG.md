@@ -3,6 +3,19 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.56.7
+- Fixed resizing a mirrored (flipped) layer: the corner/side handles no longer collapse the layer to
+  a sliver because the resize maths now accounts for the flip.
+- Tiling now steps by the layer's rotated footprint, so a turned shape tiles without overlaps or gaps.
+- The tile grid goes up to 10 × 10 again (it had been capped at 6 × 6) and the cells shrink to fit
+  narrow screens.
+- Switching tool, adding/importing a shape, arranging, splitting or merging now always leaves the
+  node/bend editor cleanly, so an editing mode can't linger on a layer it no longer fits.
+- The text field is single-line: curved text lays each letter on one arc, so multi-line input would
+  have silently collapsed on the first bend.
+- Removed the unreachable "Verformen" (warp) plumbing that was left disconnected from the editor; the
+  curved-text feature is unaffected.
+
 ## 0.56.6
 - Spiegeln (flip) is back as its own toolbar button. The toolbar buttons now shrink on narrow screens
   so the whole row stays on screen instead of one button getting pushed into the ⋯ menu.

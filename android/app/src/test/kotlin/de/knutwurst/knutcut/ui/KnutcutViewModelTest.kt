@@ -249,4 +249,116 @@ class KnutcutViewModelTest {
         // No-op: layer without textSpec must not be changed, and no history pushed.
         assertEquals("layer unchanged", before, vm.layers.toList())
     }
+
+    // -----------------------------------------------------------------------
+    // Editor-mode hygiene: a node-edit / bend mode must not linger on a layer
+    // after an operation that changes the selection to a different layer.
+    // -----------------------------------------------------------------------
+
+    private fun assertCleanMode(vm: KnutcutViewModel, msg: String) {
+        assertEquals("$msg: back to SELECT", EditorTool.SELECT, vm.editorTool)
+        assertTrue("$msg: bend cleared", !vm.bendingText)
+    }
+
+    @Test
+    fun addLayerClearsActiveEditorMode() {
+        val vm = vm()
+        vm.addLayer("A", square(0.0), Tool.KNIFE)
+        vm.selectLayer(0)
+        vm.editorTool = EditorTool.NODES
+        vm.addLayer("B", square(50.0), Tool.KNIFE)
+        assertCleanMode(vm, "addLayer")
+    }
+
+    @Test
+    fun autoArrangeClearsBendMode() {
+        val vm = vm()
+        vm.addLayer("Text: Hi", textLayer(), Tool.PEN, textSpec = TextSpec("Hi", 0, 20.0, 0))
+        vm.selectLayer(0)
+        vm.startBendingText()
+        assertTrue("precondition: bending", vm.bendingText)
+        vm.autoArrange(false)
+        assertCleanMode(vm, "autoArrange")
+    }
+
+    @Test
+    fun splitLayersClearsActiveEditorMode() {
+        val vm = vm()
+        vm.addLayer("A", square(0.0), Tool.KNIFE)
+        vm.selectLayer(0)
+        vm.editorTool = EditorTool.NODES
+        vm.splitLayers()
+        assertCleanMode(vm, "splitLayers")
+    }
+
+    @Test
+    fun mergeLayersClearsActiveEditorMode() {
+        val vm = vm()
+        addTwo(vm)
+        vm.selectLayer(0)
+        vm.editorTool = EditorTool.NODES
+        vm.mergeLayers()
+        assertCleanMode(vm, "mergeLayers")
+    }
+
+    @Test
+    fun libraryAppendClearsActiveEditorMode() {
+        val vm = vm()
+        val flower = PlotterSvgLibrary.items.first { it.id == "mdi-flower" }
+        vm.addLibrarySvg(flower.name, flower.svg)   // first add (replace branch)
+        vm.selectLayer(0)
+        vm.editorTool = EditorTool.NODES
+        vm.addLibrarySvg(flower.name, flower.svg)   // append branch
+        assertCleanMode(vm, "addLibrarySvg append")
+    }
+
+    @Test
+    fun deselectClearsActiveEditorMode() {
+        val vm = vm()
+        vm.addLayer("A", square(0.0), Tool.KNIFE)
+        vm.selectLayer(0)
+        vm.editorTool = EditorTool.NODES
+        vm.deselectLayers()
+        assertCleanMode(vm, "deselectLayers")
+    }
+
+    // -----------------------------------------------------------------------
+    // toggleSelectedNodeSmooth bounds guard
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun toggleNodeSmoothIgnoresOutOfRangeIndex() {
+        val vm = vm()
+        vm.addLayer("A", square(0.0), Tool.KNIFE)
+        vm.selectLayer(0)
+        vm.convertSelectedToEditablePath()
+        assertNotNull("precondition: has an editable path", vm.layers[0].editPath)
+
+        // A stale or future index must be a no-op, not an index crash.
+        vm.toggleSelectedNodeSmooth(999)
+        vm.toggleSelectedNodeSmooth(-1)
+
+        assertNotNull("path still intact", vm.layers[0].editPath)
+    }
+
+    // -----------------------------------------------------------------------
+    // tileSelected uses the rotated footprint
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun tileSelectedSpacesByTheRotatedFootprint() {
+        val vm = vm()
+        // A tall, narrow bar: 10 mm wide × 40 mm tall.
+        val bar = listOf(Polyline(listOf(Pt(0.0, 0.0), Pt(10.0, 0.0), Pt(10.0, 40.0), Pt(0.0, 40.0)), closed = true))
+        vm.addLayer("Bar", bar, Tool.KNIFE)
+        vm.selectLayer(0)
+        vm.rotationDeg = 90.0   // now effectively 40 mm wide × 10 mm tall
+        val startX = vm.layers[0].centerMm.xMm
+
+        vm.tileSelected(cols = 2, rows = 1)
+
+        // The copy must step by the ROTATED width (~40 mm + gap), not the unrotated 10 mm.
+        val dx = vm.layers[1].centerMm.xMm - startX
+        assertTrue("stepped by the rotated footprint (~45 mm), got $dx", dx > 40.0)
+    }
 }

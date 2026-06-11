@@ -42,15 +42,14 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import de.knutwurst.knutcut.data.CircleDeform
 import de.knutwurst.knutcut.data.Mat
-import de.knutwurst.knutcut.data.PathDeform
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.EditablePath
 import de.knutwurst.knutcut.svgcore.HandleSide
 import de.knutwurst.knutcut.svgcore.nearestHandle
 import de.knutwurst.knutcut.svgcore.nearestNode
 import de.knutwurst.knutcut.svgcore.nearestSegment
+import de.knutwurst.knutcut.svgcore.Placement
 import de.knutwurst.knutcut.svgcore.Pt
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.PI
@@ -358,13 +357,20 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                                 val pressed = event.changes.filter { it.pressed }
                                 if (pressed.isEmpty()) break
                                 if (pressed.size >= 2) {
-                                    // Two-finger interrupts the node drag. If history was already pushed
-                                    // for this drag, undo it to avoid a partial edit being committed.
-                                    if (pushedNodeHistory) vm.undo()
+                                    // Two-finger hands off to the camera, keeping the partial node edit
+                                    // (same as Select/move). Drain camera events until all fingers lift,
+                                    // so the pinch tracks fully instead of stopping after a single frame.
                                     cancelledByTwoFinger = true
                                     val (np, no) = applyTwoFingerCamera(pressed[0], pressed[1], ppm, origin)
                                     ppm = np; origin = no
                                     event.changes.forEach { it.consume() }
+                                    while (true) {
+                                        val ev2 = awaitPointerEvent()
+                                        val pr2 = ev2.changes.filter { it.pressed }
+                                        if (pr2.isEmpty()) break
+                                        if (pr2.size >= 2) { val (a, b) = applyTwoFingerCamera(pr2[0], pr2[1], ppm, origin); ppm = a; origin = b }
+                                        ev2.changes.forEach { it.consume() }
+                                    }
                                     break
                                 }
                                 val p = pressed[0]
@@ -534,7 +540,6 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 val b = vm.bounds
                 val localHandles = if (b != null) handleLocalPoints(b) else emptyList()
                 val centerLocal = if (b != null) Pt((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2) else Pt(0.0, 0.0)
-                val rsRot = Math.toRadians(vm.rotationDeg)
                 val resizeHandle = (drag as? Drag.Resize)?.handle ?: -1
                 val anchorIdx = if (resizeHandle >= 0) anchorOf(resizeHandle) else -1
                 val worldHandles = handleWorldPoints(vm.placedCorners())
@@ -577,33 +582,21 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                             }
                             is Drag.Resize -> {
                                 val pw = screenToWorld(p.position, origin, ppm)
-                                val dxw = pw.xMm - anchorWorld.xMm
-                                val dyw = pw.yMm - anchorWorld.yMm
-                                val cn = Math.cos(-rsRot); val sn = Math.sin(-rsRot)
-                                val ux = dxw * cn - dyw * sn
-                                val uy = dxw * sn + dyw * cn
-                                val ldx = draggedLocal.xMm - anchorLocal.xMm
-                                val ldy = draggedLocal.yMm - anchorLocal.yMm
-                                var sx = vm.scaleX; var sy = vm.scaleY
-                                when {
-                                    d.handle < 4 -> {
-                                        val dxs = ldx * startScaleX
-                                        val dys = ldy * startScaleY
-                                        val len2 = dxs * dxs + dys * dys
-                                        val k = if (len2 > 1e-9) ((ux * dxs + uy * dys) / len2).coerceAtLeast(0.02) else 1.0
-                                        sx = startScaleX * k
-                                        sy = startScaleY * k
-                                    }
-                                    d.handle == 5 || d.handle == 7 ->
-                                        if (kotlin.math.abs(ldx) > 1e-6) sx = (ux / ldx).coerceAtLeast(0.02)
-                                    else ->
-                                        if (kotlin.math.abs(ldy) > 1e-6) sy = (uy / ldy).coerceAtLeast(0.02)
-                                }
-                                vm.scaleX = sx; vm.scaleY = sy
-                                val ax = (centerLocal.xMm - anchorLocal.xMm) * sx
-                                val ay = (centerLocal.yMm - anchorLocal.yMm) * sy
-                                val cp = Math.cos(rsRot); val sp = Math.sin(rsRot)
-                                vm.centerMm = Pt(anchorWorld.xMm + (ax * cp - ay * sp), anchorWorld.yMm + (ax * sp + ay * cp))
+                                val r = Placement.resize(
+                                    handle = d.handle,
+                                    dragWorld = pw,
+                                    anchorWorld = anchorWorld,
+                                    anchorLocal = anchorLocal,
+                                    draggedLocal = draggedLocal,
+                                    centerLocal = centerLocal,
+                                    startScaleX = startScaleX,
+                                    startScaleY = startScaleY,
+                                    rotationDeg = vm.rotationDeg,
+                                    flipX = vm.flipX,
+                                    flipY = vm.flipY,
+                                )
+                                vm.scaleX = r.scaleX; vm.scaleY = r.scaleY
+                                vm.centerMm = r.center
                             }
                             Drag.Rotate -> {
                                 val a = atan2((p.position.y - cs.y).toDouble(), (p.position.x - cs.x).toDouble())
@@ -723,35 +716,6 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
         vm.alignGuideY?.let { gy ->
             val y = s(Pt(0.0, gy)).y
             drawLine(guideColor, Offset(s(Pt(0.0, 0.0)).x, y), Offset(s(Pt(vm.mat.widthMm, 0.0)).x, y), strokeWidth = 1.5f)
-        }
-
-        // Deform guide: drawn for the selected layer when it has an active deform spec.
-        val deform = vm.layers.getOrNull(vm.selectedLayer)?.deform
-        when (deform) {
-            is CircleDeform -> {
-                val screenCenter = s(Pt(deform.centerXMm, deform.centerYMm))
-                val radiusPx = (deform.radiusMm * ppm).toFloat()
-                drawCircle(
-                    color = deformGuideColor,
-                    radius = radiusPx,
-                    center = screenCenter,
-                    style = Stroke(width = 1.5f),
-                )
-            }
-            is PathDeform -> {
-                val guidePts = EditablePath(deform.guide, deform.closed).toPolyline().points
-                if (guidePts.size >= 2) {
-                    for (i in 0 until guidePts.size - 1) {
-                        drawLine(
-                            color = deformGuideColor,
-                            start = s(guidePts[i]),
-                            end = s(guidePts[i + 1]),
-                            strokeWidth = 1.5f,
-                        )
-                    }
-                }
-            }
-            else -> Unit
         }
 
         // Node editor overlay: draw anchors and handles when in NODES mode.

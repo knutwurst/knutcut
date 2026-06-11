@@ -144,10 +144,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import de.knutwurst.knutcut.BuildConfig
 import de.knutwurst.knutcut.R
-import de.knutwurst.knutcut.data.CircleDeform
 import de.knutwurst.knutcut.data.TextSpec
-import de.knutwurst.knutcut.data.bendToCircleDeform
-import de.knutwurst.knutcut.data.bendValue
 import de.knutwurst.knutcut.data.Devices
 import de.knutwurst.knutcut.svgcore.TextArc
 import de.knutwurst.knutcut.data.DisplayUnit
@@ -251,7 +248,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                         onOpenFile = { showAdd = false; openFile() },
                         onLibrary = { showAdd = false; showLibrary = true },
                         onText = { showAdd = false; showText = true },
-                        onDraw = { showAdd = false; vm.editorTool = EditorTool.DRAW },
+                        onDraw = { showAdd = false; vm.stopBendingText(); vm.editorTool = EditorTool.DRAW },
                         onShape = { vm.addLayer(it.first, listOf(it.second)); showAdd = false },
                     )
                 }
@@ -407,6 +404,9 @@ private fun TextDialog(vm: KnutcutViewModel, fonts: FontRepository, onDismiss: (
                     // The empty field previews the selected font; typing shows the text in it too.
                     placeholder = { Text(stringResource(R.string.ui_text), fontFamily = previewFamily) },
                     textStyle = LocalTextStyle.current.copy(fontFamily = previewFamily),
+                    // Single line: curved text lays each letter on one arc, so a multi-line input would
+                    // silently collapse to one line on the first bend. Keep what you type honest.
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(8.dp))
@@ -841,19 +841,25 @@ private fun TileGridPicker(cols: Int, rows: Int, maxCols: Int, maxRows: Int, onP
     val active = MaterialTheme.colorScheme.primary
     val inactive = MaterialTheme.colorScheme.surfaceVariant
     val outline = MaterialTheme.colorScheme.outlineVariant
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        for (r in 0 until maxRows) {
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                for (c in 0 until maxCols) {
-                    val on = c < cols && r < rows
-                    Box(
-                        Modifier
-                            .size(30.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (on) active else inactive)
-                            .border(1.dp, if (on) active else outline, RoundedCornerShape(4.dp))
-                            .clickable { onPick(c + 1, r + 1) },
-                    )
+    val gap = 3.dp
+    BoxWithConstraints {
+        // Size the cells to the available width so even a wide grid (e.g. 10 columns) fits on narrow
+        // screens; cap at 30 dp so a small grid doesn't blow up into oversized tiles.
+        val cell = ((maxWidth - gap * (maxCols - 1)) / maxCols).coerceIn(16.dp, 30.dp)
+        Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+            for (r in 0 until maxRows) {
+                Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                    for (c in 0 until maxCols) {
+                        val on = c < cols && r < rows
+                        Box(
+                            Modifier
+                                .size(cell)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (on) active else inactive)
+                                .border(1.dp, if (on) active else outline, RoundedCornerShape(4.dp))
+                                .clickable { onPick(c + 1, r + 1) },
+                        )
+                    }
                 }
             }
         }
@@ -1108,7 +1114,7 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             }
             Spacer(Modifier.height(6.dp))
             // Tap a cell to choose the columns × rows; the highlighted block previews the arrangement.
-            TileGridPicker(cols, rows, maxCols = 6, maxRows = 6) { c, r -> cols = c; rows = r }
+            TileGridPicker(cols, rows, maxCols = 10, maxRows = 10) { c, r -> cols = c; rows = r }
             Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = { vm.tileSelected(cols, rows) }, enabled = vm.selectedLayer in vm.layers.indices, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.ui_tile_selected), maxLines = 1)
