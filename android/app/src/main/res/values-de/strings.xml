@@ -149,6 +149,12 @@
     <string name="ui_group_by_color">Nach Farben gruppieren</string>
     <string name="ui_tiles">Kacheln</string>
     <string name="ui_tile_selected">Ausgewählte Ebene kacheln</string>
+    <string name="ui_spacing_mm">Abstand (mm)</string>
+    <string name="ui_select_layer_first">Erst eine Ebene auswählen</string>
+    <string name="ui_layer_color">Ebenenfarbe</string>
+    <string name="ui_no_color">Keine Farbe</string>
+    <string name="ui_custom_color">Eigene Farbe</string>
+    <string name="ui_hex">Hex</string>
     <string name="ui_save_material">Material sparen</string>
     <string name="ui_auto_arrange">Automatisch anordnen</string>
     <string name="ui_allow_rot90">90°-Drehung erlauben (packt enger)</string>

@@ -151,6 +151,12 @@
     <string name="ui_group_by_color">Group by colour</string>
     <string name="ui_tiles">Tiles</string>
     <string name="ui_tile_selected">Tile the selected layer</string>
+    <string name="ui_spacing_mm">Spacing (mm)</string>
+    <string name="ui_select_layer_first">Select a layer first</string>
+    <string name="ui_layer_color">Layer colour</string>
+    <string name="ui_no_color">No colour</string>
+    <string name="ui_custom_color">Custom colour</string>
+    <string name="ui_hex">Hex</string>
     <string name="ui_save_material">Save material</string>
     <string name="ui_auto_arrange">Auto-arrange</string>
     <string name="ui_allow_rot90">Allow 90° rotation (packs tighter)</string>

@@ -9,6 +9,7 @@ import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Pt
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -344,6 +345,45 @@ class KnutcutViewModelTest {
     // -----------------------------------------------------------------------
     // tileSelected uses the rotated footprint
     // -----------------------------------------------------------------------
+
+    // -----------------------------------------------------------------------
+    // setSelectedColor
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun setSelectedColorSetsColourAndIsOneUndoStep() {
+        val vm = vm()
+        vm.addLayer("A", square(0.0), Tool.KNIFE)
+        vm.selectLayer(0)
+
+        vm.setSelectedColor(0xFFE53935.toInt())
+
+        assertEquals(0xFFE53935.toInt(), vm.layers[0].colorArgb)
+        assertNull("per-polyline colours cleared so the layer takes one colour", vm.layers[0].polylineColors)
+        assertTrue("one undo step", vm.canUndo)
+        vm.undo()
+        assertNull("undo restores the original (no) colour", vm.layers[0].colorArgb)
+    }
+
+    @Test
+    fun setSelectedColorNoneClearsColour() {
+        val vm = vm()
+        vm.addLayer("A", square(0.0), Tool.KNIFE)
+        vm.selectLayer(0)
+        vm.setSelectedColor(0xFF00FF00.toInt())
+        vm.setSelectedColor(null)
+        assertNull(vm.layers[0].colorArgb)
+    }
+
+    @Test
+    fun setSelectedColorNoOpWithoutSelection() {
+        val vm = vm()
+        vm.addLayer("A", square(0.0), Tool.KNIFE)
+        vm.deselectLayers() // mat selected, no layer
+        val before = vm.layers.toList()
+        vm.setSelectedColor(0xFF0000FF.toInt())
+        assertEquals("no layer selected: nothing changes", before, vm.layers.toList())
+    }
 
     @Test
     fun tileSelectedSpacesByTheRotatedFootprint() {

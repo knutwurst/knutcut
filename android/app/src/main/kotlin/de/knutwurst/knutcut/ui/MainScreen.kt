@@ -72,6 +72,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.FormatAlignCenter
 import androidx.compose.material.icons.filled.Search
@@ -866,6 +867,42 @@ private fun TileGridPicker(cols: Int, rows: Int, maxCols: Int, maxRows: Int, onP
     }
 }
 
+/** Tiling in a focused dialog: a columns × rows grid with a live preview, a spacing field, and apply.
+ *  Opened from the Layers sheet so the grid no longer crowds it. */
+@Composable
+private fun TileDialog(vm: KnutcutViewModel, onDismiss: () -> Unit) {
+    var cols by remember { mutableStateOf(2) }
+    var rows by remember { mutableStateOf(2) }
+    var gap by remember { mutableStateOf(5) }
+    val hasLayer = vm.selectedLayer in vm.layers.indices
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.ui_tiles)) },
+        text = {
+            Column {
+                Text("$cols × $rows", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(8.dp))
+                TileGridPicker(cols, rows, maxCols = 10, maxRows = 10) { c, r -> cols = c; rows = r }
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.ui_spacing_mm), Modifier.weight(1f))
+                    EditableStepper(gap, 0, 100, step = 1) { gap = it }
+                }
+                if (!hasLayer) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(stringResource(R.string.ui_select_layer_first), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = hasLayer, onClick = { vm.tileSelected(cols, rows, gap.toDouble()); onDismiss() }) {
+                Text(stringResource(R.string.ui_apply))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.ui_cancel)) } },
+    )
+}
+
 /** A compact icon button used in the editing toolbar (Canva/Figma style). */
 @Composable
 private fun IconAction(label: String, icon: ImageVector, size: Dp = 40.dp, rotate: Float = 0f, enabled: Boolean = true, onClick: () -> Unit) {
@@ -894,6 +931,7 @@ private fun EditingBar(
     val perLayer = !vm.matSelected
     var showFlipMenu by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
+    var showColorSheet by remember { mutableStateOf(false) }
 
     val sel = vm.layers.getOrNull(vm.selectedLayer)
     val isTextLayer = perLayer && sel?.textSpec != null
@@ -942,10 +980,16 @@ private fun EditingBar(
                         DropdownMenuItem(text = { Text(stringResource(R.string.ui_flip_v)) }, onClick = { showFlipMenu = false; vm.mirrorSelectedVertical() })
                     }
                 }
-                IconAction(stringResource(R.string.ui_duplicate), Icons.Default.ContentCopy, size = cell, enabled = perLayer) { vm.duplicateSelected() }
+                IconAction(stringResource(R.string.ui_layer_color), Icons.Default.Palette, size = cell, enabled = perLayer) { showColorSheet = true }
                 Box {
                     IconAction(stringResource(R.string.ui_more), Icons.Default.MoreVert, size = cell) { showMoreMenu = true }
                     DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.ui_duplicate)) },
+                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                            enabled = perLayer,
+                            onClick = { showMoreMenu = false; vm.duplicateSelected() },
+                        )
                         DropdownMenuItem(text = { Text(stringResource(R.string.ui_align)) }, onClick = { showMoreMenu = false; onAlign() })
                         DropdownMenuItem(text = { Text(stringResource(R.string.ui_reset_layer)) }, enabled = perLayer, onClick = { showMoreMenu = false; vm.resetSelectedPlacement() })
                         if (vm.matSelected) {
@@ -962,6 +1006,14 @@ private fun EditingBar(
                 }
             }
         }
+    }
+
+    if (showColorSheet && perLayer) {
+        LayerColorSheet(
+            current = vm.layers.getOrNull(vm.selectedLayer)?.colorArgb,
+            onPick = { vm.setSelectedColor(it); showColorSheet = false },
+            onDismiss = { showColorSheet = false },
+        )
     }
 
     Spacer(Modifier.height(8.dp))
@@ -1080,6 +1132,8 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
     var allowRotate by remember { mutableStateOf(true) }
     var renaming by remember { mutableStateOf(-1) }
     var renameText by remember { mutableStateOf("") }
+    var showTileDialog by remember { mutableStateOf(false) }
+    if (showTileDialog) TileDialog(vm) { showTileDialog = false }
     if (renaming in vm.layers.indices) {
         AlertDialog(
             onDismissRequest = { renaming = -1 },
@@ -1105,19 +1159,10 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             OutlinedButton(onClick = { vm.mergeByColor() }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.ui_group_by_color), maxLines = 1)
             }
-            Spacer(Modifier.height(8.dp))
-            var cols by remember { mutableStateOf(2) }
-            var rows by remember { mutableStateOf(2) }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.ui_tiles), style = MaterialTheme.typography.bodyMedium)
-                Text("$cols × $rows", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-            }
-            Spacer(Modifier.height(6.dp))
-            // Tap a cell to choose the columns × rows; the highlighted block previews the arrangement.
-            TileGridPicker(cols, rows, maxCols = 10, maxRows = 10) { c, r -> cols = c; rows = r }
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(onClick = { vm.tileSelected(cols, rows) }, enabled = vm.selectedLayer in vm.layers.indices, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.ui_tile_selected), maxLines = 1)
+            Spacer(Modifier.height(4.dp))
+            // Tiling lives in its own dialog (it used to be a large inline grid that crowded the sheet).
+            OutlinedButton(onClick = { showTileDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.ui_tiles) + "…", maxLines = 1)
             }
             Spacer(Modifier.height(10.dp))
             Text(stringResource(R.string.ui_save_material), style = MaterialTheme.typography.labelLarge)

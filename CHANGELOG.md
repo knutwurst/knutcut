@@ -3,6 +3,15 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.57.0
+- New: set a layer's colour. The toolbar's duplicate button is now a colour button that opens a
+  picker — a curated swatch palette for quick choices, plus an expandable custom picker with a
+  hue bar, a saturation/brightness field and a hex field, and a "no colour" reset. The colour shows
+  as the fill in "Farbig" mode and as the dot in the layer list. (Duplicate moved into the ⋯ menu.)
+- Tiling moved out of the layer sheet into its own dialog: the sheet now has a compact "Kacheln…"
+  button that opens a focused window with the grid, a live columns × rows preview and a spacing
+  field, so the layer sheet stays tidy.
+
 ## 0.56.7
 - Fixed resizing a mirrored (flipped) layer: the corner/side handles no longer collapse the layer to
   a sliver because the resize maths now accounts for the flip.

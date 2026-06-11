@@ -972,6 +972,14 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun mirrorSelectedHorizontal() { pushHistory(); updateSelected { it.copy(flipX = !it.flipX) } }
     fun mirrorSelectedVertical() { pushHistory(); updateSelected { it.copy(flipY = !it.flipY) } }
 
+    /** Set the selected layer's display colour ([argb] packed, or null for none/tool default).
+     *  Clears any per-polyline colours so the whole layer takes the one colour. One undo step. */
+    fun setSelectedColor(argb: Int?) {
+        if (selectedLayer !in layers.indices) return
+        pushHistory()
+        updateSelected { it.copy(colorArgb = argb, polylineColors = null) }
+    }
+
     /** Duplicate the selected layer, offset a little, and select the copy. */
     fun duplicateSelected() {
         val i = selectedLayer
