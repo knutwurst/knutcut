@@ -3,15 +3,10 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
-## 0.58.5
-- The colour picker's hex field now actually rises above the keyboard. The app draws edge-to-edge so
-  the keyboard inset reaches the bottom sheet's window; focusing the hex field expands the sheet and
-  scrolls the field into view. (The earlier attempts had no effect because the sheet never saw the
-  keyboard inset.)
-
-## 0.58.4
-- Colour picker: tapping the hex field now also scrolls it into view (not just expands the sheet),
-  so it sits above the keyboard without scrolling by hand.
+## 0.58.6
+- Reverted the colour-picker keyboard experiments: the hex-field auto-scroll (0.58.4) had no effect,
+  and the edge-to-edge change (0.58.5) squeezed the rest of the app. Back to the 0.58.3 behaviour —
+  the picker opens at half height and expands when you tap the hex field.
 
 ## 0.58.3
 - Colour picker opens at half height again. It only expands to full when you tap the hex field, so
