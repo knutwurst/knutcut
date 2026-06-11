@@ -3,6 +3,13 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.57.1
+- Fixed colour fill on a merged, uniformly-coloured layer leaving gaps. The "Farbig" fill grouped
+  every same-colour contour into one even-odd path, so once a whole layer shared one colour,
+  overlapping shapes cancelled in their overlap. Filling now groups by colour and containment:
+  nested contours still carve real holes (letter counters, donut holes), but shapes that merely
+  overlap fill solidly.
+
 ## 0.57.0
 - New: set a layer's colour. The toolbar's duplicate button is now a colour button that opens a
   picker — a curated swatch palette for quick choices, plus an expandable custom picker with a

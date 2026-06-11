@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import de.knutwurst.knutcut.data.Mat
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.EditablePath
+import de.knutwurst.knutcut.svgcore.FillNesting
 import de.knutwurst.knutcut.svgcore.HandleSide
 import de.knutwurst.knutcut.svgcore.nearestHandle
 import de.knutwurst.knutcut.svgcore.nearestNode
@@ -652,16 +653,16 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 }
             }
             if (colorMode) {
-                // Fill in document order, grouping only CONTIGUOUS same-colour runs into one EvenOdd
-                // path. A run is one original shape, so EvenOdd carves its real holes; separate shapes
-                // stay separate fills layered front-to-back (painter's order). Grouping across the
-                // whole layer instead would let a nested same-colour shape cancel another via EvenOdd.
-                var i = 0
-                while (i < pls.size) {
-                    val c = cols.getOrNull(i)
-                    val group = Path().apply { fillType = PathFillType.EvenOdd }
-                    while (i < pls.size && cols.getOrNull(i) == c) { group.addPath(paths[i]); i++ }
-                    if (c != null) drawPath(group, Color(c), style = Fill)
+                // Group contours by colour AND containment (see FillNesting): a contour nested inside
+                // another same-colour contour carves a real hole via EvenOdd, while shapes that merely
+                // overlap stay separate and union. This keeps holes (letter counters) yet fills a
+                // uniformly-coloured, merged layer solidly where shapes overlap. A huge contour count
+                // falls back to the cheap contiguous-colour grouping to keep the draw fast.
+                val groups = if (pls.size <= 400) FillNesting.fillGroups(pls, cols) else contiguousColorGroups(cols)
+                for (g in groups) {
+                    val c = cols.getOrNull(g.first()) ?: continue
+                    val group = Path().apply { fillType = PathFillType.EvenOdd; g.forEach { addPath(paths[it]) } }
+                    drawPath(group, Color(c), style = Fill)
                 }
             }
             // Outlines on top — theme onSurface in COLOR mode guarantees contrast on both dark and
@@ -916,6 +917,19 @@ private fun DrawScope.drawRulers(mat: Mat, origin: Offset, ppm: Float, textColor
 private fun baseScale(sizePx: IntSize, mat: Mat): Float {
     if (sizePx.width == 0 || sizePx.height == 0) return 0f
     return (min(sizePx.width / mat.widthMm, sizePx.height / mat.heightMm) * 0.9).toFloat()
+}
+
+/** Cheap O(n) fallback grouping for very large layers: one group per contiguous same-colour run. */
+private fun contiguousColorGroups(cols: List<Int?>): List<List<Int>> {
+    val groups = ArrayList<List<Int>>()
+    var i = 0
+    while (i < cols.size) {
+        val c = cols.getOrNull(i)
+        val run = ArrayList<Int>()
+        while (i < cols.size && cols.getOrNull(i) == c) { run.add(i); i++ }
+        groups.add(run)
+    }
+    return groups
 }
 
 private fun ppmFor(sizePx: IntSize, mat: Mat, camScale: Float): Float = baseScale(sizePx, mat) * camScale
