@@ -3,6 +3,10 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.57.6
+- Colour picker: the keyboard no longer hides the hex field. The sheet opens full height, its content
+  scrolls, and it lifts above the on-screen keyboard so the focused hex field stays visible.
+
 ## 0.57.5
 - Colour picker stays open when you pick a colour, so you can try several; a "Fertig" button (or a
   swipe) closes it. Picking still applies the colour immediately.
