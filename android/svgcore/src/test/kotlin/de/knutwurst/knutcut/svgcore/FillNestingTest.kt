@@ -70,6 +70,28 @@ class FillNestingTest {
     }
 
     @Test
+    fun containmentPairsAreColourIndependentAndComposeIntoGroups() {
+        // containmentPairs is the cacheable geometry step; groups() applies colours cheaply.
+        val outer = square(0.0, 0.0, 100.0)
+        val inner = square(30.0, 30.0, 40.0)
+        val contours = listOf(outer, inner)
+        val pairs = FillNesting.containmentPairs(contours)
+        assertEquals("outer contains inner", listOf(0 to 1), pairs)
+        // Same colour → one group (hole carves); different colour → two groups (inner on top).
+        assertEquals(1, FillNesting.groups(2, pairs, listOf(CYAN, CYAN)).size)
+        assertEquals(2, FillNesting.groups(2, pairs, listOf(CYAN, RED)).size)
+    }
+
+    @Test
+    fun scalesToManyContoursWithoutMerging() {
+        // 50 separate, non-overlapping same-colour squares → 50 independent groups. Guards that the
+        // grouping has no contour-count cap (the renderer no longer falls back above a threshold).
+        val contours = (0 until 50).map { square(it * 30.0, 0.0, 20.0) }
+        val groups = FillNesting.fillGroups(contours, List(50) { CYAN })
+        assertEquals(50, groups.size)
+    }
+
+    @Test
     fun groupsKeepDocumentOrder() {
         val a = square(0.0, 0.0, 20.0)
         val b = square(80.0, 80.0, 20.0)

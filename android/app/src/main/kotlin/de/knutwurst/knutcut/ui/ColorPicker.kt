@@ -143,8 +143,10 @@ private fun CustomColorPicker(current: Int?, onApply: (Int) -> Unit) {
 
     val color = Color.hsv(hue, sat, value)
     val argb = color.toArgb()
-    // Keep the hex field in sync while the user drags the wheel/square.
-    fun syncHexFromHsv() { hex = argbToHex(argb) }
+    // Recompute from the live hue/sat/value (which tap/drag set just before calling this) rather than
+    // from `argb`, which still holds this composition's old colour — otherwise the hex field lags one
+    // step behind.
+    fun syncHexFromHsv() { hex = argbToHex(Color.hsv(hue, sat, value).toArgb()) }
 
     // Saturation/value square for the current hue.
     Canvas(
@@ -205,8 +207,10 @@ private fun CustomColorPicker(current: Int?, onApply: (Int) -> Unit) {
             value = hex,
             onValueChange = { s ->
                 hex = s
-                hexToArgb(s)?.let { parsed ->
-                    val h = rgbToHsv(parsed); hue = h[0]; sat = h[1]; value = h[2]
+                // The picker has no alpha channel, so only a 6-digit RGB value drives it; an
+                // 8-digit (#AARRGGBB) value is ignored rather than silently dropping its alpha.
+                if (s.trim().removePrefix("#").length == 6) {
+                    hexToArgb(s)?.let { parsed -> val h = rgbToHsv(parsed); hue = h[0]; sat = h[1]; value = h[2] }
                 }
             },
             label = { Text(stringResource(R.string.ui_hex)) },

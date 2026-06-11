@@ -37,6 +37,7 @@ import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Bounds
 import de.knutwurst.knutcut.svgcore.CutOrder
 import de.knutwurst.knutcut.svgcore.EditablePath
+import de.knutwurst.knutcut.svgcore.FillNesting
 import de.knutwurst.knutcut.svgcore.HandleSide
 import de.knutwurst.knutcut.svgcore.deleteNode
 import de.knutwurst.knutcut.svgcore.dragSegment
@@ -1079,10 +1080,20 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             Bounds.ofOrNull(layer.polylines.flatMap { it.points }) ?: EMPTY_BOUNDS
         }
 
-    /** Drop cached bounds whose geometry is no longer on any layer, so the cache can't grow forever. */
+    // Containment of a layer's contours (for colour fills). Geometry-only and affine-invariant, so
+    // it's cached by the local polylines identity and survives placement and colour changes — the
+    // O(n²) work runs once per geometry edit, never per frame, so there's no contour-count limit.
+    private val containmentCache = java.util.IdentityHashMap<List<Polyline>, List<Pair<Int, Int>>>()
+    private fun fillGroupsFor(layer: Layer): List<List<Int>> {
+        val pairs = containmentCache.getOrPut(layer.polylines) { FillNesting.containmentPairs(layer.polylines) }
+        return FillNesting.groups(layer.polylines.size, pairs, layer.colorList())
+    }
+
+    /** Drop cached geometry whose layer is gone, so the caches can't grow forever. */
     private fun pruneBoundsCache() {
         val keep = layers.map { it.polylines }
         boundsCache.keys.removeAll { key -> keep.none { it === key } }
+        containmentCache.keys.removeAll { key -> keep.none { it === key } }
     }
 
     /** Place layers at their original relative positions with the whole design's top-left at (0,0). */
@@ -1580,13 +1591,16 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         }
 
     /** One entry from [placedLayers]: the tool, the placed polylines, and each polyline's SVG colour. */
-    data class PlacedLayer(val tool: Tool, val polylines: List<Polyline>, val colors: List<Int?>)
+    /** [fillGroups] indexes into [polylines]: each group is filled as one even-odd path (see
+     *  FillNesting), so nested contours carve holes while overlapping shapes union. */
+    data class PlacedLayer(val tool: Tool, val polylines: List<Polyline>, val colors: List<Int?>, val fillGroups: List<List<Int>>)
 
     /** Visible layers placed on the mat (mm, y-down) — for drawing in the editor. */
     fun placedLayers(): List<PlacedLayer> =
         layers.filter { it.visible }.map { layer ->
             val m = layerMatrix(layer)
-            PlacedLayer(layer.tool, layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }, layer.colorList())
+            val placed = layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
+            PlacedLayer(layer.tool, placed, layer.colorList(), fillGroupsFor(layer))
         }
 
     /** The layers a cut will send: just the selected one when [cutSelectedOnly], else all visible. */

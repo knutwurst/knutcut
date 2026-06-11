@@ -3,6 +3,14 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.57.4
+- The colour fill fix now applies to layers of any size. The containment grouping is cached per
+  layer (it's placement-independent), so the old 400-contour fallback — which reintroduced the
+  overlap gaps on big merged layers — is gone.
+- Custom colour picker: the hex field updates immediately on tap/drag instead of lagging one step.
+- Custom colour picker: an 8-digit (#AARRGGBB) hex is no longer half-accepted; only 6-digit RGB is
+  used, since the picker has no alpha channel.
+
 ## 0.57.3
 - Colour picker: the custom colour picker is shown directly instead of behind an "Eigene Farbe"
   expander — the sheet has the room.
