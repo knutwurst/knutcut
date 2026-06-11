@@ -990,6 +990,14 @@ private fun EditingBar(
                             enabled = perLayer,
                             onClick = { showMoreMenu = false; vm.duplicateSelected() },
                         )
+                        // Open/close the path while node-editing — the manual override for the
+                        // freehand auto-close (e.g. when auto-close guessed wrong).
+                        if (vm.editorTool == EditorTool.NODES && vm.selectedEditPath != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(if (vm.selectedPathClosed) R.string.ui_path_open else R.string.ui_path_close)) },
+                                onClick = { showMoreMenu = false; vm.toggleSelectedPathClosed() },
+                            )
+                        }
                         DropdownMenuItem(text = { Text(stringResource(R.string.ui_align)) }, onClick = { showMoreMenu = false; onAlign() })
                         DropdownMenuItem(text = { Text(stringResource(R.string.ui_reset_layer)) }, enabled = perLayer, onClick = { showMoreMenu = false; vm.resetSelectedPlacement() })
                         if (vm.matSelected) {

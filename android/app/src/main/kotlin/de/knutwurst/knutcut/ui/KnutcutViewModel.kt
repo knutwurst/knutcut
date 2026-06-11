@@ -885,15 +885,17 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun beginNodeEdit() { pushHistory() }
 
-    /** Move anchor [i] to [toLocal] (local coords). Does not push history — caller does that. */
+    /** Move anchor [i] to [toLocal] (local coords). No-op for a stale index. Caller pushes history. */
     fun moveSelectedAnchor(i: Int, toLocal: Pt) {
         val path = selectedEditPath ?: return
+        if (i !in path.nodes.indices) return   // PathEdit.moveAnchor indexes nodes[i]; guard the stale case
         applyEditPath(path.moveAnchor(i, toLocal))
     }
 
-    /** Move handle [side] of node [i] to [toLocal] (local coords). Does not push history. */
+    /** Move handle [side] of node [i] to [toLocal] (local coords). No-op for a stale index. */
     fun moveSelectedHandle(i: Int, side: HandleSide, toLocal: Pt) {
         val path = selectedEditPath ?: return
+        if (i !in path.nodes.indices) return   // PathEdit.moveHandle indexes nodes[i]; guard the stale case
         applyEditPath(path.moveHandle(i, side, toLocal))
     }
 
@@ -908,9 +910,15 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         applyEditPath(path.dragSegment(segmentIndex, t, toLocal))
     }
 
-    /** Insert a node on segment [segmentIndex] at parameter [t]. Pushes one undo step. */
+    /** Insert a node on segment [segmentIndex] at parameter [t]. No-op for a stale segment index.
+     *  Pushes one undo step on success. */
     fun insertSelectedNode(segmentIndex: Int, t: Double) {
         val path = selectedEditPath ?: return
+        // Match PathEdit.insertNode's preconditions BEFORE pushing history: an out-of-range segment
+        // would throw (require) and leave a dangling undo step. An open path has one fewer segment
+        // than nodes (no wrap), a closed path has one per node.
+        val n = path.nodes.size
+        if (segmentIndex < 0 || segmentIndex >= n || (!path.closed && segmentIndex + 1 >= n)) return
         pushHistory()
         applyEditPath(path.insertNode(segmentIndex, t))
     }

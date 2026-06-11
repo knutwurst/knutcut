@@ -3,6 +3,13 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.57.2
+- Open/close a path is reachable again: while editing points (Formen), the ⋯ menu has an
+  "Pfad öffnen"/"Pfad schließen" entry, so you can fix it when auto-close guessed wrong.
+- Hardened the node editor against stale indices: moving an anchor or handle, and inserting a node,
+  now no-op on an out-of-range index instead of risking a crash (the insert guard runs before the
+  undo step, so a stale insert leaves no dangling history).
+
 ## 0.57.1
 - Fixed colour fill on a merged, uniformly-coloured layer leaving gaps. The "Farbig" fill grouped
   every same-colour contour into one even-odd path, so once a whole layer shared one colour,

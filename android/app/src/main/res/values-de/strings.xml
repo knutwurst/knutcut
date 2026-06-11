@@ -320,8 +320,8 @@
     <string name="ui_mode_select">Auswählen</string>
     <string name="ui_mode_draw">Zeichnen</string>
     <string name="ui_mode_nodes">Formen</string>
-    <string name="ui_path_close">Schließen</string>
-    <string name="ui_path_open">Öffnen</string>
+    <string name="ui_path_close">Pfad schließen</string>
+    <string name="ui_path_open">Pfad öffnen</string>
     <!-- Biegen-Sheet -->
     <string name="ui_bend">Biegen</string>
     <string name="ui_magic">Zauberstab</string>

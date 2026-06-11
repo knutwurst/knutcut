@@ -322,8 +322,8 @@
     <string name="ui_mode_select">Select</string>
     <string name="ui_mode_draw">Draw</string>
     <string name="ui_mode_nodes">Shape</string>
-    <string name="ui_path_close">Close</string>
-    <string name="ui_path_open">Open</string>
+    <string name="ui_path_close">Close path</string>
+    <string name="ui_path_open">Open path</string>
     <!-- Bend sheet -->
     <string name="ui_bend">Bend</string>
     <string name="ui_magic">Magic</string>
