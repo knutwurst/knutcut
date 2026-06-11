@@ -3,6 +3,10 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.58.3
+- Colour picker opens at half height again. It only expands to full when you tap the hex field, so
+  the field stays visible above the keyboard.
+
 ## 0.58.2
 - Bluetooth permission split: CONNECT alone opens the device dialog and connects a paired VEVOR;
   SCAN is only needed to search. A denied SCAN no longer blocks connecting a paired device — the

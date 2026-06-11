@@ -36,10 +36,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -51,6 +53,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import de.knutwurst.knutcut.R
+import kotlinx.coroutines.launch
 
 // ---------------------------------------------------------------------------
 // Pure colour helpers (no Android types — unit-tested in ColorHexTest).
@@ -88,9 +91,11 @@ private val PALETTE: List<Int> = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LayerColorSheet(current: Int?, onPick: (Int?) -> Unit, onDismiss: () -> Unit) {
-    // Full-height + scrollable + imePadding so the on-screen keyboard pushes the content up and the
-    // focused hex field scrolls into view above it instead of sitting behind it.
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    // Opens at the default (half) height. The content scrolls and lifts above the keyboard (imePadding);
+    // only when the hex field is focused does the sheet expand to full so the field stays visible.
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -120,7 +125,7 @@ fun LayerColorSheet(current: Int?, onPick: (Int?) -> Unit, onDismiss: () -> Unit
             Spacer(Modifier.height(4.dp))
             Text(stringResource(R.string.ui_custom_color), style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
-            CustomColorPicker(current) { onPick(it) }
+            CustomColorPicker(current, onHexFocused = { scope.launch { sheetState.expand() } }) { onPick(it) }
 
             // Picking a colour applies it but leaves the sheet open; this closes it.
             Spacer(Modifier.height(8.dp))
@@ -153,7 +158,7 @@ private fun Swatch(argb: Int, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun CustomColorPicker(current: Int?, onApply: (Int) -> Unit) {
+private fun CustomColorPicker(current: Int?, onHexFocused: () -> Unit, onApply: (Int) -> Unit) {
     val start = current ?: 0xFF1E88E5.toInt()
     val initHsv = remember { rgbToHsv(start) }
     var hue by remember { mutableStateOf(initHsv[0]) }
@@ -238,7 +243,9 @@ private fun CustomColorPicker(current: Int?, onApply: (Int) -> Unit) {
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                 capitalization = KeyboardCapitalization.Characters, keyboardType = KeyboardType.Ascii,
             ),
-            modifier = Modifier.weight(1f),
+            // Expand the sheet only when the user actually starts typing a hex value, so the field
+            // stays visible above the keyboard while the sheet still opens at half height.
+            modifier = Modifier.weight(1f).onFocusChanged { if (it.isFocused) onHexFocused() },
         )
     }
     Spacer(Modifier.height(12.dp))
