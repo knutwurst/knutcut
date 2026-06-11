@@ -3,6 +3,10 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.58.7
+- Colour picker: the "no colour" button is gone. It's now the first swatch — a hatched/slashed
+  circle for "no colour / transparent" — alongside the colours, which also lifts the rest a little.
+
 ## 0.58.6
 - Reverted the colour-picker keyboard experiments: the hex-field auto-scroll (0.58.4) had no effect,
   and the edge-to-edge change (0.58.5) squeezed the rest of the app. Back to the 0.58.3 behaviour —

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -27,7 +28,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -107,16 +107,14 @@ fun LayerColorSheet(current: Int?, onPick: (Int?) -> Unit, onDismiss: () -> Unit
             Text(stringResource(R.string.ui_layer_color), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(12.dp))
 
-            // "No colour" resets to the tool default.
-            OutlinedButton(onClick = { onPick(null) }, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.ui_no_color))
-            }
-            Spacer(Modifier.height(12.dp))
-
-            // Swatch palette — tap applies immediately.
-            PALETTE.chunked(8).forEach { row ->
+            // Swatch palette — tap applies immediately. The first swatch is "no colour" (transparent),
+            // shown as a hatched circle, so it sits with the colours instead of needing its own button.
+            (listOf<Int?>(null) + PALETTE).chunked(8).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEach { argb -> Swatch(argb, selected = argb == current) { onPick(argb) } }
+                    row.forEach { argb ->
+                        if (argb == null) NoColorSwatch(selected = current == null) { onPick(null) }
+                        else Swatch(argb, selected = argb == current) { onPick(argb) }
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
             }
@@ -153,6 +151,30 @@ private fun Swatch(argb: Int, selected: Boolean, onClick: () -> Unit) {
             // Tick in a contrasting colour so it shows on light and dark swatches alike.
             val lum = (0.299 * ((argb shr 16) and 0xFF) + 0.587 * ((argb shr 8) and 0xFF) + 0.114 * (argb and 0xFF)) / 255.0
             Icon(Icons.Default.Check, contentDescription = null, tint = if (lum > 0.6) Color.Black else Color.White, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+/** The "no colour" / transparent swatch: a neutral circle with a diagonal slash, sized like the
+ *  colour swatches so it sits as the first entry in the palette. */
+@Composable
+private fun NoColorSwatch(selected: Boolean, onClick: () -> Unit) {
+    val ring = MaterialTheme.colorScheme.onSurface
+    val outline = MaterialTheme.colorScheme.outlineVariant
+    val slash = MaterialTheme.colorScheme.error
+    Box(
+        Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(if (selected) 2.dp else 1.dp, if (selected) ring else outline, CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Diagonal slash = "no colour / transparent".
+        Canvas(Modifier.fillMaxSize()) {
+            val pad = size.minDimension * 0.24f
+            drawLine(slash, Offset(pad, size.height - pad), Offset(size.width - pad, pad), strokeWidth = 3.5f)
         }
     }
 }
