@@ -3,6 +3,16 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.58.2
+- Bluetooth permission split: CONNECT alone opens the device dialog and connects a paired VEVOR;
+  SCAN is only needed to search. A denied SCAN no longer blocks connecting a paired device — the
+  dialog shows the paired list and offers to grant scan when you tap Search.
+- A failed BLE scan now stops the spinner and reports it, instead of hanging on "searching".
+- Tapping a found Silhouette device works even when a VEVOR model was selected — a matching
+  Silhouette model is picked automatically from the device name.
+- SVG import also skips elements that paint nothing (fill="none" and no stroke); an outline with
+  fill="none" and a real stroke is still imported. Fill/stroke inherit down the tree.
+
 ## 0.58.1
 - Node editor: a small lock icon at the bottom-right of the mat opens or closes the whole path
   (closed lock = a closed, cuttable contour; open lock = an open line). This is the way to fix a

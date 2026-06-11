@@ -33,6 +33,7 @@
     <string name="st_cancelled">Cancelled.</string>
     <string name="st_connecting_plotter">Connecting to the plotter…</string>
     <string name="st_no_response">No response from the plotter.</string>
+    <string name="st_scan_failed">Search failed. Check Bluetooth and the scan permission.</string>
     <string name="st_setup_not_confirmed">The plotter did not confirm setup – aborted.</string>
     <string name="st_insert_material">Insert material and press the feed button on the plotter.</string>
     <string name="st_material_not_loaded">Material not loaded (timeout).</string>

@@ -35,7 +35,7 @@ object SvgParser {
         val root = buildDoc(svg).documentElement ?: return Result(emptyList(), 0)
         val shapes = ArrayList<SvgShape>()
         val skipped = intArrayOf(0)
-        walk(root, rootUnitMatrix(root), shapes, toleranceMm, intArrayOf(0), skipped, null, hidden = false)
+        walk(root, rootUnitMatrix(root), shapes, toleranceMm, intArrayOf(0), skipped, null, hidden = false, inheritedFill = null, inheritedStroke = null)
         return Result(shapes, skipped[0])
     }
 
@@ -69,7 +69,7 @@ object SvgParser {
         return Matrix.scale(s, s)
     }
 
-    private fun walk(el: Element, parent: Matrix, shapes: MutableList<SvgShape>, tol: Double, count: IntArray, skipped: IntArray, inheritedColor: Int?, hidden: Boolean) {
+    private fun walk(el: Element, parent: Matrix, shapes: MutableList<SvgShape>, tol: Double, count: IntArray, skipped: IntArray, inheritedColor: Int?, hidden: Boolean, inheritedFill: String?, inheritedStroke: String?) {
         // Hidden subtrees (construction/guide layers) must not become cut paths. display:none and
         // opacity:0 remove the element and everything under it. visibility is inherited but a
         // descendant can switch it back on, so it's tracked and re-evaluated per element.
@@ -81,6 +81,12 @@ object SvgParser {
             "hidden", "collapse" -> true
             else -> hidden
         }
+        // fill/stroke are inherited. An element paints only if its effective fill or stroke isn't
+        // "none"; fill defaults to black (visible), stroke defaults to none. An element with both
+        // none is invisible (e.g. fill="none" stroke="none") and must not become a cut path — but
+        // fill="none" stroke="#…" (a real outline) is kept.
+        val effFill = cssOrAttr(el, "fill")?.lowercase() ?: inheritedFill
+        val effStroke = cssOrAttr(el, "stroke")?.lowercase() ?: inheritedStroke
 
         // A malformed transform/geometry on one element must not abort the whole import — skip it and
         // count it. A bad transform falls back to the parent matrix so the element can still be drawn.
@@ -89,6 +95,9 @@ object SvgParser {
         val subs = runCatching { shapeToSubPaths(el) }.getOrElse { skipped[0]++; null }
         if (subs != null) {
             if (effHidden) return   // a hidden shape is not cut and not counted
+            val fillVisible = (effFill ?: "black") != "none"   // unset fill defaults to black
+            val strokeVisible = (effStroke ?: "none") != "none" // unset stroke defaults to none
+            if (!fillVisible && !strokeVisible) return          // nothing painted → not a cut path
             val polys = runCatching { subs.map { flatten(it, m, tol) }.filter { it.points.size >= 2 } }
                 .getOrElse { skipped[0]++; emptyList() }
             if (polys.isNotEmpty()) {
@@ -100,7 +109,7 @@ object SvgParser {
         }
         var child = el.firstChild
         while (child != null) {
-            if (child.nodeType == Node.ELEMENT_NODE) walk(child as Element, m, shapes, tol, count, skipped, color, effHidden)
+            if (child.nodeType == Node.ELEMENT_NODE) walk(child as Element, m, shapes, tol, count, skipped, color, effHidden, effFill, effStroke)
             child = child.nextSibling
         }
     }

@@ -96,4 +96,14 @@ object Devices {
         val n = btName?.lowercase() ?: return false
         return LE_NAME_TOKENS.any { n.contains(it) }
     }
+
+    /** The best Silhouette model for a found BLE device name (e.g. "Silhouette Cameo 4" → Cameo 4),
+     *  falling back to the first Silhouette model when the name doesn't identify a specific one. */
+    fun modelForLe(btName: String?): PlotterModel {
+        val n = btName?.lowercase() ?: return silhouetteModels.first()
+        return silhouetteModels.firstOrNull { m ->
+            val key = m.displayName.removePrefix("Silhouette ").lowercase()
+            n.contains(key) || n.contains(key.replace(" ", ""))
+        } ?: silhouetteModels.first()
+    }
 }

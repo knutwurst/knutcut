@@ -35,22 +35,27 @@ object BluetoothLePlotter {
      * Start a BLE scan and deliver each Silhouette-compatible device to [onFound]. Returns a
      * [Closeable] that stops the scan — the caller must close it to avoid leaking the scanner.
      */
-    fun startScanLe(context: Context, onFound: (BluetoothDevice, String?) -> Unit): Closeable {
-        val scanner = adapter(context)?.bluetoothLeScanner ?: return Closeable {}
+    fun startScanLe(
+        context: Context,
+        onFound: (BluetoothDevice, String?) -> Unit,
+        onFailed: (Int) -> Unit = {},
+    ): Closeable {
+        val scanner = adapter(context)?.bluetoothLeScanner ?: run { onFailed(-1); return Closeable {} }
         val cb = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 // Deliver every result with its resolved name; the caller splits compatible Silhouettes
                 // from unknown BLE devices (the latter sit behind the "other devices" warning).
                 onFound(result.device, result.scanRecord?.deviceName ?: result.device.name)
             }
-            // Surface async scan failures instead of dropping them silently.
-            override fun onScanFailed(errorCode: Int) { Log.w(TAG, "BLE scan failed: error $errorCode") }
+            // Surface async scan failures instead of dropping them silently (caller stops the spinner).
+            override fun onScanFailed(errorCode: Int) { Log.w(TAG, "BLE scan failed: error $errorCode"); onFailed(errorCode) }
         }
         return try {
             scanner.startScan(cb)
             Closeable { runCatching { scanner.stopScan(cb) } }
         } catch (e: Exception) {
             Log.w(TAG, "BLE scan could not start", e)
+            onFailed(-1)
             Closeable {}
         }
     }

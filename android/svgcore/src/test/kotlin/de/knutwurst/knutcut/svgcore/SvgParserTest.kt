@@ -153,4 +153,25 @@ class SvgParserTest {
             </g></svg>"""
         assertTrue("display:none can't be overridden by a child", SvgParser.parseShapes(svg).isEmpty())
     }
+
+    @Test
+    fun skipsElementsWithNoVisibleFillOrStroke() {
+        fun one(extra: String) = """<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="40mm" viewBox="0 0 40 40">
+            <rect x="0" y="0" width="10" height="10" $extra/></svg>"""
+        assertTrue("fill:none + stroke:none is invisible", SvgParser.parseShapes(one("""fill="none" stroke="none"""")).isEmpty())
+        assertTrue("fill:none alone (no stroke) is invisible", SvgParser.parseShapes(one("""fill="none"""")).isEmpty())
+        assertEquals("fill:none with a real stroke is a kept outline", 1, SvgParser.parseShapes(one("""fill="none" stroke="#ff0000"""")).size)
+        assertEquals("no fill/stroke attrs defaults to a black fill (kept)", 1, SvgParser.parseShapes(one("")).size)
+    }
+
+    @Test
+    fun inheritedFillNoneHidesChildWithoutOwnPaint() {
+        // A group with fill:none; an unpainted child inherits none (skipped), a stroked child is kept.
+        val svg = """<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="40mm" viewBox="0 0 40 40">
+            <g fill="none">
+                <rect x="0" y="0" width="10" height="10"/>
+                <rect x="20" y="20" width="10" height="10" stroke="#000"/>
+            </g></svg>"""
+        assertEquals("only the stroked child survives the inherited fill:none", 1, SvgParser.parseShapes(svg).size)
+    }
 }

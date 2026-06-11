@@ -172,7 +172,10 @@ import kotlinx.coroutines.withContext
 fun MainScreen(vm: KnutcutViewModel) {
     val context = LocalContext.current
     val version = appVersion(context)
-    var hasBtPerm by remember { mutableStateOf(hasBluetoothPermission(context)) }
+    // CONNECT is enough to open the dialog and connect a paired (VEVOR) device; SCAN is only needed
+    // to discover/search. Keeping them separate means a denied SCAN can't block connecting a paired device.
+    var hasConnectPerm by remember { mutableStateOf(hasConnectPermission(context)) }
+    var hasScanPerm by remember { mutableStateOf(hasScanPermission(context)) }
     var showDevices by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showLayers by remember { mutableStateOf(false) }
@@ -190,19 +193,20 @@ fun MainScreen(vm: KnutcutViewModel) {
     val changelogText = remember { runCatching { context.assets.open("changelog.md").bufferedReader().use { it.readText() } }.getOrDefault("") }
 
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        hasBtPerm = hasBluetoothPermission(context)
-        if (hasBtPerm) showDevices = true
+        hasConnectPerm = hasConnectPermission(context)
+        hasScanPerm = hasScanPermission(context)
+        if (hasConnectPerm) showDevices = true
     }
     val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         vm.importUris(uris)
     }
     fun openFile() = openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "text/plain", "application/octet-stream", "image/vnd.dxf", "application/dxf"))
-    fun openDevices() { if (hasBtPerm) showDevices = true else permLauncher.launch(bluetoothPermissions()) }
+    fun openDevices() { if (hasConnectPerm) showDevices = true else permLauncher.launch(bluetoothPermissions()) }
 
     LaunchedEffect(vm.statusSeq) {
         if (!vm.cutting) vm.status?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
     }
-    LaunchedEffect(hasBtPerm) { vm.autoConnect() }
+    LaunchedEffect(hasConnectPerm) { vm.autoConnect() }
 
     Surface(color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
@@ -328,7 +332,7 @@ fun MainScreen(vm: KnutcutViewModel) {
         )
     }
     if (showDevices) {
-        DeviceDialog(vm, hasBtPerm, onRequestPerm = { permLauncher.launch(bluetoothPermissions()) }, onDismiss = { showDevices = false })
+        DeviceDialog(vm, hasScanPerm, onRequestPerm = { permLauncher.launch(bluetoothPermissions()) }, onDismiss = { showDevices = false })
     }
     LaunchedEffect(Unit) {
         if (vm.consumeReopenSettings()) showSettings = true // came back from a language-change recreate
@@ -1673,8 +1677,9 @@ private fun EditableStepper(value: Int, min: Int, max: Int, step: Int = 1, onCha
 }
 
 @Composable
-private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: () -> Unit, onDismiss: () -> Unit) {
+private fun DeviceDialog(vm: KnutcutViewModel, canScan: Boolean, onRequestPerm: () -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current
+    val scanFailedMsg = stringResource(R.string.st_scan_failed)
     var scanning by remember { mutableStateOf(false) }
     var showOther by remember { mutableStateOf(false) }
     var confirmOther by remember { mutableStateOf<android.bluetooth.BluetoothDevice?>(null) }
@@ -1682,8 +1687,9 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
     val foundLe = remember { mutableStateMapOf<String, android.bluetooth.BluetoothDevice>() }
     val foundLeOther = remember { mutableStateMapOf<String, android.bluetooth.BluetoothDevice>() }
     var confirmOtherLe by remember { mutableStateOf<android.bluetooth.BluetoothDevice?>(null) }
-    val allBonded = remember(hasPerm) {
-        if (hasPerm) de.knutwurst.knutcut.transport.BluetoothPlotter.bondedDevices(context) else emptyList()
+    // CONNECT is granted (the dialog only opens with it), so the paired list is always available.
+    val allBonded = remember {
+        runCatching { de.knutwurst.knutcut.transport.BluetoothPlotter.bondedDevices(context) }.getOrDefault(emptyList())
     }
     // Compatible plotters (BT name contains "VEVOR"/"Smart"), like the stock app — these are the default.
     val bonded = allBonded.filter { Devices.isCompatible(it.name) }
@@ -1691,8 +1697,8 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
     val devices = (bonded + found.values).distinctBy { it.address }
 
     // Classic discovery while [scanning]; auto-stops after 30s. Stops + unregisters on dispose.
-    DisposableEffect(scanning, hasPerm) {
-        val handle = if (scanning && hasPerm) {
+    DisposableEffect(scanning, canScan) {
+        val handle = if (scanning && canScan) {
             runCatching {
                 de.knutwurst.knutcut.transport.BluetoothPlotter.discover(context) { dev ->
                     if (Devices.isCompatible(dev.name)) found[dev.address] = dev
@@ -1701,13 +1707,16 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
         } else null
         onDispose { handle?.close() }
     }
-    // BLE scan while [scanning]; delivers Silhouette devices into [foundLe].
-    DisposableEffect(scanning, hasPerm) {
-        val handle = if (scanning && hasPerm) {
+    // BLE scan while [scanning]; delivers Silhouette devices into [foundLe]. A scan failure stops the
+    // spinner and reports it instead of leaving the UI stuck on "searching".
+    DisposableEffect(scanning, canScan) {
+        val handle = if (scanning && canScan) {
             runCatching {
-                de.knutwurst.knutcut.transport.BluetoothLePlotter.startScanLe(context) { dev, name ->
-                    if (Devices.isCompatibleLe(name)) foundLe[dev.address] = dev else foundLeOther[dev.address] = dev
-                }
+                de.knutwurst.knutcut.transport.BluetoothLePlotter.startScanLe(
+                    context,
+                    onFound = { dev, name -> if (Devices.isCompatibleLe(name)) foundLe[dev.address] = dev else foundLeOther[dev.address] = dev },
+                    onFailed = { scanning = false; vm.status = scanFailedMsg },
+                )
             }.getOrNull()
         } else null
         onDispose { handle?.close() }
@@ -1722,11 +1731,15 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
         title = { Text(stringResource(R.string.ui_connect_plotter)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                if (!hasPerm) {
-                    Text(stringResource(R.string.ui_bt_perm_msg))
+                // The dialog opens with CONNECT, so the model list and paired devices always show.
+                // SCAN is only needed to search; prompt for it inline without hiding everything else.
+                if (!canScan) {
+                    Text(stringResource(R.string.ui_bt_perm_msg), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(8.dp))
                     Button(onClick = onRequestPerm) { Text(stringResource(R.string.ui_grant_perm)) }
-                } else {
+                    Spacer(Modifier.height(8.dp))
+                }
+                run {
                     Text(stringResource(R.string.ui_model), style = MaterialTheme.typography.labelLarge)
                     Devices.models.forEach { m ->
                         val sel = vm.model.modelId == m.modelId
@@ -1749,7 +1762,9 @@ private fun DeviceDialog(vm: KnutcutViewModel, hasPerm: Boolean, onRequestPerm: 
                     HorizontalDivider(Modifier.padding(vertical = 8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.ui_devices), style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-                        TextButton(onClick = { found.clear(); foundLe.clear(); foundLeOther.clear(); scanning = !scanning }) { Text(if (scanning) stringResource(R.string.ui_stop) else stringResource(R.string.ui_search)) }
+                        TextButton(onClick = {
+                            if (canScan) { found.clear(); foundLe.clear(); foundLeOther.clear(); scanning = !scanning } else onRequestPerm()
+                        }) { Text(if (scanning) stringResource(R.string.ui_stop) else stringResource(R.string.ui_search)) }
                     }
                     if (devices.isEmpty()) {
                         Text(
@@ -1853,14 +1868,19 @@ private fun appVersion(context: Context): String =
     runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull()
         ?: BuildConfig.VERSION_NAME
 
-private fun hasBluetoothPermission(context: Context): Boolean {
+/** CONNECT lets us talk to an already-paired device — enough to open the dialog and connect a paired
+ *  VEVOR. Pre-Android-12 needs no runtime permission to connect to a bonded device. */
+private fun hasConnectPermission(context: Context): Boolean {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
-    // Need BOTH: CONNECT to talk to a paired device, SCAN to discover BLE devices. Checking only
-    // CONNECT would report "granted" while SCAN was denied, so a scan would silently never start and
-    // never be re-requested.
-    return context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED &&
-        context.checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
+    return context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
 }
+
+/** SCAN lets us discover devices (classic discovery + BLE scan); pre-Android-12 that's ACCESS_FINE_LOCATION. */
+private fun hasScanPermission(context: Context): Boolean =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+        context.checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
+    else
+        context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
 private fun bluetoothPermissions(): Array<String> =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)

@@ -31,6 +31,7 @@
     <string name="st_cancelled">Abgebrochen.</string>
     <string name="st_connecting_plotter">Verbinde mit dem Plotter…</string>
     <string name="st_no_response">Keine Antwort vom Plotter.</string>
+    <string name="st_scan_failed">Suche fehlgeschlagen. Bluetooth und die Scan-Berechtigung prüfen.</string>
     <string name="st_setup_not_confirmed">Plotter hat die Vorbereitung nicht bestätigt – abgebrochen.</string>
     <string name="st_insert_material">Lege Material ein und drücke die Einzugstaste am Plotter.</string>
     <string name="st_material_not_loaded">Material nicht geladen (Zeitüberschreitung).</string>

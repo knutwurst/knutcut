@@ -1538,9 +1538,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun connectLe(dev: BluetoothDevice, silent: Boolean = false) {
         if (connecting || connected) return
+        // Tapping a found Silhouette should just connect: if a non-BLE model is selected, auto-pick a
+        // Silhouette model from the device name so the status and cut dispatch are correct.
         if (model.family != PlotterFamily.BLE_SILHOUETTE) {
-            if (!silent) status = s(R.string.st_select_silhouette_first)
-            return
+            selectModel(Devices.modelForLe(dev.name))
         }
         connecting = true
         if (!silent) status = s(R.string.st_connecting_ble, dev.name)
