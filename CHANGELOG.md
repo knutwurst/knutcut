@@ -3,6 +3,11 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.58.1
+- Node editor: a small lock icon at the bottom-right of the mat opens or closes the whole path
+  (closed lock = a closed, cuttable contour; open lock = an open line). This is the way to fix a
+  drawn path that auto-close got wrong; it sits next to the per-node smooth/delete buttons.
+
 ## 0.58.0
 Robustness pass across the plotter link, file handling and SVG import:
 - VEVOR: a command's response is now matched to its cseq, so a late ack from a timed-out send can't

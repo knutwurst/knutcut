@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.Icon
@@ -818,13 +820,12 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
           }
       }
 
-      // Node-editor controls: shown bottom-right when a node is selected.
-      val showNodeControls = vm.editorTool == EditorTool.NODES &&
-          vm.selectedEditPath != null &&
-          selectedNodeIndex >= 0 &&
-          selectedNodeIndex < (vm.selectedEditPath?.nodes?.size ?: 0)
-      if (showNodeControls) {
-          val selNode = vm.selectedEditPath!!.nodes[selectedNodeIndex]
+      // Node-editor controls, bottom-right. The open/close (lock) toggle is a path-level action and
+      // shows whenever the node editor is active; the per-node smooth/delete buttons appear once a
+      // node is selected. A closed lock = closed (cuttable) contour; an open lock = open line.
+      if (vm.editorTool == EditorTool.NODES && vm.selectedEditPath != null) {
+          val nodeSelected = selectedNodeIndex >= 0 &&
+              selectedNodeIndex < (vm.selectedEditPath?.nodes?.size ?: 0)
           Surface(
               color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
               contentColor = MaterialTheme.colorScheme.onSurface,
@@ -836,33 +837,47 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                   verticalAlignment = Alignment.CenterVertically,
                   modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
               ) {
-                  // Smooth / corner toggle.
-                  IconButton(onClick = { vm.toggleSelectedNodeSmooth(selectedNodeIndex) }) {
-                      val desc = if (selNode.smooth)
-                          androidx.compose.ui.res.stringResource(de.knutwurst.knutcut.R.string.ui_node_corner)
-                      else
-                          androidx.compose.ui.res.stringResource(de.knutwurst.knutcut.R.string.ui_node_smooth)
+                  // Open / close the whole path (lock = closed contour, open lock = open line).
+                  val closed = vm.selectedPathClosed
+                  IconButton(onClick = { vm.toggleSelectedPathClosed() }) {
                       Icon(
-                          if (selNode.smooth) Icons.Default.RadioButtonChecked
-                          else Icons.Default.RadioButtonUnchecked,
-                          contentDescription = desc,
+                          if (closed) Icons.Default.Lock else Icons.Default.LockOpen,
+                          contentDescription = androidx.compose.ui.res.stringResource(
+                              if (closed) de.knutwurst.knutcut.R.string.ui_path_open
+                              else de.knutwurst.knutcut.R.string.ui_path_close,
+                          ),
                       )
                   }
-                  // Delete node.
-                  IconButton(onClick = {
-                      val prevCount = vm.selectedEditPath?.nodes?.size ?: 0
-                      vm.deleteSelectedNode(selectedNodeIndex)
-                      val newCount = vm.selectedEditPath?.nodes?.size ?: 0
-                      // If the index is now out of bounds, adjust the selection.
-                      if (newCount < prevCount) {
-                          selectedNodeIndex = if (selectedNodeIndex >= newCount) newCount - 1 else selectedNodeIndex
-                          if (selectedNodeIndex < 0) selectedNodeIndex = -1
+                  if (nodeSelected) {
+                      val selNode = vm.selectedEditPath!!.nodes[selectedNodeIndex]
+                      // Smooth / corner toggle.
+                      IconButton(onClick = { vm.toggleSelectedNodeSmooth(selectedNodeIndex) }) {
+                          val desc = if (selNode.smooth)
+                              androidx.compose.ui.res.stringResource(de.knutwurst.knutcut.R.string.ui_node_corner)
+                          else
+                              androidx.compose.ui.res.stringResource(de.knutwurst.knutcut.R.string.ui_node_smooth)
+                          Icon(
+                              if (selNode.smooth) Icons.Default.RadioButtonChecked
+                              else Icons.Default.RadioButtonUnchecked,
+                              contentDescription = desc,
+                          )
                       }
-                  }) {
-                      Icon(
-                          Icons.Default.Delete,
-                          contentDescription = androidx.compose.ui.res.stringResource(de.knutwurst.knutcut.R.string.ui_node_delete),
-                      )
+                      // Delete node.
+                      IconButton(onClick = {
+                          val prevCount = vm.selectedEditPath?.nodes?.size ?: 0
+                          vm.deleteSelectedNode(selectedNodeIndex)
+                          val newCount = vm.selectedEditPath?.nodes?.size ?: 0
+                          // If the index is now out of bounds, adjust the selection.
+                          if (newCount < prevCount) {
+                              selectedNodeIndex = if (selectedNodeIndex >= newCount) newCount - 1 else selectedNodeIndex
+                              if (selectedNodeIndex < 0) selectedNodeIndex = -1
+                          }
+                      }) {
+                          Icon(
+                              Icons.Default.Delete,
+                              contentDescription = androidx.compose.ui.res.stringResource(de.knutwurst.knutcut.R.string.ui_node_delete),
+                          )
+                      }
                   }
               }
           }
