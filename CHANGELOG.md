@@ -3,6 +3,10 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.59.1
+- No more "shape added" toasts when drawing or adding a shape/motif — the shape appears on the mat,
+  so the toast was just noise. Errors and cut/connect/save messages still show.
+
 ## 0.59.0
 - Added the E-cut Smart 330 as a selectable plotter. It's identical hardware to the VEVOR Smart 1
   (same Bluetooth SPP protocol and load/start gates), so pick it in the device dialog and it cuts

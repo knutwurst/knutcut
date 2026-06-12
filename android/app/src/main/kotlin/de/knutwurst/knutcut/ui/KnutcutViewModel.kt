@@ -553,7 +553,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         markedLayers = emptySet()
         clearEditorMode()
         pruneBoundsCache()
-        status = s(R.string.st_shape_added, name)
+        // No toast: the motif appears on the mat, so a "shape added" toast is just noise.
     }
 
     /** Parse and place a single file. Returns true when something was loaded. */
@@ -745,7 +745,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         selectedLayer = layers.lastIndex
         markedLayers = emptySet()
         clearEditorMode()
-        status = s(R.string.st_shape_added, name)
+        // No toast: the shape appears on the mat, so a "shape added" toast is just noise.
     }
 
     /**
@@ -858,7 +858,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         selectedLayer = layers.lastIndex
         markedLayers = emptySet()
         pruneBoundsCache()
-        status = s(R.string.st_shape_added, name)
+        // No toast: drawing repeatedly would spam "shape added", and the stroke is visible anyway.
     }
 
     // -------------------------------------------------------------------------
