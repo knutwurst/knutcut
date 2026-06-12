@@ -51,6 +51,9 @@ object Devices {
         PlotterModel(2, "Smart2", "VEVOR Smart 2", knifeCount = 2, hasPaperKey = true,  hasStartKey = true),
         PlotterModel(3, "Smart3", "VEVOR Smart 3", knifeCount = 2, hasPaperKey = false, hasStartKey = false),
         PlotterModel(4, "Smart4", "VEVOR Smart 4", knifeCount = 2, hasPaperKey = false, hasStartKey = false),
+        // E-cut Smart-330: identical hardware to the VEVOR Smart 1 (same SPP/JSON+HPGL stack and
+        // load/start gates), just a different brand name — so it mirrors the Smart 1 settings.
+        PlotterModel(5, "ECut330", "E-cut Smart 330", knifeCount = 2, hasPaperKey = true, hasStartKey = true),
         // ── Silhouette (Bluetooth LE / GPGL) ─────────────────────────────────────────────────
         PlotterModel(10, "Cameo3",    "Silhouette Cameo 3",    knifeCount = 1, hasPaperKey = false, hasStartKey = false,
             family = PlotterFamily.BLE_SILHOUETTE,

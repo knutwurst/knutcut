@@ -20,14 +20,29 @@ class DevicesTest {
     // ── Backwards compatibility: the existing VEVOR catalog is unchanged ──────────────────────
 
     @Test
-    fun vevorCatalogIsUnchanged() {
+    fun vevorCatalogMatches() {
+        // The VEVOR-stack catalog: the four VEVOR Smart models plus the E-cut Smart 330, which is
+        // baugleich to the Smart 1 (same SPP/JSON+HPGL stack).
         assertEquals(
-            listOf("Smart1", "Smart2", "Smart3", "Smart4"),
+            listOf("Smart1", "Smart2", "Smart3", "Smart4", "ECut330"),
             Devices.vevorModels.map { it.name },
         )
         // The default stays the first VEVOR model, so existing installs behave exactly as before.
         assertEquals("Smart1", Devices.default.name)
         assertEquals(PlotterFamily.SPP_VEVOR, Devices.default.family)
+    }
+
+    @Test
+    fun ecutSmart330MirrorsSmart1() {
+        val smart1 = Devices.byId(1)
+        val ecut = Devices.byId(5)
+        assertEquals("E-cut Smart 330", ecut.displayName)
+        assertEquals(PlotterFamily.SPP_VEVOR, ecut.family)
+        // Baugleich: same gates and knife count as the Smart 1.
+        assertEquals(smart1.knifeCount, ecut.knifeCount)
+        assertEquals(smart1.hasPaperKey, ecut.hasPaperKey)
+        assertEquals(smart1.hasStartKey, ecut.hasStartKey)
+        assertNull(ecut.silhouetteDevice)
     }
 
     @Test

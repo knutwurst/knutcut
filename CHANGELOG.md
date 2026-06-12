@@ -3,6 +3,11 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.59.0
+- Added the E-cut Smart 330 as a selectable plotter. It's identical hardware to the VEVOR Smart 1
+  (same Bluetooth SPP protocol and load/start gates), so pick it in the device dialog and it cuts
+  just like the Smart 1.
+
 ## 0.58.8
 - The author name shown in the header and the About screen is now "Oliver Köster" (the GitHub link
   and repository are unchanged).
