@@ -252,8 +252,8 @@
     <string name="ui_device_ble">%1$s (BLE)</string>
     <string name="ui_confirm_other_msg">„%1$s“ ist kein unterstützter VEVOR-Plotter. Die Plotter-Funktionen können fehlschlagen. Trotzdem verbinden?</string>
     <string name="ui_confirm_ble_msg">„%1$s“ ist kein erkannter Silhouette-Plotter. Verbinde nur, wenn dein Modell oben als Silhouette gewählt ist – sonst schlägt der Schnitt fehl. Trotzdem verbinden?</string>
-    <string name="ui_header_sub">v%1$s · Knutwurst</string>
-    <string name="ui_footer_version">Knutcut v%1$s · Knutwurst</string>
+    <string name="ui_header_sub">v%1$s · Oliver Köster</string>
+    <string name="ui_footer_version">Knutcut v%1$s · Oliver Köster</string>
     <plurals name="ui_layers_title">
         <item quantity="one">Ebene (%1$d)</item>
         <item quantity="other">Ebenen (%1$d)</item>

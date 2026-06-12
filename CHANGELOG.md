@@ -3,6 +3,10 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.58.8
+- The author name shown in the header and the About screen is now "Oliver Köster" (the GitHub link
+  and repository are unchanged).
+
 ## 0.58.7
 - Colour picker: the "no colour" button is gone. It's now the first swatch — a hatched/slashed
   circle for "no colour / transparent" — alongside the colours, which also lifts the rest a little.
