@@ -42,3 +42,13 @@ __pycache__/
 .DS_Store
 Thumbs.db
 *.log
+
+# ─── Local-only assistant/instruction files — never commit (kept out of the public repo) ───
+AGENTS.md
+agents.md
+CLAUDE.md
+claude.md
+GEMINI.md
+gemini.md
+.cursorrules
+.aider*
