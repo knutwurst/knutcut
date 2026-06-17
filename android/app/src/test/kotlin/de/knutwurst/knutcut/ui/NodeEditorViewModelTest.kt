@@ -37,7 +37,9 @@ class NodeEditorViewModelTest {
     // Create a VM with a plain (no editPath) layer that has a single polyline.
     private fun vmWithPlainLayer(): KnutcutViewModel {
         val vm = vm()
-        val polylines = listOf(Polyline(listOf(Pt(0.0, 0.0), Pt(20.0, 0.0), Pt(40.0, 0.0)), false))
+        // A shallow peak (not collinear), so the faithful conversion keeps all three vertices as
+        // corners — a straight 3-point line would (correctly) drop the redundant middle point.
+        val polylines = listOf(Polyline(listOf(Pt(0.0, 0.0), Pt(20.0, 10.0), Pt(40.0, 0.0)), false))
         vm.addLayer("Plain", polylines, Tool.PEN)
         return vm
     }

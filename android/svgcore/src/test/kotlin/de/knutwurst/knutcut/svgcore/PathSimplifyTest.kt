@@ -44,6 +44,22 @@ class PathSimplifyTest {
     }
 
     @Test
+    fun preservingProducesCornerNodesOnlySoItCannotBow() {
+        // The deformation came from smoothed Bézier handles bowing each segment away from the loaded
+        // outline. The trace must be pure corner nodes (straight segments) — no handles — so the
+        // rendered path can't deviate from the points.
+        val shape = listOf(
+            Pt(0.0, 0.0), Pt(50.0, 0.0), Pt(100.0, 2.0), Pt(150.0, 8.0), Pt(180.0, 40.0),
+            Pt(180.0, 120.0), Pt(120.0, 120.0), Pt(20.0, 60.0), Pt(0.0, 40.0),
+        )
+        val path = toEditablePreservingShape(shape, closed = true)
+        assertTrue(
+            "trace must be corner nodes with no handles",
+            path.nodes.all { it.handleIn == null && it.handleOut == null && !it.smooth },
+        )
+    }
+
+    @Test
     fun preservingKeepsEveryCornerOfAMultiCornerOutline() {
         // A 12-corner zig-zag ring (like a logo outline). Each vertex is a real corner; preserving
         // must keep them all instead of crushing to a handful (which is what collapsed the shape).

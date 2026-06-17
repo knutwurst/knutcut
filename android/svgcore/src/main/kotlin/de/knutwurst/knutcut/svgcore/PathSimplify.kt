@@ -164,26 +164,36 @@ fun simplifyToBudget(
 
 /**
  * Convert a CLEAN polyline (e.g. a loaded SVG outline) into an editable path that PRESERVES its
- * shape. Only near-collinear/duplicate vertices are dropped — using a tight, size-relative RDP
- * tolerance — so every real corner stays put; then [smoothToPath] keeps sharp turns crisp.
+ * shape. A loaded outline is already a flattened polygon, so the faithful editable form is a polygon
+ * TRACE of it: drop only near-collinear/duplicate vertices (tight, size-relative RDP tolerance) and
+ * keep every remaining vertex as a CORNER node — straight segments, no Bézier handles.
  *
- * Unlike [simplifyToBudget], this does NOT crush the path to a handful of nodes. That budget is for
- * hand-drawn strokes; a loaded outline crushed to ~8 nodes loses its corners and collapses the first
- * time a node is edited. The node count here follows the shape's own complexity (a square → 4 nodes,
- * a detailed outline → its corners). A hard [cap] guards a pathologically dense input by falling
- * back to a capped budget.
+ * It deliberately does NOT smooth. Fitting Catmull-Rom handles (as [smoothToPath] / [simplifyToBudget]
+ * do) bows each segment into a curve the original didn't have, which visibly deforms a loaded shape
+ * the moment it's converted. The points already capture the outline within the tolerance; a segment
+ * can be curved on demand by dragging it. [simplifyToBudget] stays for hand-drawn strokes, where a
+ * smooth few-node result is exactly what's wanted.
+ *
+ * The node count follows the shape's own complexity (a square → 4 nodes). A hard [cap] coarsens the
+ * tolerance for a pathologically dense input so editing stays manageable.
  */
 fun toEditablePreservingShape(points: List<Pt>, closed: Boolean, cap: Int = 200): EditablePath {
-    if (points.size <= 3) return smoothToPath(points, closed)
-    val minX = points.minOf { it.xMm }; val maxX = points.maxOf { it.xMm }
-    val minY = points.minOf { it.yMm }; val maxY = points.maxOf { it.yMm }
+    // Drop a closed path's duplicate closing vertex so the seam isn't a zero-length segment.
+    val pts = if (points.size > 1 && closed &&
+        points.first().xMm == points.last().xMm && points.first().yMm == points.last().yMm
+    ) points.dropLast(1) else points
+    if (pts.size <= 2) return EditablePath(pts.map { PathNode(it) }, closed)
+
+    val minX = pts.minOf { it.xMm }; val maxX = pts.maxOf { it.xMm }
+    val minY = pts.minOf { it.yMm }; val maxY = pts.maxOf { it.yMm }
     val diag = hypot(maxX - minX, maxY - minY)
-    // ~0.4% of the shape's diagonal, clamped: tight enough to keep corners, loose enough to drop the
-    // dense runs a curve flattens into.
-    val tol = (diag * 0.004).coerceIn(0.3, 2.0)
-    val reduced = simplifyRdp(points, tol)
-    if (reduced.size > cap) return simplifyToBudget(points, closed, targetNodes = cap, hardCap = cap)
-    return smoothToPath(reduced, closed)
+    // ~0.4% of the shape's diagonal, clamped: tight enough that the trace stays faithful, loose
+    // enough to drop the dense runs a curve was flattened into.
+    var tol = (diag * 0.004).coerceIn(0.3, 2.0)
+    var reduced = simplifyRdp(pts, tol)
+    var guard = 0
+    while (reduced.size > cap && guard++ < 12) { tol *= 1.6; reduced = simplifyRdp(pts, tol) }
+    return EditablePath(reduced.map { PathNode(it, handleIn = null, handleOut = null, smooth = false) }, closed)
 }
 
 fun smoothToPath(points: List<Pt>, closed: Boolean = false): EditablePath {

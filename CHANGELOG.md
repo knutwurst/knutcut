@@ -3,6 +3,11 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.59.4
+- Shape editor really keeps a loaded shape now. Converting (Magic) no longer smooths the outline into
+  Bézier curves — that bowing is what deformed it. It now traces the shape exactly with corner points
+  (same point count, no distortion); drag a segment to curve it where you want.
+
 ## 0.59.3
 - Fixed the shape editor collapsing a loaded shape. Tapping Magic on an imported outline used the
   freehand simplifier, which crushed it to ~8 nodes and dropped corners, so the shape fell apart on
