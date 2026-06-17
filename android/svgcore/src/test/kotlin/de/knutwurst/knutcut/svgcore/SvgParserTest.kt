@@ -146,6 +146,17 @@ class SvgParserTest {
     }
 
     @Test
+    fun parsesUtf16DeclaredSvgWithCssClassFill() {
+        // Mirrors a CorelDRAW export: an encoding="UTF-16" declaration (harmless once the bytes are
+        // decoded to a String), fill supplied via a CSS class in <defs><style>, and one path.
+        val svg = """<?xml version="1.0" encoding="UTF-16"?>
+            <svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" viewBox="0 0 21000 29700">
+            <defs><style type="text/css"><![CDATA[ .fil0 {fill:black;fill-rule:nonzero} ]]></style></defs>
+            <g id="Layer_1"><path class="fil0" d="M0 0 L1000 0 L1000 1000 L0 1000 Z"/></g></svg>"""
+        assertEquals("class-filled path on a UTF-16-declared SVG is still cuttable", 1, SvgParser.parseShapes(svg).size)
+    }
+
+    @Test
     fun displayNoneOnGroupRemovesWholeSubtree() {
         val svg = """<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="40mm" viewBox="0 0 40 40">
             <g style="display:none">

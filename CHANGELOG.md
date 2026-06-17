@@ -3,6 +3,11 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.59.2
+- Fixed "no cuttable paths" on UTF-16 SVGs (e.g. CorelDRAW exports). Imported files were always
+  decoded as UTF-8, which turned a UTF-16 file into garbage the parser couldn't read. The byte-order
+  mark is now honoured (UTF-16 LE/BE and UTF-8 BOM), so these files open normally.
+
 ## 0.59.1
 - No more "shape added" toasts when drawing or adding a shape/motif — the shape appears on the mat,
   so the toast was just noise. Errors and cut/connect/save messages still show.

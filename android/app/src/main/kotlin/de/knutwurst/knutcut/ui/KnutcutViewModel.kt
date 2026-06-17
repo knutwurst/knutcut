@@ -501,7 +501,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 if (total > MAX_IMPORT_MB * 1024L * 1024L) return ImportText.TooBig
                 out.write(buf, 0, n)
             }
-            ImportText.Ok(out.toString("UTF-8"))
+            // BOM-aware: a UTF-16 export (e.g. CorelDRAW) must not be force-decoded as UTF-8.
+            ImportText.Ok(de.knutwurst.knutcut.data.TextDecode.decode(out.toByteArray()))
         } ?: ImportText.Failed
     } catch (e: Exception) {
         ImportText.Failed
