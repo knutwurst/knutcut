@@ -49,6 +49,7 @@ import de.knutwurst.knutcut.svgcore.setSmooth
 import de.knutwurst.knutcut.svgcore.looksClosed
 import de.knutwurst.knutcut.svgcore.simplifyRdp
 import de.knutwurst.knutcut.svgcore.simplifyToBudget
+import de.knutwurst.knutcut.svgcore.toEditablePreservingShape
 import de.knutwurst.knutcut.svgcore.toEditablePath
 import de.knutwurst.knutcut.svgcore.DragKnife
 import de.knutwurst.knutcut.svgcore.Handshake
@@ -984,9 +985,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         if (layer.polylines.size != 1) return
         pushHistory()
         val poly = layer.polylines[0]
-        // simplifyToBudget keeps the node count small even for dense polylines; sparse paths are
-        // smoothed directly without further reduction.
-        val newPath = simplifyToBudget(poly.points, poly.closed)
+        // Preserve the loaded shape's corners (not a freehand-style crush to a few nodes), so editing
+        // a point doesn't collapse the outline.
+        val newPath = toEditablePreservingShape(poly.points, poly.closed)
         // Freeze the local pivot at the centre the matrix is using right now, so converting does not
         // shift the shape and later node edits stay in a fixed frame.
         val b = layerBounds(layer)

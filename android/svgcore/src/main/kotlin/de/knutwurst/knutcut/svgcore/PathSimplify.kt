@@ -162,6 +162,30 @@ fun simplifyToBudget(
     return smoothToPath(chosen, closed)
 }
 
+/**
+ * Convert a CLEAN polyline (e.g. a loaded SVG outline) into an editable path that PRESERVES its
+ * shape. Only near-collinear/duplicate vertices are dropped — using a tight, size-relative RDP
+ * tolerance — so every real corner stays put; then [smoothToPath] keeps sharp turns crisp.
+ *
+ * Unlike [simplifyToBudget], this does NOT crush the path to a handful of nodes. That budget is for
+ * hand-drawn strokes; a loaded outline crushed to ~8 nodes loses its corners and collapses the first
+ * time a node is edited. The node count here follows the shape's own complexity (a square → 4 nodes,
+ * a detailed outline → its corners). A hard [cap] guards a pathologically dense input by falling
+ * back to a capped budget.
+ */
+fun toEditablePreservingShape(points: List<Pt>, closed: Boolean, cap: Int = 200): EditablePath {
+    if (points.size <= 3) return smoothToPath(points, closed)
+    val minX = points.minOf { it.xMm }; val maxX = points.maxOf { it.xMm }
+    val minY = points.minOf { it.yMm }; val maxY = points.maxOf { it.yMm }
+    val diag = hypot(maxX - minX, maxY - minY)
+    // ~0.4% of the shape's diagonal, clamped: tight enough to keep corners, loose enough to drop the
+    // dense runs a curve flattens into.
+    val tol = (diag * 0.004).coerceIn(0.3, 2.0)
+    val reduced = simplifyRdp(points, tol)
+    if (reduced.size > cap) return simplifyToBudget(points, closed, targetNodes = cap, hardCap = cap)
+    return smoothToPath(reduced, closed)
+}
+
 fun smoothToPath(points: List<Pt>, closed: Boolean = false): EditablePath {
     if (points.isEmpty()) return EditablePath(emptyList(), closed)
     if (points.size == 1) return EditablePath(listOf(PathNode(points[0])), closed)

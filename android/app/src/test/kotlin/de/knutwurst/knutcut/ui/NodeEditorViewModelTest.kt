@@ -427,9 +427,10 @@ class NodeEditorViewModelTest {
     }
 
     @Test
-    fun convertDensePolylineYieldsFewNodes() {
+    fun convertDensePolylinePreservesShapeWithinCap() {
         val vm = vm()
-        // Build a 300-point single polyline (far denser than the node budget).
+        // A 300-point wavy polyline. Converting must PRESERVE its shape (a loaded outline crushed to
+        // a few nodes collapsed when edited); only redundant points are dropped, bounded by the cap.
         val points = (0 until 300).map { i -> Pt(i * 0.5, kotlin.math.sin(i * 0.1) * 10) }
         val polylines = listOf(de.knutwurst.knutcut.svgcore.Polyline(points, false))
         vm.addLayer("Dense", polylines, Tool.PEN)
@@ -440,10 +441,10 @@ class NodeEditorViewModelTest {
         val editPath = vm.layers[0].editPath
         assertNotNull("editPath created for dense layer", editPath)
         val nodeCount = editPath!!.nodes.size
-        // simplifyToBudget targets a small node count (hard cap 40). A 300-point input must land
-        // well within the hard cap and close to the low budget — a shape should be editable with a
-        // handful of nodes, not dozens.
-        assertTrue("node count ≤ 40 (hard cap)", nodeCount <= 40)
-        assertTrue("node count ≤ 20 (near the small budget)", nodeCount <= 20)
+        assertTrue("node count stays within the editable cap (200), got $nodeCount", nodeCount <= 200)
+        // The wave's amplitude survives — the shape isn't flattened.
+        val after = editPath.toPolyline().points
+        assertEquals("min y preserved", points.minOf { it.yMm }, after.minOf { it.yMm }, 2.0)
+        assertEquals("max y preserved", points.maxOf { it.yMm }, after.maxOf { it.yMm }, 2.0)
     }
 }

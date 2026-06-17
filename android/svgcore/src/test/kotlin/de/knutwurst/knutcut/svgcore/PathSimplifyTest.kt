@@ -1,6 +1,7 @@
 package de.knutwurst.knutcut.svgcore
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.PI
@@ -9,6 +10,52 @@ import kotlin.math.hypot
 import kotlin.math.sin
 
 class PathSimplifyTest {
+
+    // -----------------------------------------------------------------------
+    // toEditablePreservingShape — keeps a loaded outline's shape (corners), unlike the freehand budget
+    // -----------------------------------------------------------------------
+
+    /** A 200 mm square traced with many points along each edge (as a flattened SVG outline would be). */
+    private fun denseSquare(side: Double = 2000.0, per: Int = 25): List<Pt> {
+        val pts = ArrayList<Pt>()
+        for (i in 0 until per) pts.add(Pt(side * i / per, 0.0))           // top edge →
+        for (i in 0 until per) pts.add(Pt(side, side * i / per))         // right edge ↓
+        for (i in 0 until per) pts.add(Pt(side - side * i / per, side))  // bottom ←
+        for (i in 0 until per) pts.add(Pt(0.0, side - side * i / per))   // left ↑
+        return pts
+    }
+
+    @Test
+    fun preservingKeepsTheCornersOfASquareWithoutCollapsing() {
+        val path = toEditablePreservingShape(denseSquare(), closed = true)
+        // The dense edges collapse to ~the 4 corners — not crushed away, not exploded.
+        assertTrue("kept ~the 4 corners, got ${path.nodes.size}", path.nodes.size in 4..6)
+        // Bounding box preserved → the shape didn't cave in.
+        assertEquals(0.0, path.nodes.minOf { it.anchor.xMm }, 1e-6)
+        assertEquals(2000.0, path.nodes.maxOf { it.anchor.xMm }, 1e-6)
+        assertEquals(0.0, path.nodes.minOf { it.anchor.yMm }, 1e-6)
+        assertEquals(2000.0, path.nodes.maxOf { it.anchor.yMm }, 1e-6)
+        // The four 90° corners are present and crisp (no rounding).
+        listOf(Pt(0.0, 0.0), Pt(2000.0, 0.0), Pt(2000.0, 2000.0), Pt(0.0, 2000.0)).forEach { c ->
+            val node = path.nodes.firstOrNull { hypot(it.anchor.xMm - c.xMm, it.anchor.yMm - c.yMm) < 1e-6 }
+            assertNotNull("corner $c kept", node)
+            assertTrue("corner $c crisp", !node!!.smooth)
+        }
+    }
+
+    @Test
+    fun preservingKeepsEveryCornerOfAMultiCornerOutline() {
+        // A 12-corner zig-zag ring (like a logo outline). Each vertex is a real corner; preserving
+        // must keep them all instead of crushing to a handful (which is what collapsed the shape).
+        val n = 12
+        val corners = (0 until n).map { i ->
+            val a = 2 * PI * i / n
+            val r = if (i % 2 == 0) 100.0 else 60.0
+            Pt(100.0 + r * cos(a), 100.0 + r * sin(a))
+        }
+        val path = toEditablePreservingShape(corners, closed = true)
+        assertTrue("all ~12 corners kept, got ${path.nodes.size}", path.nodes.size >= n - 1)
+    }
 
     // -----------------------------------------------------------------------
     // simplifyRdp

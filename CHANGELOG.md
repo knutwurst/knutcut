@@ -3,6 +3,12 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.59.3
+- Fixed the shape editor collapsing a loaded shape. Tapping Magic on an imported outline used the
+  freehand simplifier, which crushed it to ~8 nodes and dropped corners, so the shape fell apart on
+  the first edit. Loaded shapes now keep their corners (only redundant points are dropped), so the
+  bend points sit where they belong and the outline stays intact.
+
 ## 0.59.2
 - Fixed "no cuttable paths" on UTF-16 SVGs (e.g. CorelDRAW exports). Imported files were always
   decoded as UTF-8, which turned a UTF-16 file into garbage the parser couldn't read. The byte-order
