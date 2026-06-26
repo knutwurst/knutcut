@@ -20,7 +20,7 @@
 
 ---
 
-Share an SVG to Knutcut (say, from Cricut Export), place and scale it on the mat, send it to the cutter over Bluetooth. That is the whole app.
+Share an SVG to Knutcut from any app, place and scale it on the mat, send it to the cutter over Bluetooth. That is the whole app.
 
 The software that ships with these plotters wants a login, ships a broken German translation, and won't take a shared SVG. Knutcut does the part I need, in code I control.
 
@@ -67,7 +67,7 @@ Don't see yours listed? Tap **Search** to pair any device, or jump into the Blue
 
 ## Build
 
-Uses the same local toolchain as cricut-export (Android SDK and Gradle under `tools/`, JDK 17).
+Standard Android toolchain (Android SDK and Gradle under `tools/`, JDK 17).
 
     cd android
     ./gradlew :app:assembleRelease     # installable APK
@@ -75,7 +75,7 @@ Uses the same local toolchain as cricut-export (Android SDK and Gradle under `to
 
 ## Layout
 
-- `svgcore`: pure Kotlin, no Android. Turns an SVG into mm geometry and then into the plotter command stream (HPGL for VEVOR, GPGL for Silhouette). Unit-tested on the JVM, so cricut-export can reuse it.
+- `svgcore`: pure Kotlin, no Android. Turns an SVG into mm geometry and then into the plotter command stream (HPGL for VEVOR, GPGL for Silhouette). Unit-tested on the JVM and free of Android dependencies, so it can be reused on its own.
 - `app`: Compose UI (share target, mat editor, material picker, cut flow) plus the two Bluetooth transports, classic Serial (SPP) for VEVOR and E-cut and Bluetooth LE (GATT) for Silhouette.
 
 See [CHANGELOG.md](CHANGELOG.md) for the per-release history and `docs/` for the design and protocol notes.
