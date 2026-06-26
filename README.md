@@ -45,6 +45,8 @@ The software that ships with these plotters wants a login, ships a broken German
 
 **Shapes and text.** Draw freehand, drop in shapes, or set text in outline and single-stroke (Hershey) fonts. Convert any shape to editable nodes and bend it by hand.
 
+**Open and export.** Reads SVGs from any editor, Inkscape, Illustrator, or CorelDraw, whatever the file encoding (CorelDraw's UTF-16 exports included). Open or share SVG and PLT files, then export the whole design back out as a real-size SVG with every layer and colour, ready to re-open anywhere.
+
 **Cut.** Send to a VEVOR Smart or E-cut over classic Bluetooth, or to a Silhouette over Bluetooth LE. Pick a material preset or set pressure, knife compensation, and the number of passes yourself. Assign pen or knife per layer.
 
 **Stays current.** Knutcut checks the releases repo on launch and offers the new version, verified by SHA-256 before it installs.
