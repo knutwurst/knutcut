@@ -621,7 +621,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             when {
                 head.startsWith("<") || head.contains("<svg", ignoreCase = true) -> {
                     val result = SvgParser.parseShapesResult(text)
-                    val out = result.shapes.map { Layer(it.name, it.polylines, tool, visible = true, colorArgb = it.colorArgb) }
+                    val out = result.shapes.mapIndexed { idx, sh ->
+                        Layer(sh.name.ifBlank { s(R.string.ui_layer_n, idx + 1) }, sh.polylines, tool, visible = true, colorArgb = sh.colorArgb)
+                    }
                     if (out.flatMap { it.polylines }.flatMap { it.points }.isEmpty()) null
                     else ParsedDesign(out, result.skipped)
                 }
@@ -634,7 +636,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 else -> {
                     val polys = PltParser.parse(text)
                     if (polys.isEmpty()) null
-                    else ParsedDesign(listOf(Layer("PLT-Datei", polys, tool, visible = true)), 0)
+                    else ParsedDesign(listOf(Layer(s(R.string.ui_plt_file), polys, tool, visible = true)), 0)
                 }
             }
         } catch (e: Exception) {
@@ -1015,7 +1017,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val src = layers.getOrNull(i) ?: return
         pushHistory()
         val copy = src.copy(
-            name = src.name + " (Kopie)",
+            name = src.name + s(R.string.ui_copy_suffix),
             centerMm = Pt(src.centerMm.xMm + 5.0, src.centerMm.yMm + 5.0),
         )
         layers = layers.toMutableList().apply { add(i + 1, copy) }
@@ -1250,7 +1252,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             val b = bake(layer)
             val cols = b.colorList()
             b.polylines.mapIndexed { i, pl ->
-                Layer("Form ${++n}", listOf(pl), layer.tool, layer.visible, centerMm = centerOf(pl.points), colorArgb = cols.getOrNull(i))
+                Layer(s(R.string.ui_shape_n, ++n), listOf(pl), layer.tool, layer.visible, centerMm = centerOf(pl.points), colorArgb = cols.getOrNull(i))
             }
         }
         selectedLayer = 0
@@ -1290,7 +1292,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val baked = layers.map { bake(it) }
         val polys = baked.flatMap { it.polylines }
         val cols = baked.flatMap { it.colorList() }
-        layers = listOf(Layer("Alle Formen", polys, layers.first().tool, visible = true,
+        layers = listOf(Layer(s(R.string.ui_all_shapes), polys, layers.first().tool, visible = true,
             centerMm = centerOf(polys.flatMap { it.points }), colorArgb = layers.first().colorArgb, polylineColors = cols))
         selectedLayer = 0
         markedLayers = emptySet()
@@ -1319,7 +1321,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         flat.forEach { (pl, c) -> byColor.getOrPut(c?.and(0xFFFFFF)) { mutableListOf() }.add(pl) }
         layers = byColor.map { (rgb, polys) ->
             val argb = rgb?.let { it or 0xFF000000.toInt() }
-            val name = if (rgb != null) "#%06X".format(rgb) else "Ohne Farbe"
+            val name = if (rgb != null) "#%06X".format(rgb) else s(R.string.ui_no_color_layer)
             Layer(name, polys, firstTool, visible = true,
                 centerMm = centerOf(polys.flatMap { it.points }), colorArgb = argb)
         }
@@ -1343,7 +1345,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val bakedMarks = marks.map { bake(layers[it]) }
         val polys = bakedMarks.flatMap { it.polylines }
         val cols = bakedMarks.flatMap { it.colorList() }
-        val merged = Layer("Zusammengeführt", polys, firstTool, visible = true,
+        val merged = Layer(s(R.string.ui_merged), polys, firstTool, visible = true,
             centerMm = centerOf(polys.flatMap { it.points }), colorArgb = firstColor, polylineColors = cols)
         val out = ArrayList<Layer>()
         var inserted = false
@@ -1522,8 +1524,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 // the connected state. Only confirm when the user connected on purpose — and name the
                 // actual device, since it may be an explicitly-chosen non-plotter.
                 if (!silent) status =
-                    if (Devices.isCompatible(dev.name)) "Verbunden mit ${model.displayName}."
-                    else "Verbunden mit ${dev.name} (kein unterstützter Plotter)."
+                    if (Devices.isCompatible(dev.name)) s(R.string.st_connected_to, model.displayName)
+                    else s(R.string.st_connected_unsupported, dev.name)
             } catch (e: Exception) {
                 connected = false
                 if (!silent) status = s(R.string.st_connect_failed, e.message)
@@ -1634,9 +1636,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Verb for the action button: cut, draw, or the neutral "plot" when the layers mix tools. */
     fun cutActionLabel(): String = when (cutSingleTool()) {
-        Tool.PEN -> "Zeichnen"
-        Tool.KNIFE -> "Schneiden"
-        else -> "Plotten"
+        Tool.PEN -> s(R.string.ui_draw)
+        Tool.KNIFE -> s(R.string.ui_cut)
+        else -> s(R.string.ui_plot)
     }
 
     /** Switch the tool of the layers that will be cut (the pre-cut draw/cut toggle). */
@@ -1792,7 +1794,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             val ok = withContext(Dispatchers.IO) {
                 GpglSession(l).cut(silDev, cutSettings, polylines, shouldContinue = { isActive }) { p -> progress = p }
             }
-            finishCut(if (ok) "Fertig an Silhouette gesendet." else "Silhouette hat nicht geantwortet – abgebrochen.")
+            finishCut(if (ok) s(R.string.st_sent_silhouette) else s(R.string.st_silhouette_no_answer))
         } catch (e: CancellationException) {
             withContext(NonCancellable + Dispatchers.IO) { runCatching { l.write(GpglProtocol.INIT) } }
             finishCut(s(R.string.st_cancelled))

@@ -141,7 +141,9 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     // Screen density: used to size node dots and touch targets in physical dp, not raw pixels.
     val density = LocalDensity.current.density
     val readout = vm.selectionReadout() ?: vm.overallReadout()
-    val matSummary = readout?.let { "Arbeitsfläche: $it" } ?: "Arbeitsfläche, Matte ausgewählt"
+    val matSummary = readout?.let {
+        androidx.compose.ui.res.stringResource(de.knutwurst.knutcut.R.string.cd_workarea, it)
+    } ?: androidx.compose.ui.res.stringResource(de.knutwurst.knutcut.R.string.cd_workarea_empty)
 
     Box(modifier.semantics { contentDescription = matSummary }) {
       Canvas(

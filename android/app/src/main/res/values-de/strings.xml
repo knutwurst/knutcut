@@ -333,4 +333,32 @@
     <string name="ui_flip">Spiegeln</string>
     <string name="ui_more">Mehr</string>
     <string name="ui_align">Ausrichten</string>
+
+    <!-- Generierte Ebenennamen, Status, Barrierefreiheit (synchron zu values/) -->
+    <string name="ui_layer_n">Ebene %1$d</string>
+    <string name="ui_plt_file">PLT-Datei</string>
+    <string name="ui_copy_suffix">" (Kopie)"</string>
+    <string name="ui_shape_n">Form %1$d</string>
+    <string name="ui_all_shapes">Alle Formen</string>
+    <string name="ui_no_color_layer">Ohne Farbe</string>
+    <string name="ui_merged">Zusammengeführt</string>
+    <string name="st_connected_to">Verbunden mit %1$s.</string>
+    <string name="st_connected_unsupported">Verbunden mit %1$s (kein unterstützter Plotter).</string>
+    <string name="st_sent_silhouette">Fertig an Silhouette gesendet.</string>
+    <string name="st_silhouette_no_answer">Silhouette hat nicht geantwortet, abgebrochen.</string>
+    <string name="cd_workarea">Arbeitsfläche: %1$s</string>
+    <string name="cd_workarea_empty">Arbeitsfläche, Matte ausgewählt</string>
+    <!-- Schriftnamen im Text-Werkzeug -->
+    <string name="font_singleline_sans">Einlinie Sans</string>
+    <string name="font_singleline_serif">Einlinie Serif</string>
+    <string name="font_singleline_script">Einlinie Script</string>
+    <string name="font_sans_bold">Sans fett</string>
+    <string name="font_sans_light">Sans leicht</string>
+    <string name="font_sans_condensed">Sans schmal</string>
+    <string name="font_sans_black">Sans schwarz</string>
+    <string name="font_smallcaps">Kapitälchen</string>
+    <string name="font_serif_bold">Serif fett</string>
+    <string name="font_serif_italic">Serif kursiv</string>
+    <string name="font_handwriting">Handschrift</string>
+    <string name="font_cursive">Schreibschrift</string>
 </resources>

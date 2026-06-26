@@ -3,8 +3,13 @@ package de.knutwurst.knutcut.data
 /** A material preset. [force] is the FS pressure; [nameDe] is the German display name (null for custom). */
 data class Material(val id: String, val name: String, val force: Int, val nameDe: String? = null)
 
-/** The name to show in the UI: the German name for presets, the raw name for user-defined materials. */
-fun Material.display(): String = nameDe ?: name
+/**
+ * The name to show in the UI: the German preset name only when the UI runs in German, otherwise the
+ * English [name]. User-defined materials have no [nameDe], so they always show their raw name.
+ * Honours the in-app language because [de.knutwurst.knutcut.ui.LocaleUtil] sets the default locale.
+ */
+fun Material.display(): String =
+    if (nameDe != null && java.util.Locale.getDefault().language == "de") nameDe else name
 
 /** Material presets from my list in the cutter cloud (pressure = FS force), de-duplicated by name. */
 object Materials {

@@ -107,7 +107,7 @@ object BluetoothLePlotter {
                     // A failed CCCD write means notifications are NOT active — fail the connect rather
                     // than report "connected" to a device whose replies will never arrive.
                     if (status != BluetoothGatt.GATT_SUCCESS) {
-                        error = Exception("Benachrichtigungen konnten nicht aktiviert werden (status=$status).")
+                        error = Exception("Could not enable notifications (status=$status).")
                     }
                     latch.countDown()
                 }
@@ -128,9 +128,9 @@ object BluetoothLePlotter {
         }
 
         val gatt = device.connectGatt(context, false, cb, BluetoothDevice.TRANSPORT_LE)
-        if (!latch.await(timeoutMs, TimeUnit.MILLISECONDS)) { gatt.close(); throw Exception("BLE-Zeitüberschreitung.") }
+        if (!latch.await(timeoutMs, TimeUnit.MILLISECONDS)) { gatt.close(); throw Exception("BLE timeout.") }
         error?.let { gatt.close(); throw it }
-        return result ?: throw Exception("Unbekannter BLE-Fehler.")
+        return result ?: throw Exception("Unknown BLE error.")
     }
 
     /** Returns true if a CCCD descriptor write was issued (so the caller waits for onDescriptorWrite). */

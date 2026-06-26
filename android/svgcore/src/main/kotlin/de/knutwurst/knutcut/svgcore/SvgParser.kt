@@ -103,7 +103,9 @@ object SvgParser {
             if (polys.isNotEmpty()) {
                 count[0]++
                 val id = el.getAttribute("id")
-                shapes.add(SvgShape(if (id.isNotBlank()) id else "Ebene ${count[0]}", polys, color))
+                // Unnamed groups get a blank name; the app fills in a localised "Layer N" so the
+                // label follows the chosen UI language (svgcore stays Android-free, no resources).
+                shapes.add(SvgShape(if (id.isNotBlank()) id else "", polys, color))
             }
             return
         }

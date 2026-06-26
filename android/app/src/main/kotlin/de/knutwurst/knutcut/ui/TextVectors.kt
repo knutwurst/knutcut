@@ -6,6 +6,7 @@ import android.graphics.Path
 import android.graphics.PathMeasure
 import android.graphics.Rect
 import android.graphics.Typeface
+import de.knutwurst.knutcut.R
 import de.knutwurst.knutcut.svgcore.GlyphRun
 import de.knutwurst.knutcut.svgcore.HersheyFont
 import de.knutwurst.knutcut.svgcore.Polyline
@@ -59,19 +60,19 @@ class FontRepository(context: Context) {
         bundledOutline("Anton", "fonts/Anton-Regular.ttf")
         bundledOutline("Pacifico", "fonts/Pacifico-Regular.ttf")
         bundledOutline("Abril Fatface", "fonts/AbrilFatface-Regular.ttf")
-        bundledStroke("Einlinie Sans", "hershey/futural.jhf")
-        bundledStroke("Einlinie Serif", "hershey/rowmans.jhf")
-        bundledStroke("Einlinie Script", "hershey/scripts.jhf")
+        bundledStroke(context.getString(R.string.font_singleline_sans), "hershey/futural.jhf")
+        bundledStroke(context.getString(R.string.font_singleline_serif), "hershey/rowmans.jhf")
+        bundledStroke(context.getString(R.string.font_singleline_script), "hershey/scripts.jhf")
         // Appended: more system faces (named families fall back to Sans on a ROM that lacks them).
-        add(outline("Sans fett", Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)))
-        add(outline("Sans leicht", Typeface.create("sans-serif-light", Typeface.NORMAL)))
-        add(outline("Sans schmal", Typeface.create("sans-serif-condensed", Typeface.NORMAL)))
-        add(outline("Sans schwarz", Typeface.create("sans-serif-black", Typeface.NORMAL)))
-        add(outline("Kapitälchen", Typeface.create("sans-serif-smallcaps", Typeface.NORMAL)))
-        add(outline("Serif fett", Typeface.create(Typeface.SERIF, Typeface.BOLD)))
-        add(outline("Serif kursiv", Typeface.create(Typeface.SERIF, Typeface.ITALIC)))
-        add(outline("Handschrift", Typeface.create("casual", Typeface.NORMAL)))
-        add(outline("Schreibschrift", Typeface.create("cursive", Typeface.NORMAL)))
+        add(outline(context.getString(R.string.font_sans_bold), Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)))
+        add(outline(context.getString(R.string.font_sans_light), Typeface.create("sans-serif-light", Typeface.NORMAL)))
+        add(outline(context.getString(R.string.font_sans_condensed), Typeface.create("sans-serif-condensed", Typeface.NORMAL)))
+        add(outline(context.getString(R.string.font_sans_black), Typeface.create("sans-serif-black", Typeface.NORMAL)))
+        add(outline(context.getString(R.string.font_smallcaps), Typeface.create("sans-serif-smallcaps", Typeface.NORMAL)))
+        add(outline(context.getString(R.string.font_serif_bold), Typeface.create(Typeface.SERIF, Typeface.BOLD)))
+        add(outline(context.getString(R.string.font_serif_italic), Typeface.create(Typeface.SERIF, Typeface.ITALIC)))
+        add(outline(context.getString(R.string.font_handwriting), Typeface.create("casual", Typeface.NORMAL)))
+        add(outline(context.getString(R.string.font_cursive), Typeface.create("cursive", Typeface.NORMAL)))
     }
 
     private fun outline(label: String, tf: Typeface) =

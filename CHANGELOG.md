@@ -3,6 +3,12 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.59.5
+- Finished the English translation. Strings that were still hardcoded in German now follow the
+  chosen language: material names, generated layer names (split, merge, merge-by-colour, duplicate
+  suffix, imported and PLT layers), the cut/draw/plot button, the connect status, the text-tool font
+  names, and the mat's accessibility label. Set the app to English and the UI is fully English.
+
 ## 0.59.4
 - Shape editor really keeps a loaded shape now. Converting (Magic) no longer smooths the outline into
   Bézier curves — that bowing is what deformed it. It now traces the shape exactly with corner points
