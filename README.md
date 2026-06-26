@@ -15,7 +15,8 @@
 </p>
 
 <p align="center">
-  Android · German &amp; English · no account, no login
+  Android · German &amp; English · no account, no login ·
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3"></a>
 </p>
 
 ---
@@ -83,3 +84,9 @@ See [CHANGELOG.md](CHANGELOG.md) for the per-release history and `docs/` for the
 ## Notes
 
 Personal project for my own hardware, with only my own code. The plotter protocol is reimplemented from watching my own device. No third-party app code or assets are included.
+
+## License
+
+Copyright © 2026 Oliver Köster
+
+Knutcut is free software under the [GNU General Public License v3.0](LICENSE). You may use, study, modify, and share it. If you distribute it or a modified version, it has to stay open source under the same GPL-3.0 licence and keep this copyright notice, so credit stays with the author.
