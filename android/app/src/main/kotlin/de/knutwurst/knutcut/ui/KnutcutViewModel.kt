@@ -388,8 +388,15 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun importUris(uris: List<Uri>) {
         if (uris.isEmpty()) return
         val resolver = getApplication<Application>().contentResolver
-        // Raster images go through the posterize-trace dialog; vector/text files use the parser path.
-        uris.firstOrNull { isRasterImage(resolver, it) }?.let { beginImageTrace(it); return }
+        // Raster images go through the posterize-trace dialog (one at a time); vector/text files use
+        // the parser path. A mixed/multi selection traces the first image and says so, rather than
+        // silently dropping the rest.
+        val image = uris.firstOrNull { isRasterImage(resolver, it) }
+        if (image != null) {
+            if (uris.size > 1) status = s(R.string.st_image_one_at_a_time)
+            beginImageTrace(image)
+            return
+        }
         if (hasDesign) { pendingImport = PendingImport.Files(uris); return }
         readAndLoad(uris, replace = false)
     }
@@ -431,22 +438,28 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** True while a (re)compute is running, so the dialog can show a spinner. */
     var imageTraceComputing by mutableStateOf(false); private set
     private var traceJob: Job? = null
+    private var decodeJob: Job? = null
 
-    /** Px-per-mm so a freshly traced image is about [TRACE_DEFAULT_LONG_EDGE_MM] on its long edge. */
-    private fun defaultPxPerMm(img: RasterImage): Double =
-        maxOf(img.width, img.height).coerceAtLeast(1) / TRACE_DEFAULT_LONG_EDGE_MM
+    /** Px-per-mm so the traced region is ~[TRACE_DEFAULT_LONG_EDGE_MM] on its long edge, whether the
+     *  whole image or just a crop (so a small crop still imports at a usable size). */
+    private fun effectivePxPerMm(img: RasterImage, crop: de.knutwurst.knutcut.svgcore.CropRect?): Double {
+        val longEdge = if (crop != null) maxOf(crop.w, crop.h) else maxOf(img.width, img.height)
+        return longEdge.coerceAtLeast(1) / TRACE_DEFAULT_LONG_EDGE_MM
+    }
 
     /** Decode the picked image off-thread, then open the trace dialog with a first preview. */
     fun beginImageTrace(uri: Uri) {
+        decodeJob?.cancel()
         imageDecoding = true
-        viewModelScope.launch {
+        decodeJob = viewModelScope.launch {
             val resolver = getApplication<Application>().contentResolver
             val img = withContext(Dispatchers.IO) { runCatching { de.knutwurst.knutcut.data.ImageDecode.decode(resolver, uri) }.getOrNull() }
+            if (!isActive) return@launch // dialog dismissed (or superseded) while decoding — don't resurrect it
             imageDecoding = false
             if (img == null) { status = s(R.string.st_image_unreadable); return@launch }
             imageTraceSource = img
             imageTraceResult = null
-            imageTraceParams = TraceParams(pxPerMm = defaultPxPerMm(img))
+            imageTraceParams = TraceParams()
             recomputeTrace(immediate = true)
         }
     }
@@ -459,17 +472,19 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun recomputeTrace(immediate: Boolean) {
         val img = imageTraceSource ?: return
-        val params = imageTraceParams
+        val params = imageTraceParams.copy(pxPerMm = effectivePxPerMm(img, imageTraceParams.crop))
         traceJob?.cancel()
         traceJob = viewModelScope.launch {
             if (!immediate) delay(150) // debounce rapid slider changes
             imageTraceComputing = true
-            val result = withContext(Dispatchers.Default) { RasterTrace.trace(img, params) }
+            // Pass the coroutine's liveness so a superseded trace stops instead of running to the end.
+            val result = withContext(Dispatchers.Default) { RasterTrace.trace(img, params) { isActive } }
             if (isActive) { imageTraceResult = result; imageTraceComputing = false }
         }
     }
 
     fun cancelImageTrace() {
+        decodeJob?.cancel()
         traceJob?.cancel()
         imageTraceSource = null
         imageTraceResult = null

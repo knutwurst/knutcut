@@ -3,6 +3,13 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.60.1
+- Image trace: crop and contrast. A draggable rectangle on the preview isolates one object before
+  tracing, so a single shape can be lifted out of a busy photo. Quantisation now runs in CIELAB
+  (perceptual) instead of RGB median-cut, so a low colour count actually separates dark from light —
+  at 2 colours the subject pops out instead of turning into grey mush. The crop region is quantised
+  on its own, sharpening contrast further, and imports at a usable size.
+
 ## 0.60.0
 - Import PNG/JPG/BMP/WebP images and trace them to cuttable vector layers. Posterize mode quantises
   the picture to a handful of colours and turns each colour region into its own coloured layer (holes

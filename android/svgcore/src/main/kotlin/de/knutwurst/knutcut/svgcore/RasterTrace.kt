@@ -1,6 +1,7 @@
 package de.knutwurst.knutcut.svgcore
 
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * Posterize-trace a raster image (PNG/JPG/BMP/…) into cuttable vector contours.
@@ -19,11 +20,14 @@ class RasterImage(val width: Int, val height: Int, val pixels: IntArray) {
     init { require(pixels.size == width * height) { "pixels (${pixels.size}) != width*height ($width*$height)" } }
 }
 
+/** A pixel-space rectangle to restrict tracing to (so a single object can be isolated). */
+data class CropRect(val x: Int, val y: Int, val w: Int, val h: Int)
+
 /** Tunable parameters for [RasterTrace.trace]. */
 data class TraceParams(
     /** Palette size for the posterisation (clamped to 2..12). */
     val numColors: Int = 6,
-    /** Drop the colour that dominates the image border (so a solid background isn't cut). */
+    /** Drop the colour that dominates the (crop) border, so a solid background isn't cut. */
     val dropBackground: Boolean = true,
     /** RDP tolerance in mm: higher = fewer points / smoother staircases, lower = more faithful. */
     val detailMm: Double = 0.4,
@@ -31,6 +35,8 @@ data class TraceParams(
     val minAreaMm2: Double = 4.0,
     /** Image pixels per millimetre — sets the real-world size of the traced geometry. */
     val pxPerMm: Double = 4.0,
+    /** Only trace pixels inside this rectangle; null traces the whole image. */
+    val crop: CropRect? = null,
 )
 
 /** One quantised colour and its closed contours (outer boundaries and holes), in millimetres. */
@@ -55,12 +61,18 @@ object RasterTrace {
     /** Pixels with alpha below this count as transparent: excluded from quantising and never cut. */
     private const val ALPHA_CUTOFF = 128
 
-    fun trace(img: RasterImage, params: TraceParams): TraceResult {
+    /**
+     * [shouldContinue] is polled at coarse boundaries (k-means iterations, per traced colour) so a
+     * caller can abandon a superseded recompute instead of burning CPU; this pure code has no other
+     * cancellation. A cancelled run returns whatever it has built so far (the caller discards it).
+     */
+    fun trace(img: RasterImage, params: TraceParams, shouldContinue: () -> Boolean = { true }): TraceResult {
         val k = params.numColors.coerceIn(2, 12)
-        val (palette, indexMap) = quantize(img, k)
-        if (palette.isEmpty()) return TraceResult(emptyList(), palette, indexMap, -1, img.width, img.height)
+        val region = cropOf(img, params.crop)
+        val (palette, indexMap) = quantize(region, k, shouldContinue)
+        if (palette.isEmpty()) return TraceResult(emptyList(), palette, indexMap, -1, region.width, region.height)
 
-        val bg = if (params.dropBackground) detectBackground(img.width, img.height, indexMap, palette.size) else -1
+        val bg = if (params.dropBackground) detectBackground(region.width, region.height, indexMap, palette.size) else -1
 
         // Population per palette colour, to order layers (largest first) and skip empty colours.
         val counts = IntArray(palette.size)
@@ -69,27 +81,43 @@ object RasterTrace {
 
         val colors = ArrayList<TracedColor>()
         for (ci in order) {
+            if (!shouldContinue()) break
             if (ci == bg || counts[ci] == 0) continue
-            val contours = traceColor(img.width, img.height, indexMap, ci, params)
+            val contours = traceColor(region.width, region.height, indexMap, ci, params)
             if (contours.isNotEmpty()) colors.add(TracedColor(palette[ci], contours))
         }
-        return TraceResult(colors, palette, indexMap, bg, img.width, img.height)
+        return TraceResult(colors, palette, indexMap, bg, region.width, region.height)
+    }
+
+    /** The pixels inside [crop] as a standalone image (clamped to bounds); the whole image when null. */
+    private fun cropOf(img: RasterImage, crop: CropRect?): RasterImage {
+        if (crop == null) return img
+        val x0 = crop.x.coerceIn(0, img.width); val y0 = crop.y.coerceIn(0, img.height)
+        val x1 = (crop.x + crop.w).coerceIn(x0, img.width); val y1 = (crop.y + crop.h).coerceIn(y0, img.height)
+        val w = x1 - x0; val h = y1 - y0
+        if (w <= 0 || h <= 0 || (w == img.width && h == img.height)) return img
+        val px = IntArray(w * h)
+        for (yy in 0 until h) System.arraycopy(img.pixels, (y0 + yy) * img.width + x0, px, yy * w, w)
+        return RasterImage(w, h, px)
     }
 
     // ---------------------------------------------------------------------------
-    // Median-cut colour quantisation
+    // Perceptual (CIELAB k-means) colour quantisation
     // ---------------------------------------------------------------------------
 
-    /** A populated 5-bit-per-channel histogram cell: pixel [cnt] and true-colour sums for averaging. */
-    private class Bin(val cnt: Int, val sr: Long, val sg: Long, val sb: Long) {
-        val r get() = (sr / cnt).toInt(); val g get() = (sg / cnt).toInt(); val b get() = (sb / cnt).toInt()
-    }
+    private const val KMEANS_ITERS = 16
 
-    /** Returns (palette as packed 0xFFRRGGBB, per-pixel palette index; -1 for transparent pixels). */
-    private fun quantize(img: RasterImage, k: Int): Pair<IntArray, IntArray> {
-        // Histogram opaque pixels at 5 bits/channel (32768 cells max), keeping true colour sums so the
-        // palette stays accurate. The 5-bit key also lets us resolve the nearest palette colour once
-        // per cell instead of once per pixel.
+    /**
+     * Quantise to at most [k] colours by k-means in CIELAB, so clusters separate by perceived
+     * lightness/chroma rather than raw RGB population. That is what lets a low colour count split
+     * dark-vs-light (the figure pops out) instead of averaging into mush. Deterministic: weighted
+     * k-means++ seeding (no RNG) plus a fixed iteration cap.
+     *
+     * Returns (palette as packed 0xFFRRGGBB, per-pixel palette index; -1 for transparent pixels).
+     */
+    private fun quantize(img: RasterImage, k: Int, shouldContinue: () -> Boolean = { true }): Pair<IntArray, IntArray> {
+        // 5-bit/channel histogram of opaque pixels (true colour sums for accurate averages). Clustering
+        // runs over the ≤32768 populated cells, not per pixel, so Lab conversion stays cheap.
         val cntC = IntArray(1 shl 15); val sumR = LongArray(1 shl 15); val sumG = LongArray(1 shl 15); val sumB = LongArray(1 shl 15)
         for (p in img.pixels) {
             if (((p ushr 24) and 0xFF) < ALPHA_CUTOFF) continue
@@ -97,65 +125,93 @@ object RasterTrace {
             val bin = ((r ushr 3) shl 10) or ((g ushr 3) shl 5) or (b ushr 3)
             cntC[bin]++; sumR[bin] += r; sumG[bin] += g; sumB[bin] += b
         }
-        val bins = ArrayList<Bin>()
-        val binKey = ArrayList<Int>()
-        for (key in 0 until (1 shl 15)) if (cntC[key] > 0) { bins.add(Bin(cntC[key], sumR[key], sumG[key], sumB[key])); binKey.add(key) }
-        if (bins.isEmpty()) return IntArray(0) to IntArray(img.pixels.size) { -1 }
+        val keys = ArrayList<Int>(); val wt = ArrayList<Int>()
+        val rAvg = ArrayList<Double>(); val gAvg = ArrayList<Double>(); val bAvg = ArrayList<Double>()
+        for (key in 0 until (1 shl 15)) {
+            val c = cntC[key]; if (c == 0) continue
+            keys.add(key); wt.add(c)
+            rAvg.add(sumR[key].toDouble() / c); gAvg.add(sumG[key].toDouble() / c); bAvg.add(sumB[key].toDouble() / c)
+        }
+        val m = keys.size
+        if (m == 0) return IntArray(0) to IntArray(img.pixels.size) { -1 }
 
-        // Median cut: split the most-populated box along its longest channel at the weighted median.
-        val arr = bins.toTypedArray()
-        val boxes = ArrayList<IntArray>().apply { add(intArrayOf(0, arr.size)) } // each = [lo, hi)
-        while (boxes.size < k) {
-            val box = boxes.filter { it[1] - it[0] > 1 }.maxByOrNull { boxPixels(arr, it[0], it[1]) } ?: break
-            val lo = box[0]; val hi = box[1]
-            val ch = longestChannel(arr, lo, hi)
-            val sub = arr.copyOfRange(lo, hi).sortedBy { channel(it, ch) }
-            for (i in lo until hi) arr[i] = sub[i - lo]
-            val total = boxPixels(arr, lo, hi)
-            var acc = 0; var cut = lo + 1
-            for (i in lo until hi) { acc += arr[i].cnt; if (acc * 2 >= total) { cut = (i + 1).coerceIn(lo + 1, hi - 1); break } }
-            boxes.remove(box); boxes.add(intArrayOf(lo, cut)); boxes.add(intArrayOf(cut, hi))
+        val labL = DoubleArray(m); val labA = DoubleArray(m); val labB = DoubleArray(m)
+        for (i in 0 until m) { val lab = rgbToLab(rAvg[i], gAvg[i], bAvg[i]); labL[i] = lab[0]; labA[i] = lab[1]; labB[i] = lab[2] }
+
+        val kk = minOf(k, m)
+        // Deterministic k-means++ seeding: most-populous cell first, then the cell FARTHEST in Lab from
+        // the nearest existing seed (pure distance², NOT weighted by population). This is the key to the
+        // user's "expected the subject, got grey soup": a small but very different region (the dark
+        // figure) must win a seed over a large secondary background tone. Population still biases the
+        // centroid UPDATE below, so the palette colours stay representative.
+        val seeds = IntArray(kk)
+        seeds[0] = (0 until m).maxByOrNull { wt[it] } ?: 0
+        val d2 = DoubleArray(m) { labDist2(labL, labA, labB, it, labL[seeds[0]], labA[seeds[0]], labB[seeds[0]]) }
+        for (c in 1 until kk) {
+            var bestIdx = 0; var bestScore = -1.0
+            for (i in 0 until m) { if (d2[i] > bestScore) { bestScore = d2[i]; bestIdx = i } }
+            seeds[c] = bestIdx
+            for (i in 0 until m) { val nd = labDist2(labL, labA, labB, i, labL[bestIdx], labA[bestIdx], labB[bestIdx]); if (nd < d2[i]) d2[i] = nd }
+        }
+        val cL = DoubleArray(kk) { labL[seeds[it]] }; val cA = DoubleArray(kk) { labA[seeds[it]] }; val cB = DoubleArray(kk) { labB[seeds[it]] }
+        val assign = IntArray(m) { -1 }
+        for (iter in 0 until KMEANS_ITERS) {
+            if (!shouldContinue()) break
+            var changed = false
+            for (i in 0 until m) {
+                var bj = 0; var bd = Double.MAX_VALUE
+                for (j in 0 until kk) {
+                    val dd = sq(labL[i] - cL[j]) + sq(labA[i] - cA[j]) + sq(labB[i] - cB[j])
+                    if (dd < bd) { bd = dd; bj = j }
+                }
+                if (assign[i] != bj) { assign[i] = bj; changed = true }
+            }
+            val sL = DoubleArray(kk); val sA = DoubleArray(kk); val sB = DoubleArray(kk); val sw = DoubleArray(kk)
+            for (i in 0 until m) { val j = assign[i]; val w = wt[i].toDouble(); sL[j] += labL[i] * w; sA[j] += labA[i] * w; sB[j] += labB[i] * w; sw[j] += w }
+            for (j in 0 until kk) if (sw[j] > 0) { cL[j] = sL[j] / sw[j]; cA[j] = sA[j] / sw[j]; cB[j] = sB[j] / sw[j] }
+            if (!changed) break
         }
 
-        val palette = IntArray(boxes.size)
-        for ((i, box) in boxes.withIndex()) {
-            var c = 0L; var r = 0L; var g = 0L; var b = 0L
-            for (j in box[0] until box[1]) { val bin = arr[j]; c += bin.cnt; r += bin.sr; g += bin.sg; b += bin.sb }
-            if (c == 0L) c = 1
-            palette[i] = (0xFF shl 24) or (((r / c).toInt()) shl 16) or (((g / c).toInt()) shl 8) or ((b / c).toInt())
+        // Palette colour = count-weighted average RGB of each cluster's cells; empty clusters dropped.
+        val accR = DoubleArray(kk); val accG = DoubleArray(kk); val accB = DoubleArray(kk); val accW = DoubleArray(kk)
+        for (i in 0 until m) { val j = assign[i]; val w = wt[i].toDouble(); accR[j] += rAvg[i] * w; accG[j] += gAvg[i] * w; accB[j] += bAvg[i] * w; accW[j] += w }
+        val clusterToPalette = IntArray(kk) { -1 }
+        val paletteList = ArrayList<Int>(kk)
+        for (j in 0 until kk) {
+            if (accW[j] <= 0) continue
+            clusterToPalette[j] = paletteList.size
+            val r = (accR[j] / accW[j]).roundToInt().coerceIn(0, 255)
+            val g = (accG[j] / accW[j]).roundToInt().coerceIn(0, 255)
+            val b = (accB[j] / accW[j]).roundToInt().coerceIn(0, 255)
+            paletteList.add((0xFF shl 24) or (r shl 16) or (g shl 8) or b)
         }
+        val palette = paletteList.toIntArray()
 
-        // Nearest palette colour per 5-bit cell, then map every pixel through that cache.
-        val nearestForKey = HashMap<Int, Int>(binKey.size * 2)
-        for (key in binKey) {
-            val r = ((key ushr 10) and 0x1F) shl 3; val g = ((key ushr 5) and 0x1F) shl 3; val b = (key and 0x1F) shl 3
-            nearestForKey[key] = nearest(palette, r, g, b)
-        }
+        val keyToPalette = HashMap<Int, Int>(m * 2)
+        for (i in 0 until m) keyToPalette[keys[i]] = clusterToPalette[assign[i]]
         val indexMap = IntArray(img.pixels.size)
         for (i in img.pixels.indices) {
             val p = img.pixels[i]
             indexMap[i] = if (((p ushr 24) and 0xFF) < ALPHA_CUTOFF) -1
-            else nearestForKey[(((p ushr 16) and 0xFF) ushr 3 shl 10) or (((p ushr 8) and 0xFF) ushr 3 shl 5) or ((p and 0xFF) ushr 3)] ?: 0
+            else keyToPalette[(((p ushr 16) and 0xFF) ushr 3 shl 10) or (((p ushr 8) and 0xFF) ushr 3 shl 5) or ((p and 0xFF) ushr 3)] ?: 0
         }
         return palette to indexMap
     }
 
-    private fun boxPixels(arr: Array<Bin>, lo: Int, hi: Int): Int { var s = 0; for (i in lo until hi) s += arr[i].cnt; return s }
-    private fun channel(b: Bin, ch: Int) = when (ch) { 0 -> b.r; 1 -> b.g; else -> b.b }
-    private fun longestChannel(arr: Array<Bin>, lo: Int, hi: Int): Int {
-        var rmin = 255; var rmax = 0; var gmin = 255; var gmax = 0; var bmin = 255; var bmax = 0
-        for (i in lo until hi) { val x = arr[i]; rmin = minOf(rmin, x.r); rmax = maxOf(rmax, x.r); gmin = minOf(gmin, x.g); gmax = maxOf(gmax, x.g); bmin = minOf(bmin, x.b); bmax = maxOf(bmax, x.b) }
-        val dr = rmax - rmin; val dg = gmax - gmin; val db = bmax - bmin
-        return if (dr >= dg && dr >= db) 0 else if (dg >= db) 1 else 2
-    }
-    private fun nearest(palette: IntArray, r: Int, g: Int, b: Int): Int {
-        var best = 0; var bestD = Int.MAX_VALUE
-        for (i in palette.indices) {
-            val pr = (palette[i] ushr 16) and 0xFF; val pg = (palette[i] ushr 8) and 0xFF; val pb = palette[i] and 0xFF
-            val d = (pr - r) * (pr - r) + (pg - g) * (pg - g) + (pb - b) * (pb - b)
-            if (d < bestD) { bestD = d; best = i }
-        }
-        return best
+    private fun sq(x: Double) = x * x
+    private fun labDist2(L: DoubleArray, A: DoubleArray, B: DoubleArray, i: Int, l: Double, a: Double, b: Double) =
+        sq(L[i] - l) + sq(A[i] - a) + sq(B[i] - b)
+
+    /** sRGB (channels 0..255) → CIELAB (D65). Called only per histogram cell, so the cost is bounded. */
+    private fun rgbToLab(r: Double, g: Double, b: Double): DoubleArray {
+        fun lin(c: Double): Double { val cs = c / 255.0; return if (cs <= 0.04045) cs / 12.92 else Math.pow((cs + 0.055) / 1.055, 2.4) }
+        val rl = lin(r); val gl = lin(g); val bl = lin(b)
+        val x = (rl * 0.4124 + gl * 0.3576 + bl * 0.1805) / 0.95047
+        val y = (rl * 0.2126 + gl * 0.7152 + bl * 0.0722)
+        val z = (rl * 0.0193 + gl * 0.1192 + bl * 0.9505) / 1.08883
+        fun f(t: Double): Double = if (t > 0.008856) Math.cbrt(t) else (7.787 * t + 16.0 / 116.0)
+        val fx = f(x); val fy = f(y); val fz = f(z)
+        return doubleArrayOf(116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
     }
 
     /** The palette index that dominates the 1-px image border, or -1 when the border is transparent. */

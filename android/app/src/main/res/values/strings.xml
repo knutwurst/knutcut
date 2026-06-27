@@ -373,4 +373,5 @@
     <string name="ui_trace_summary">%1$d colours · %2$d paths</string>
     <string name="ui_trace_empty">Nothing to trace at these settings.</string>
     <string name="st_image_unreadable">Could not read the image.</string>
+    <string name="st_image_one_at_a_time">Only the first image was traced.</string>
 </resources>

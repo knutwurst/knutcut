@@ -371,4 +371,5 @@
     <string name="ui_trace_summary">%1$d Farben · %2$d Pfade</string>
     <string name="ui_trace_empty">Mit diesen Einstellungen nichts zu erkennen.</string>
     <string name="st_image_unreadable">Bild konnte nicht gelesen werden.</string>
+    <string name="st_image_one_at_a_time">Nur das erste Bild wurde nachgezeichnet.</string>
 </resources>
