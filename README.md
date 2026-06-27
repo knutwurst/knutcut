@@ -25,6 +25,17 @@ Share an SVG to Knutcut from any app, place and scale it on the mat, send it to 
 
 The software that ships with these plotters wants a login, ships a broken German translation, and won't take a shared SVG. Knutcut does the part I need, in code I control.
 
+## Trace a photo into a cut
+
+Drop in a PNG, JPG, or BMP and Knutcut traces it to cuttable vector layers on the phone, no desktop software needed. Frame the part you want with the crop box and posterize it into a few colours; each colour becomes its own layer. The tracer works in perceptual colour space, so even two colours lift the subject off the background instead of muddying into grey.
+
+<table>
+  <tr>
+    <td align="center" width="50%"><img src="images/trace1.jpg" width="250" alt="Crop box and trace controls on a photo"><br><sub><b>Crop to the subject, set the colours</b></sub></td>
+    <td align="center" width="50%"><img src="images/trace2.jpg" width="250" alt="Traced silhouette on the mat, ready to cut"><br><sub><b>A clean cut layer, ready to plot</b></sub></td>
+  </tr>
+</table>
+
 ## Screenshots
 
 <table>
@@ -47,6 +58,8 @@ The software that ships with these plotters wants a login, ships a broken German
 **Shapes and text.** Draw freehand, drop in shapes, or set text in outline and single-stroke (Hershey) fonts. Convert any shape to editable nodes and bend it by hand.
 
 **Open and export.** Reads SVGs from any editor, Inkscape, Illustrator, or CorelDraw, whatever the file encoding (CorelDraw's UTF-16 exports included). Open or share SVG and PLT files, then export the whole design back out as a real-size SVG with every layer and colour, ready to re-open anywhere.
+
+**Trace a photo.** Import a PNG, JPG, or BMP and posterize-trace it into coloured cut layers. A crop box isolates one object, and perceptual (CIELAB) colour clustering separates the subject from the background even at two colours. Tune colours, detail, and speckle removal in a live preview.
 
 **Cut.** Send to a VEVOR Smart or E-cut over classic Bluetooth, or to a Silhouette over Bluetooth LE. Pick a material preset or set pressure, knife compensation, and the number of passes yourself. Assign pen or knife per layer.
 
