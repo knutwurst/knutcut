@@ -74,6 +74,10 @@ import de.knutwurst.knutcut.svgcore.Polyline
 import de.knutwurst.knutcut.svgcore.Protocol
 import de.knutwurst.knutcut.svgcore.Pt
 import de.knutwurst.knutcut.svgcore.Query
+import de.knutwurst.knutcut.svgcore.RasterImage
+import de.knutwurst.knutcut.svgcore.RasterTrace
+import de.knutwurst.knutcut.svgcore.TraceParams
+import de.knutwurst.knutcut.svgcore.TraceResult
 import de.knutwurst.knutcut.svgcore.Snap
 import de.knutwurst.knutcut.svgcore.SvgExport
 import de.knutwurst.knutcut.svgcore.SvgParser
@@ -383,8 +387,21 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun importUris(uris: List<Uri>) {
         if (uris.isEmpty()) return
+        val resolver = getApplication<Application>().contentResolver
+        // Raster images go through the posterize-trace dialog; vector/text files use the parser path.
+        uris.firstOrNull { isRasterImage(resolver, it) }?.let { beginImageTrace(it); return }
         if (hasDesign) { pendingImport = PendingImport.Files(uris); return }
         readAndLoad(uris, replace = false)
+    }
+
+    /** True when a uri is a raster image we can trace (PNG/JPG/BMP/WebP/…), but not an SVG. */
+    private fun isRasterImage(resolver: ContentResolver, uri: Uri): Boolean {
+        runCatching { resolver.getType(uri) }.getOrNull()?.lowercase()?.let { type ->
+            if (type.startsWith("image/")) return type != "image/svg+xml"
+        }
+        // No MIME (e.g. a VIEW from a file manager): fall back to the file extension.
+        val name = (displayNameOf(uri) ?: uri.lastPathSegment ?: "").lowercase()
+        return Regex("\\.(png|jpe?g|bmp|webp|gif|heic|heif)$").containsMatchIn(name)
     }
 
     private fun readAndLoad(uris: List<Uri>, replace: Boolean) {
@@ -399,6 +416,97 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
         }
+    }
+
+    // --- Image (raster) posterize-trace ---
+
+    /** The decoded image being traced; null means the trace dialog is closed. */
+    var imageTraceSource: RasterImage? by mutableStateOf(null); private set
+    /** True while decoding the picked image, before the dialog can open. */
+    var imageDecoding by mutableStateOf(false); private set
+    /** Current trace parameters, edited live in the dialog. */
+    var imageTraceParams by mutableStateOf(TraceParams()); private set
+    /** Latest trace result for the preview (null until the first compute finishes). */
+    var imageTraceResult: TraceResult? by mutableStateOf(null); private set
+    /** True while a (re)compute is running, so the dialog can show a spinner. */
+    var imageTraceComputing by mutableStateOf(false); private set
+    private var traceJob: Job? = null
+
+    /** Px-per-mm so a freshly traced image is about [TRACE_DEFAULT_LONG_EDGE_MM] on its long edge. */
+    private fun defaultPxPerMm(img: RasterImage): Double =
+        maxOf(img.width, img.height).coerceAtLeast(1) / TRACE_DEFAULT_LONG_EDGE_MM
+
+    /** Decode the picked image off-thread, then open the trace dialog with a first preview. */
+    fun beginImageTrace(uri: Uri) {
+        imageDecoding = true
+        viewModelScope.launch {
+            val resolver = getApplication<Application>().contentResolver
+            val img = withContext(Dispatchers.IO) { runCatching { de.knutwurst.knutcut.data.ImageDecode.decode(resolver, uri) }.getOrNull() }
+            imageDecoding = false
+            if (img == null) { status = s(R.string.st_image_unreadable); return@launch }
+            imageTraceSource = img
+            imageTraceResult = null
+            imageTraceParams = TraceParams(pxPerMm = defaultPxPerMm(img))
+            recomputeTrace(immediate = true)
+        }
+    }
+
+    /** Replace the trace parameters and recompute (debounced while a slider is dragged). */
+    fun updateTraceParams(params: TraceParams) {
+        imageTraceParams = params
+        recomputeTrace(immediate = false)
+    }
+
+    private fun recomputeTrace(immediate: Boolean) {
+        val img = imageTraceSource ?: return
+        val params = imageTraceParams
+        traceJob?.cancel()
+        traceJob = viewModelScope.launch {
+            if (!immediate) delay(150) // debounce rapid slider changes
+            imageTraceComputing = true
+            val result = withContext(Dispatchers.Default) { RasterTrace.trace(img, params) }
+            if (isActive) { imageTraceResult = result; imageTraceComputing = false }
+        }
+    }
+
+    fun cancelImageTrace() {
+        traceJob?.cancel()
+        imageTraceSource = null
+        imageTraceResult = null
+        imageTraceComputing = false
+        imageDecoding = false
+    }
+
+    /** Turn the current trace result into one coloured layer per colour, placed on the mat. */
+    fun confirmImageTrace() {
+        val result = imageTraceResult ?: return
+        if (result.colors.isEmpty()) { status = s(R.string.st_no_cuttable_paths); return }
+        val newLayers = result.colors.map { c ->
+            Layer(
+                name = "#%06X".format(c.argb and 0xFFFFFF),
+                polylines = c.contours,
+                tool = Tool.KNIFE,
+                visible = true,
+                centerMm = centerOf(c.contours.flatMap { it.points }),
+                colorArgb = c.argb,
+            )
+        }
+        pushHistory()
+        if (layers.isEmpty()) {
+            layers = placeAtHome(newLayers)
+            selectedLayer = 0
+            camScale = 1f
+            camOffset = Offset.Zero
+        } else {
+            val added = appendPlaced(placeAtHome(newLayers))
+            layers = layers + added
+            selectedLayer = layers.size - added.size
+        }
+        markedLayers = emptySet()
+        clearEditorMode()
+        pruneBoundsCache()
+        status = qty(R.plurals.st_design_loaded, newLayers.size, newLayers.size, "")
+        cancelImageTrace()
     }
 
     /** Display name of the currently saved/loaded project file (shown in settings), or null. */
@@ -1959,6 +2067,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         const val TAG = "Knutcut"
         const val MAX_HISTORY = 40          // undo/redo depth
         const val MAX_IMPORT_MB = 16        // per-file import cap
+        const val TRACE_DEFAULT_LONG_EDGE_MM = 150.0 // default size of a freshly traced image
         const val PLT_CHUNK = 30            // commands per pltFile chunk (the stock sendFile value)
         const val MAT_GAP_MM = 5.0          // gap between pieces when appending / auto-arranging
         const val MATERIAL_POLL_ATTEMPTS = 240

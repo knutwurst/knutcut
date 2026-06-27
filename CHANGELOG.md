@@ -3,6 +3,14 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.60.0
+- Import PNG/JPG/BMP/WebP images and trace them to cuttable vector layers. Posterize mode quantises
+  the picture to a handful of colours and turns each colour region into its own coloured layer (holes
+  included), so it drops straight into the per-layer colour workflow. A preview dialog sets the number
+  of colours, drops the background, and tunes detail and speckle removal before adding. Share a photo
+  to Knutcut or pick one via "Import image". High-contrast art (logos, clipart) traces best; photos
+  come out rough.
+
 ## 0.59.5
 - Finished the English translation. Strings that were still hardcoded in German now follow the
   chosen language: material names, generated layer names (split, merge, merge-by-colour, duplicate

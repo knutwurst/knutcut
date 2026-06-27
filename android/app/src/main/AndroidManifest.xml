@@ -44,6 +44,8 @@
                 <data android:mimeType="text/xml" />
                 <data android:mimeType="image/vnd.dxf" />
                 <data android:mimeType="application/dxf" />
+                <!-- Raster images (PNG/JPG/BMP/WebP/…): traced to vector layers on import. -->
+                <data android:mimeType="image/*" />
             </intent-filter>
 
             <!-- Open a design file directly (file manager, email attachment, …). -->
@@ -56,6 +58,8 @@
                 <data android:mimeType="text/xml" />
                 <data android:mimeType="image/vnd.dxf" />
                 <data android:mimeType="application/dxf" />
+                <!-- Raster images (PNG/JPG/BMP/WebP/…): traced to vector layers on import. -->
+                <data android:mimeType="image/*" />
             </intent-filter>
         </activity>
 

@@ -361,4 +361,14 @@
     <string name="font_serif_italic">Serif kursiv</string>
     <string name="font_handwriting">Handschrift</string>
     <string name="font_cursive">Schreibschrift</string>
+    <!-- Bild-Tracing (Raster) -->
+    <string name="ui_import_image">Bild importieren…</string>
+    <string name="ui_trace_title">Bild nachzeichnen</string>
+    <string name="ui_trace_colors">Farben</string>
+    <string name="ui_trace_drop_bg">Hintergrund entfernen</string>
+    <string name="ui_trace_simplify">Vereinfachung</string>
+    <string name="ui_trace_speckle">Mindestfleck</string>
+    <string name="ui_trace_summary">%1$d Farben · %2$d Pfade</string>
+    <string name="ui_trace_empty">Mit diesen Einstellungen nichts zu erkennen.</string>
+    <string name="st_image_unreadable">Bild konnte nicht gelesen werden.</string>
 </resources>

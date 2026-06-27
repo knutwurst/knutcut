@@ -200,7 +200,11 @@ fun MainScreen(vm: KnutcutViewModel) {
     val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         vm.importUris(uris)
     }
-    fun openFile() = openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "text/plain", "application/octet-stream", "image/vnd.dxf", "application/dxf"))
+    fun openFile() = openLauncher.launch(arrayOf("image/svg+xml", "text/xml", "text/plain", "application/octet-stream", "image/vnd.dxf", "application/dxf", "image/*"))
+    val imageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { vm.beginImageTrace(it) }
+    }
+    fun pickImage() = imageLauncher.launch(arrayOf("image/*"))
     fun openDevices() { if (hasConnectPerm) showDevices = true else permLauncher.launch(bluetoothPermissions()) }
 
     LaunchedEffect(vm.statusSeq) {
@@ -251,6 +255,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                         onDismiss = { showAdd = false },
                         onNew = { showAdd = false; showNewConfirm = true },
                         onOpenFile = { showAdd = false; openFile() },
+                        onImportImage = { showAdd = false; pickImage() },
                         onLibrary = { showAdd = false; showLibrary = true },
                         onText = { showAdd = false; showText = true },
                         onDraw = { showAdd = false; vm.stopBendingText(); vm.editorTool = EditorTool.DRAW },
@@ -382,6 +387,7 @@ fun MainScreen(vm: KnutcutViewModel) {
     if (showCut && vm.hasDesign) CutSheet(vm, onDismiss = { showCut = false })
     if (showText) TextDialog(vm, fontRepo, onDismiss = { showText = false })
     if (showLibrary) LibrarySheet(vm, onDismiss = { showLibrary = false })
+    ImageTraceDialog(vm)
 }
 
 /** Add a text layer: type the text, pick a font (outline or single-stroke), choose a height. */
@@ -480,6 +486,7 @@ private fun AddMenu(
     onDismiss: () -> Unit,
     onNew: () -> Unit,
     onOpenFile: () -> Unit,
+    onImportImage: () -> Unit,
     onLibrary: () -> Unit,
     onText: () -> Unit,
     onDraw: () -> Unit,
@@ -494,6 +501,7 @@ private fun AddMenu(
             DropdownMenuItem(text = { Text(stringResource(R.string.ui_neu)) }, onClick = onNew)
             HorizontalDivider()
             DropdownMenuItem(text = { Text(stringResource(R.string.ui_open_svg_plt)) }, onClick = onOpenFile)
+            DropdownMenuItem(text = { Text(stringResource(R.string.ui_import_image)) }, onClick = onImportImage)
             DropdownMenuItem(text = { Text(stringResource(R.string.ui_library_menu)) }, onClick = onLibrary)
             DropdownMenuItem(text = { Text(stringResource(R.string.ui_text_menu)) }, onClick = onText)
             DropdownMenuItem(text = { Text(stringResource(R.string.ui_mode_draw)) }, onClick = onDraw)
