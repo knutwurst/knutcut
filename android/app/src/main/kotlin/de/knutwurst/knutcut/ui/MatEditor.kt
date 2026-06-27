@@ -7,6 +7,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Gradient
+import androidx.compose.material.icons.filled.Square
+import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lock
@@ -97,6 +106,28 @@ private const val NODE_HIT_DP = 16f              // touch radius for nodes/handl
 private const val DOUBLE_TAP_MS = 350L           // max gap between taps to count as a double-tap
 // Vertical drag (in mm) that sweeps the text curve across its full ±100 range when bending on the mat.
 private const val BEND_DRAG_RANGE_MM = 80.0
+
+/** One segment of the on-mat display-mode toggle: an icon that highlights when its mode is active
+ *  and switches to it on tap (the mat redraws instantly, so you see what each mode does). */
+@Composable
+private fun DisplayModeChip(vm: KnutcutViewModel, mode: ColorMode, icon: ImageVector, descRes: Int) {
+    val active = vm.colorMode == mode
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(if (active) MaterialTheme.colorScheme.primary else Color.Transparent)
+            .clickable { vm.changeColorMode(mode) },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon,
+            contentDescription = androidx.compose.ui.res.stringResource(descRes),
+            tint = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
 
 /**
  * The placement mat. Pinch or one-finger-drag on empty space moves/zooms the *work area* (like a
@@ -838,6 +869,25 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                   style = MaterialTheme.typography.labelSmall,
                   modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
               )
+          }
+      }
+
+      // Top-right quick display-mode toggle: outline only / color + outline / color only, with the
+      // active mode highlighted. Tapping redraws the mat instantly so the effect is obvious. Shown
+      // only when there's a design to preview.
+      if (vm.layers.isNotEmpty()) {
+          Surface(
+              color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+              contentColor = MaterialTheme.colorScheme.onSurface,
+              shape = RoundedCornerShape(18.dp),
+              tonalElevation = 2.dp,
+              modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
+          ) {
+              androidx.compose.foundation.layout.Row(modifier = Modifier.padding(2.dp)) {
+                  DisplayModeChip(vm, ColorMode.OUTLINE, Icons.Outlined.CheckBoxOutlineBlank, de.knutwurst.knutcut.R.string.ui_outline_only)
+                  DisplayModeChip(vm, ColorMode.COLOR, Icons.Default.Gradient, de.knutwurst.knutcut.R.string.ui_colorful)
+                  DisplayModeChip(vm, ColorMode.FILL, Icons.Filled.Square, de.knutwurst.knutcut.R.string.ui_color_only)
+              }
           }
       }
 

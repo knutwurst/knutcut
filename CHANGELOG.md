@@ -3,6 +3,11 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.62.1
+- Quick display-mode toggle right on the mat (top-right): switch between Outline only, Color + outline,
+  and Color only with one tap. The active mode is highlighted and the preview updates instantly. It's
+  the same setting as the one under Display settings.
+
 ## 0.62.0
 - New display mode "Color only": the mat shows filled colors with no outline overlay, so the preview
   looks like the finished vinyl. The Display setting now offers three modes — Outline only, Color +
