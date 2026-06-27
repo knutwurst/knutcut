@@ -437,8 +437,13 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var imageTraceResult: TraceResult? by mutableStateOf(null); private set
     /** True while a (re)compute is running, so the dialog can show a spinner. */
     var imageTraceComputing by mutableStateOf(false); private set
+    /** True while the final high-res import runs (the Add spinner); params edits are ignored then. */
+    var imageImporting by mutableStateOf(false); private set
     private var traceJob: Job? = null
     private var decodeJob: Job? = null
+    private var confirmJob: Job? = null
+    private var imageTraceUri: Uri? = null
+    private var imageSourceInfo: de.knutwurst.knutcut.data.ImageDecode.SourceInfo? = null
 
     /** Px-per-mm so the traced region is ~[TRACE_DEFAULT_LONG_EDGE_MM] on its long edge, whether the
      *  whole image or just a crop (so a small crop still imports at a usable size). */
@@ -450,13 +455,20 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Decode the picked image off-thread, then open the trace dialog with a first preview. */
     fun beginImageTrace(uri: Uri) {
         decodeJob?.cancel()
+        traceJob?.cancel()
+        confirmJob?.cancel() // a new image supersedes any in-flight preview/import
         imageDecoding = true
+        imageImporting = false
+        imageTraceUri = uri
         decodeJob = viewModelScope.launch {
             val resolver = getApplication<Application>().contentResolver
+            // Decode a fast preview AND read the source size/orientation (for the native-res re-decode on Add).
             val img = withContext(Dispatchers.IO) { runCatching { de.knutwurst.knutcut.data.ImageDecode.decode(resolver, uri) }.getOrNull() }
+            val info = withContext(Dispatchers.IO) { runCatching { de.knutwurst.knutcut.data.ImageDecode.readSourceInfo(resolver, uri) }.getOrNull() }
             if (!isActive) return@launch // dialog dismissed (or superseded) while decoding — don't resurrect it
             imageDecoding = false
             if (img == null) { status = s(R.string.st_image_unreadable); return@launch }
+            imageSourceInfo = info
             imageTraceSource = img
             imageTraceResult = null
             imageTraceParams = TraceParams()
@@ -466,6 +478,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Replace the trace parameters and recompute (debounced while a slider is dragged). */
     fun updateTraceParams(params: TraceParams) {
+        if (imageImporting) return // ignore stray slider/crop changes while the final import runs
         imageTraceParams = params
         recomputeTrace(immediate = false)
     }
@@ -486,17 +499,59 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun cancelImageTrace() {
         decodeJob?.cancel()
         traceJob?.cancel()
+        confirmJob?.cancel()
         imageTraceSource = null
         imageTraceResult = null
         imageTraceComputing = false
+        imageImporting = false
         imageDecoding = false
+        imageTraceUri = null
+        imageSourceInfo = null
     }
 
-    /** Turn the current trace result into one coloured layer per colour, placed on the mat. */
+    /**
+     * Import the trace as coloured layers. For a cropped object, re-decode just that region from the
+     * original file at native resolution and trace THAT (crisp curves) instead of the downsampled
+     * preview; fall back to the preview when there is no crop or the region can't be decoded.
+     */
     fun confirmImageTrace() {
-        val result = imageTraceResult ?: return
-        if (result.colors.isEmpty()) { status = s(R.string.st_no_cuttable_paths); return }
-        val newLayers = result.colors.map { c ->
+        val preview = imageTraceResult ?: return
+        if (preview.colors.isEmpty()) { status = s(R.string.st_no_cuttable_paths); return }
+        val params = imageTraceParams
+        val src = imageTraceSource
+        val uri = imageTraceUri
+        val info = imageSourceInfo
+        val dispW = src?.width ?: 0; val dispH = src?.height ?: 0
+        val resolver = getApplication<Application>().contentResolver
+        traceJob?.cancel()  // stop a pending preview recompute so it can't clobber state
+        confirmJob?.cancel()
+        imageImporting = true
+        // A DEDICATED job (not traceJob): recomputeTrace must never cancel an in-flight import.
+        confirmJob = viewModelScope.launch {
+            try {
+                val region = if (uri != null && info != null && params.crop != null && dispW > 0 && dispH > 0) {
+                    withContext(Dispatchers.IO) { runCatching { de.knutwurst.knutcut.data.ImageDecode.decodeRegion(resolver, uri, info, dispW, dispH, params.crop!!) }.getOrNull() }
+                } else null
+                val hiResult = if (region != null) {
+                    withContext(Dispatchers.Default) {
+                        val hiParams = params.copy(crop = null, pxPerMm = maxOf(region.width, region.height).coerceAtLeast(1) / TRACE_DEFAULT_LONG_EDGE_MM)
+                        RasterTrace.trace(region, hiParams) { isActive }
+                    }
+                } else null
+                if (!isActive) return@launch
+                // Prefer the crisp high-res trace, but fall back to the preview if it came back empty.
+                val finalResult = if (hiResult != null && hiResult.colors.isNotEmpty()) hiResult else preview
+                addTracedLayers(finalResult.colors)
+                cancelImageTrace()
+            } finally {
+                imageImporting = false // never leave the Add spinner stuck, even if cancelled
+            }
+        }
+    }
+
+    /** Place one coloured layer per traced colour on the mat. */
+    private fun addTracedLayers(colors: List<de.knutwurst.knutcut.svgcore.TracedColor>) {
+        val newLayers = colors.map { c ->
             Layer(
                 name = "#%06X".format(c.argb and 0xFFFFFF),
                 polylines = c.contours,
@@ -521,7 +576,6 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         clearEditorMode()
         pruneBoundsCache()
         status = qty(R.plurals.st_design_loaded, newLayers.size, newLayers.size, "")
-        cancelImageTrace()
     }
 
     /** Display name of the currently saved/loaded project file (shown in settings), or null. */

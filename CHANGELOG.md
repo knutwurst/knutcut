@@ -3,6 +3,12 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.61.1
+- Image trace: crisp curves from full-resolution crops. When you crop to one object, that region is
+  now re-read from the original photo at native resolution before tracing (only the crop, so memory
+  stays bounded), instead of tracing a shrunk copy. The pixel staircase drops below the smoothing,
+  so the curves come out clean. Falls back to the preview trace if the region can't be read.
+
 ## 0.61.0
 - Free rotation. The rotate button now opens a menu (90° right, 90° left, 180°, and Free rotate),
   like the flip button. Pick "Free rotate" and the selection's corner handles turn the layer to any

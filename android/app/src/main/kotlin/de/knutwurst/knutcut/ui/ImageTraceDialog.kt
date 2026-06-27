@@ -81,7 +81,7 @@ fun ImageTraceDialog(vm: KnutcutViewModel) {
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f),
                     )
-                    if (vm.imageDecoding || vm.imageTraceComputing) {
+                    if (vm.imageDecoding || vm.imageTraceComputing || vm.imageImporting) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     }
                 }
@@ -107,7 +107,7 @@ fun ImageTraceDialog(vm: KnutcutViewModel) {
             }
         },
         confirmButton = {
-            TextButton(enabled = colorCount > 0 && !vm.imageTraceComputing, onClick = { vm.confirmImageTrace() }) {
+            TextButton(enabled = colorCount > 0 && !vm.imageTraceComputing && !vm.imageImporting, onClick = { vm.confirmImageTrace() }) {
                 Text(stringResource(R.string.ui_add))
             }
         },
