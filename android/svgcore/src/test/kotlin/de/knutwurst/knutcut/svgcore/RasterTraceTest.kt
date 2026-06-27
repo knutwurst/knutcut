@@ -60,7 +60,7 @@ class RasterTraceTest {
             legend = mapOf('R' to RED, 'W' to WHITE, 'K' to BLACK),
         )
         val r = RasterTrace.trace(img, params(numColors = 3))
-        assertEquals("palette has the three colours", 3, r.palette.size)
+        assertEquals("palette has the three colors", 3, r.palette.size)
         assertNotNull("red traced", colorFor(r, RED))
         assertNotNull("white traced", colorFor(r, WHITE))
         assertNotNull("black traced", colorFor(r, BLACK))
@@ -163,13 +163,13 @@ class RasterTraceTest {
         )
         val r = RasterTrace.trace(img, params(dropBg = true))
         assertTrue("white border was detected as background", r.backgroundIndex >= 0)
-        assertNull("background colour is not emitted as a layer", colorFor(r, WHITE))
+        assertNull("background color is not emitted as a layer", colorFor(r, WHITE))
         assertNotNull("foreground still traced", colorFor(r, BLACK))
     }
 
     @Test
     fun lowColorCountSeparatesDarkFigureFromLightGround() {
-        // A small dark figure on a mottled light background. At 2 colours the perceptual cluster MUST
+        // A small dark figure on a mottled light background. At 2 colors the perceptual cluster MUST
         // isolate the dark figure (the user's "I expected the bunny, got grey soup" case).
         val w = 10; val h = 10; val px = IntArray(w * h)
         for (y in 0 until h) for (x in 0 until w) {
@@ -179,7 +179,7 @@ class RasterTraceTest {
         val r = RasterTrace.trace(RasterImage(w, h, px), params(numColors = 2))
         assertEquals("two clusters", 2, r.palette.size)
         val dark = colorFor(r, BLACK)
-        assertNotNull("the dark figure forms its own colour at 2 colours", dark)
+        assertNotNull("the dark figure forms its own color at 2 colors", dark)
         assertEquals("dark figure is a single contour", 1, dark!!.contours.size)
         assertEquals("contour matches the 4x4 figure", 16.0, area(dark.contours[0]), 0.001)
     }
@@ -201,7 +201,7 @@ class RasterTraceTest {
         val r = RasterTrace.trace(RasterImage(w, h, px), params(numColors = 2))
         assertEquals(2, r.palette.size)
         val figure = colorFor(r, BLACK)
-        assertNotNull("dark figure survives a multi-tone light background at 2 colours", figure)
+        assertNotNull("dark figure survives a multi-tone light background at 2 colors", figure)
         assertEquals("figure is one contour", 1, figure!!.contours.size)
         assertEquals("figure area is 6x6", 36.0, area(figure.contours[0]), 0.001)
     }
@@ -218,7 +218,7 @@ class RasterTraceTest {
         val a = RasterTrace.trace(img, params(numColors = 4))
         val b = RasterTrace.trace(img, params(numColors = 4))
         assertArrayEquals("same palette", a.palette, b.palette)
-        assertEquals("same colour count", a.colors.size, b.colors.size)
+        assertEquals("same color count", a.colors.size, b.colors.size)
         assertEquals(
             "same geometry",
             a.colors.map { c -> c.argb to c.contours.map { it.points } },
@@ -333,13 +333,13 @@ class RasterTraceTest {
     @Test
     fun uniformImageWithDropBackgroundYieldsNoCuttableColours() {
         val img = solid(6, 6, RED)
-        assertEquals("the lone colour still traces with drop off", 1, RasterTrace.trace(img, params()).palette.size)
+        assertEquals("the lone color still traces with drop off", 1, RasterTrace.trace(img, params()).palette.size)
         val r = RasterTrace.trace(img, params(dropBg = true))
-        assertTrue("the single colour is the background", r.backgroundIndex >= 0)
+        assertTrue("the single color is the background", r.backgroundIndex >= 0)
         assertTrue("nothing left to cut", r.colors.isEmpty())
     }
 
-    /** A centred black square of [side] mm with a white margin (pxPerMm = 1). */
+    /** A centered black square of [side] mm with a white margin (pxPerMm = 1). */
     private fun blackSquare(side: Int, margin: Int = 2): RasterImage {
         val w = side + 2 * margin; val h = side + 2 * margin
         val px = IntArray(w * h) { WHITE }
@@ -384,7 +384,7 @@ class RasterTraceTest {
 
     @Test
     fun smoothingCornerRuleRespectsPxPerMm() {
-        // The 4 mm arm threshold is in millimetres, so it must track pxPerMm, not pixels. At 4 px/mm:
+        // The 4 mm arm threshold is in millimeters, so it must track pxPerMm, not pixels. At 4 px/mm:
         // a 12 px (=3 mm) square has short arms → rounded; a 20 px (=5 mm) square has long arms → kept.
         val small = colorFor(RasterTrace.trace(blackSquare(12), params(pxPerMm = 4.0, smooth = true)), BLACK)!!
         val large = colorFor(RasterTrace.trace(blackSquare(20), params(pxPerMm = 4.0, smooth = true)), BLACK)!!

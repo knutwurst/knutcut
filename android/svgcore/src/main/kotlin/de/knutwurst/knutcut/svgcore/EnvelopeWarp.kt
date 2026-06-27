@@ -4,7 +4,7 @@ package de.knutwurst.knutcut.svgcore
  * Bilinear (4-corner cage) warp.
  *
  * Given a quad defined by corners TL, TR, BR, BL the source geometry is mapped so that each
- * source point at normalised position (u, v) — where u goes left-to-right and v goes top-to-bottom
+ * source point at normalized position (u, v) — where u goes left-to-right and v goes top-to-bottom
  * across the source bounding box — lands at the bilinear interpolation of the four corners:
  *
  *   mapped = (1-u)(1-v)*TL + u(1-v)*TR + uv*BR + (1-u)v*BL
@@ -16,7 +16,7 @@ object EnvelopeWarp {
     /**
      * Apply a 4-corner bilinear warp to [source].
      *
-     * [sourceBounds] defines the normalisation domain; it should be the bounding box of the
+     * [sourceBounds] defines the normalization domain; it should be the bounding box of the
      * original (pre-warp) geometry.  Zero-width or zero-height bounds are handled gracefully:
      * the corresponding axis is pinned to u=0 or v=0.
      *

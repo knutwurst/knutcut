@@ -1,6 +1,6 @@
 package de.knutwurst.knutcut.data
 
-/** A cutting mat / work area in millimetres. The stock app offers 12×12 and 12×24 inch. */
+/** A cutting mat / work area in millimeters. The stock app offers 12×12 and 12×24 inch. */
 data class Mat(val name: String, val widthMm: Double, val heightMm: Double)
 
 object Mats {

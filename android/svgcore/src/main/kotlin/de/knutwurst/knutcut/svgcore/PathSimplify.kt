@@ -69,7 +69,7 @@ private fun rdpRecursive(
 
 /**
  * Fit a smooth [EditablePath] through [points] using Catmull–Rom tangents converted to cubic
- * Bézier handles.  Each node's handle length is 1/6 of the distance to its neighbour, giving a
+ * Bézier handles.  Each node's handle length is 1/6 of the distance to its neighbor, giving a
  * conservative but faithful approximation.
  *
  * Node count equals [points].size for an open path.  The resulting path's [EditablePath.toPolyline]
@@ -214,11 +214,11 @@ fun smoothToPath(points: List<Pt>, closed: Boolean = false): EditablePath {
         val tx = (next.xMm - prev.xMm) / 2.0
         val ty = (next.yMm - prev.yMm) / 2.0
 
-        // Neighbour distances. On a closed path the seam node wraps so it still gets both handles.
+        // Neighbor distances. On a closed path the seam node wraps so it still gets both handles.
         val distOut = if (closed || i < n - 1) hypot(next.xMm - curr.xMm, next.yMm - curr.yMm) else 0.0
         val distIn  = if (closed || i > 0)     hypot(curr.xMm - prev.xMm, curr.yMm - prev.yMm) else 0.0
 
-        // Normalise the tangent; fall back to the nearest-neighbour direction when it is zero.
+        // Normalize the tangent; fall back to the nearest-neighbor direction when it is zero.
         val tLen = hypot(tx, ty)
         val (ux, uy) = if (tLen > 1e-12) {
             (tx / tLen) to (ty / tLen)
@@ -228,7 +228,7 @@ fun smoothToPath(points: List<Pt>, closed: Boolean = false): EditablePath {
             if (nd > 1e-12) (ndx / nd) to (ndy / nd) else (1.0 to 0.0)
         }
 
-        // Nodes with a neighbour on both sides (interior, or any node on a closed path) can be smooth;
+        // Nodes with a neighbor on both sides (interior, or any node on a closed path) can be smooth;
         // open-path endpoints keep their single handle.
         val symmetric = closed || (i in 1 until n - 1)
 
@@ -244,8 +244,8 @@ fun smoothToPath(points: List<Pt>, closed: Boolean = false): EditablePath {
         if (isCorner) {
             PathNode(curr, handleIn = null, handleOut = null, smooth = false)
         } else {
-            // Equal-length handles, clamped to 1/3 of the SHORTER neighbour so they never overshoot —
-            // an overshooting handle bulges the curve past its neighbour and distorts the shape.
+            // Equal-length handles, clamped to 1/3 of the SHORTER neighbor so they never overshoot —
+            // an overshooting handle bulges the curve past its neighbor and distorts the shape.
             val len = if (symmetric) min(distIn, distOut) / 3.0 else 0.0
             val lenOut = if (symmetric) len else distOut / 3.0
             val lenIn  = if (symmetric) len else distIn / 3.0

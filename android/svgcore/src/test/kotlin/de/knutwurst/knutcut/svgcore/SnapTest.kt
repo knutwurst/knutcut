@@ -19,10 +19,10 @@ class SnapTest {
         assertEquals(12.34, Snap.toStep(12.34, -1.0), 1e-9)
     }
 
-    @Test fun `gridCenter snaps the top-left, not the centre`() {
-        // A 40 mm wide box: top-left is 20 mm left of the centre.
+    @Test fun `gridCenter snaps the top-left, not the center`() {
+        // A 40 mm wide box: top-left is 20 mm left of the center.
         val tlOffset = Pt(-20.0, -10.0)
-        // Centre at 31/26 → top-left at 11/16 → snaps to 10/15 → centre back to 30/25.
+        // Center at 31/26 → top-left at 11/16 → snaps to 10/15 → center back to 30/25.
         val c = Snap.gridCenter(Pt(31.0, 26.0), tlOffset, 5.0)
         assertEquals(30.0, c.xMm, 1e-9)
         assertEquals(15.0 + 10.0, c.yMm, 1e-9)

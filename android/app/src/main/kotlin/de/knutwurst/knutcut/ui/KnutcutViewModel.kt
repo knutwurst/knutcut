@@ -223,7 +223,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var snapMm by mutableStateOf(settings.snapMm); private set
     var alignGuides by mutableStateOf(settings.alignGuides); private set
     var autoCloseDrawn by mutableStateOf(settings.autoCloseDrawn); private set
-    // Transient guide lines shown while a drag is snapped to another layer's (or the mat's) centre.
+    // Transient guide lines shown while a drag is snapped to another layer's (or the mat's) center.
     var alignGuideX by mutableStateOf<Double?>(null); private set
     var alignGuideY by mutableStateOf<Double?>(null); private set
 
@@ -234,7 +234,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectTheme(m: ThemeMode) { settings.themeMode = m; themeMode = m }
 
-    /** Switch the mat preview between tool-coloured outlines and the SVG's own colours. Persisted. */
+    /** Switch the mat preview between tool-colored outlines and the SVG's own colors. Persisted. */
     fun changeColorMode(m: ColorMode) { settings.colorMode = m; colorMode = m }
 
     fun changeDisplayUnit(u: DisplayUnit) { settings.displayUnit = u; displayUnit = u }
@@ -273,7 +273,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Release the link and cancel any cut — called from onCleared and before a hard exit. */
     fun shutdown() { cutJob?.cancel(); cutJob = null; link?.close(); link = null }
 
-    /** Context wrapped with the chosen language, so toasts honour it like the rest of the UI. */
+    /** Context wrapped with the chosen language, so toasts honor it like the rest of the UI. */
     private fun locCtx(): android.content.Context =
         LocaleUtil.wrap(getApplication<Application>(), settings.appLanguage)
 
@@ -346,7 +346,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Toggle whether a freehand stroke auto-closes into a plottable shape. Persisted. */
     fun changeAutoCloseDrawn(on: Boolean) { autoCloseDrawn = on; settings.autoCloseDrawn = on }
 
-    /** Format a millimetre length in the chosen display unit, e.g. "4.0 cm". */
+    /** Format a millimeter length in the chosen display unit, e.g. "4.0 cm". */
     fun formatLen(mm: Double): String =
         String.format(java.util.Locale.GERMAN, "%.1f %s", displayUnit.fromMm(mm), displayUnit.label)
 
@@ -510,7 +510,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Import the trace as coloured layers. For a cropped object, re-decode just that region from the
+     * Import the trace as colored layers. For a cropped object, re-decode just that region from the
      * original file at native resolution and trace THAT (crisp curves) instead of the downsampled
      * preview; fall back to the preview when there is no crop or the region can't be decoded.
      */
@@ -549,7 +549,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Place one coloured layer per traced colour on the mat. */
+    /** Place one colored layer per traced color on the mat. */
     private fun addTracedLayers(colors: List<de.knutwurst.knutcut.svgcore.TracedColor>) {
         val newLayers = colors.map { c ->
             Layer(
@@ -605,7 +605,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * Export the visible design to a plain SVG of stroked outlines (the cut/draw paths), in
-     * millimetres at its real size. Placement (scale/rotation/position) is baked in. Unlike a .kcp
+     * millimeters at its real size. Placement (scale/rotation/position) is baked in. Unlike a .kcp
      * project this is a portable vector other tools can open.
      */
     fun exportSvg(uri: Uri) {
@@ -896,7 +896,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * Auto-arrange every layer to save material: pack the pieces' bounding boxes into rows from the
      * top-left, with a gap, no overlaps. With [allow90] a piece may be turned 90° to fit better. This
-     * normalises each layer's rotation to 0°/90° (it's a reflow), keeping size, scale and mirroring.
+     * normalizes each layer's rotation to 0°/90° (it's a reflow), keeping size, scale and mirroring.
      */
     fun autoArrange(allow90: Boolean) {
         if (layers.isEmpty()) return
@@ -909,7 +909,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         val placed = Nest.pack(boxes, mat.widthMm, gap, allow90).associateBy { it.id }
         layers = layers.mapIndexed { i, l ->
             val p = placed[i] ?: return@mapIndexed l
-            // placed bbox is centred on centerMm, so its top-left = centerMm - (w/2, h/2)
+            // placed bbox is centered on centerMm, so its top-left = centerMm - (w/2, h/2)
             l.copy(rotationDeg = if (p.rotated) 90.0 else 0.0, centerMm = Pt(p.x + p.w / 2, p.y + p.h / 2))
         }
         selectedLayer = -1
@@ -917,7 +917,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         status = qty(R.plurals.st_arranged, layers.size, layers.size)
     }
 
-    /** Add a new layer (e.g. a primitive shape or text) centred on the mat and select it. */
+    /** Add a new layer (e.g. a primitive shape or text) centered on the mat and select it. */
     fun addLayer(name: String, polylines: List<Polyline>, layerTool: Tool = tool, textSpec: TextSpec? = null) {
         if (polylines.isEmpty()) return
         pushHistory()
@@ -1031,8 +1031,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             visible = true,
             centerMm = center,
             editPath = path,
-            // Freeze the local frame at the creation centre; node edits then move only the node, not
-            // the whole shape (centre == bounds centre here, so the frame starts as world = local).
+            // Freeze the local frame at the creation center; node edits then move only the node, not
+            // the whole shape (center == bounds center here, so the frame starts as world = local).
             editOriginMm = center,
         )
         layers = layers + layer
@@ -1167,7 +1167,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         // Preserve the loaded shape's corners (not a freehand-style crush to a few nodes), so editing
         // a point doesn't collapse the outline.
         val newPath = toEditablePreservingShape(poly.points, poly.closed)
-        // Freeze the local pivot at the centre the matrix is using right now, so converting does not
+        // Freeze the local pivot at the center the matrix is using right now, so converting does not
         // shift the shape and later node edits stay in a fixed frame.
         val b = layerBounds(layer)
         val origin = Pt((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2)
@@ -1176,12 +1176,12 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Mirror the selected layer (around its own centre). */
+    /** Mirror the selected layer (around its own center). */
     fun mirrorSelectedHorizontal() { pushHistory(); updateSelected { it.copy(flipX = !it.flipX) } }
     fun mirrorSelectedVertical() { pushHistory(); updateSelected { it.copy(flipY = !it.flipY) } }
 
-    /** Set the selected layer's display colour ([argb] packed, or null for none/tool default).
-     *  Clears any per-polyline colours so the whole layer takes the one colour. One undo step. */
+    /** Set the selected layer's display color ([argb] packed, or null for none/tool default).
+     *  Clears any per-polyline colors so the whole layer takes the one color. One undo step. */
     fun setSelectedColor(argb: Int?) {
         if (selectedLayer !in layers.indices) return
         pushHistory()
@@ -1233,7 +1233,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     private fun resizeKeepingTopLeft(newSx: Double, newSy: Double, newRot: Double) {
         val layer = layers.getOrNull(selectedLayer) ?: return
         val b = layerBounds(layer)
-        // Pivot must match layerMatrix (frozen origin for editable layers, else bounds centre).
+        // Pivot must match layerMatrix (frozen origin for editable layers, else bounds center).
         val lc = layerPivot(layer)
         val tlLocal = Pt(b.minX, b.minY)
         val oldTopLeft = layerMatrix(layer).apply(tlLocal)
@@ -1247,7 +1247,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Align the selected layer on the mat per axis (-1 = left/top, 0 = centre, 1 = right/bottom; null = leave). */
+    /** Align the selected layer on the mat per axis (-1 = left/top, 0 = center, 1 = right/bottom; null = leave). */
     fun alignSelected(hx: Int?, vy: Int?) {
         val corners = placedCorners()
         if (corners.size != 4) return
@@ -1279,8 +1279,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             Bounds.ofOrNull(layer.polylines.flatMap { it.points }) ?: EMPTY_BOUNDS
         }
 
-    // Containment of a layer's contours (for colour fills). Geometry-only and affine-invariant, so
-    // it's cached by the local polylines identity and survives placement and colour changes — the
+    // Containment of a layer's contours (for color fills). Geometry-only and affine-invariant, so
+    // it's cached by the local polylines identity and survives placement and color changes — the
     // O(n²) work runs once per geometry edit, never per frame, so there's no contour-count limit.
     private val containmentCache = java.util.IdentityHashMap<List<Polyline>, List<Pair<Int, Int>>>()
     private fun fillGroupsFor(layer: Layer): List<List<Int>> {
@@ -1462,7 +1462,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         pruneBoundsCache()
     }
 
-    /** Merge all layers into one, keeping the current arrangement and each shape's colour. */
+    /** Merge all layers into one, keeping the current arrangement and each shape's color. */
     fun mergeLayers() {
         if (layers.isEmpty()) return
         pushHistory()
@@ -1478,21 +1478,21 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Split all layers to individual polylines, then re-merge them grouped by colour.
-     * Each unique colour becomes one layer; polylines without a colour form a separate layer.
-     * Layer names use the hex colour value for easy identification.
+     * Split all layers to individual polylines, then re-merge them grouped by color.
+     * Each unique color becomes one layer; polylines without a color form a separate layer.
+     * Layer names use the hex color value for easy identification.
      */
     fun mergeByColor() {
         if (layers.isEmpty()) return
         pushHistory()
         val firstTool = layers.first().tool
-        // Flatten to (polyline, colour) pairs, baking transforms so positions are preserved.
+        // Flatten to (polyline, color) pairs, baking transforms so positions are preserved.
         val flat = layers.flatMap { layer ->
             val b = bake(layer)
             val cols = b.colorList()
             b.polylines.mapIndexed { i, pl -> pl to cols.getOrNull(i) }
         }
-        // Group by RGB (ignoring alpha) in document order, so the same colour at different opacities
+        // Group by RGB (ignoring alpha) in document order, so the same color at different opacities
         // lands in one layer rather than splitting into look-alike groups.
         val byColor = LinkedHashMap<Int?, MutableList<Polyline>>()
         flat.forEach { (pl, c) -> byColor.getOrPut(c?.and(0xFFFFFF)) { mutableListOf() }.add(pl) }
@@ -1562,7 +1562,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Rotate the selected layer by 90°. */
     fun rotate90() = rotateBy(90.0)
 
-    /** Rotate the selected layer by [deg] (relative), normalised to [0, 360). */
+    /** Rotate the selected layer by [deg] (relative), normalized to [0, 360). */
     fun rotateBy(deg: Double) { pushHistory(); rotationDeg = (((rotationDeg + deg) % 360.0) + 360.0) % 360.0 }
 
     fun resetPlacement() {
@@ -1594,16 +1594,16 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Size of the selected layer in millimetres (bounding box after its scale). */
+    /** Size of the selected layer in millimeters (bounding box after its scale). */
     fun designSizeMm(): Pair<Double, Double>? {
         val b = bounds ?: return null
         return b.widthMm * scaleX to b.heightMm * scaleY
     }
 
     /**
-     * Move the selected layer so its centre is [center], snapping the placed box's top-left to the
-     * snap grid when one is set. The offset between top-left and centre is invariant under the move,
-     * so passing the running (un-snapped) centre each frame keeps small drags from being swallowed.
+     * Move the selected layer so its center is [center], snapping the placed box's top-left to the
+     * snap grid when one is set. The offset between top-left and center is invariant under the move,
+     * so passing the running (un-snapped) center each frame keeps small drags from being swallowed.
      */
     fun moveSelectedTo(center: Pt, guideTolMm: Double = 0.0) {
         var c = center
@@ -1614,7 +1614,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             val tlOffset = Pt(corners.minOf { it.xMm } - cur.xMm, corners.minOf { it.yMm } - cur.yMm)
             c = Snap.gridCenter(c, tlOffset, snapMm.toDouble())
         }
-        // Alignment guides: snap the centre to another layer's centre or the mat centre when close.
+        // Alignment guides: snap the center to another layer's center or the mat center when close.
         if (alignGuides && guideTolMm > 0.0) {
             val xs = ArrayList<Double>(); val ys = ArrayList<Double>()
             layers.forEachIndexed { i, l -> if (i != selectedLayer) { xs.add(l.centerMm.xMm); ys.add(l.centerMm.yMm) } }
@@ -1793,7 +1793,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             layer.tool to layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
         }
 
-    /** One entry from [placedLayers]: the tool, the placed polylines, and each polyline's SVG colour. */
+    /** One entry from [placedLayers]: the tool, the placed polylines, and each polyline's SVG color. */
     /** [fillGroups] indexes into [polylines]: each group is filled as one even-odd path (see
      *  FillNesting), so nested contours carve holes while overlapping shapes union. */
     data class PlacedLayer(val tool: Tool, val polylines: List<Polyline>, val colors: List<Int?>, val fillGroups: List<List<Int>>)
@@ -1844,7 +1844,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         )
 
     /** The local pivot the matrix turns/scales about: a frozen origin for editable layers, else the
-     *  live bounds centre. Resize/rotate maths must use the same pivot as [layerMatrix]. */
+     *  live bounds center. Resize/rotate maths must use the same pivot as [layerMatrix]. */
     private fun layerPivot(layer: Layer): Pt =
         layer.editOriginMm ?: layerBounds(layer).let { Pt((it.minX + it.maxX) / 2, (it.minY + it.maxY) / 2) }
 
@@ -1941,7 +1941,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun runCutGpgl(l: ManagedLink) {
         val silDev = model.silhouetteDevice
         if (silDev == null) { finishCut(s(R.string.st_no_silhouette_profile)); return }
-        // Honour the origin offset here too (VEVOR already does in plotterPolylinesFor). Default is 0,
+        // Honor the origin offset here too (VEVOR already does in plotterPolylinesFor). Default is 0,
         // so existing Silhouette cuts are unchanged; a non-zero value shifts Y down as the UI promises,
         // and the area check below validates the shifted geometry against the device bounds.
         val dy = originOffsetMm.toDouble()

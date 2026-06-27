@@ -8,7 +8,7 @@ import java.io.StringReader
 import javax.xml.parsers.DocumentBuilderFactory
 
 /**
- * Parses an SVG document into polylines in millimetres, with all transforms applied and curves
+ * Parses an SVG document into polylines in millimeters, with all transforms applied and curves
  * flattened. Targets the flattened-mm SVGs Cricut Export produces, but handles the common shape
  * elements and units generally.
  */
@@ -55,7 +55,7 @@ object SvgParser {
         return db.parse(InputSource(StringReader(svg)))
     }
 
-    /** Matrix mapping the document's user units to millimetres (from viewBox + width/height). */
+    /** Matrix mapping the document's user units to millimeters (from viewBox + width/height). */
     private fun rootUnitMatrix(root: Element): Matrix {
         val vb = parseViewBox(root.getAttribute("viewBox"))
         val wMm = lengthToMm(root.getAttribute("width"))
@@ -120,8 +120,8 @@ object SvgParser {
     private fun cssOrAttr(el: Element, name: String): String? =
         (styleProp(el.getAttribute("style"), name) ?: el.getAttribute(name))?.trim()?.takeIf { it.isNotBlank() }
 
-    /** The element's drawing colour as ARGB: its own fill (preferred) or stroke, read from the
-     *  `style` attribute first then presentation attributes, falling back to the inherited group colour.
+    /** The element's drawing color as ARGB: its own fill (preferred) or stroke, read from the
+     *  `style` attribute first then presentation attributes, falling back to the inherited group color.
      *  "none"/unparseable on one property falls through to the next. */
     private fun elementColor(el: Element, inherited: Int?): Int? {
         val style = el.getAttribute("style")
@@ -181,7 +181,7 @@ object SvgParser {
         return listOf(SubPath(start, segs, closed))
     }
 
-    /** Apply [m] to every control point, then flatten beziers, producing a polyline in millimetres. */
+    /** Apply [m] to every control point, then flatten beziers, producing a polyline in millimeters. */
     private fun flatten(sub: SubPath, m: Matrix, tol: Double): Polyline {
         val pts = ArrayList<Pt>()
         var cur = m.apply(sub.start)
@@ -203,7 +203,7 @@ object SvgParser {
         return if (n.size == 4) ViewBox(n[0], n[1], n[2], n[3]) else null
     }
 
-    /** Convert an SVG length (with optional unit) to millimetres, or null if blank/unparseable. */
+    /** Convert an SVG length (with optional unit) to millimeters, or null if blank/unparseable. */
     private fun lengthToMm(s: String?): Double? {
         if (s.isNullOrBlank()) return null
         val m = Regex("^\\s*([+-]?[0-9.eE]+)\\s*([a-z%]*)\\s*$").find(s) ?: return null

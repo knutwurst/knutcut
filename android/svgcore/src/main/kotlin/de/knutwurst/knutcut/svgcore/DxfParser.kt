@@ -3,7 +3,7 @@ package de.knutwurst.knutcut.svgcore
 import kotlin.math.*
 
 /**
- * Parses ASCII DXF (Drawing Exchange Format) files into polylines in millimetres.
+ * Parses ASCII DXF (Drawing Exchange Format) files into polylines in millimeters.
  *
  * Supported entities: LINE, LWPOLYLINE (with bulge arcs), POLYLINE/VERTEX,
  * CIRCLE, ARC, ELLIPSE, and SPLINE (degrees 1–9 via de Boor).
@@ -38,8 +38,8 @@ object DxfParser {
 
     /**
      * Parse a DXF document into per-layer [SvgShape]s. Entities are grouped by their group-8 layer
-     * name (blank → "DXF") preserving layer encounter order; each layer's colour is the first
-     * mappable ACI colour (group 62) found among its entities. [Result.skipped] counts entities that
+     * name (blank → "DXF") preserving layer encounter order; each layer's color is the first
+     * mappable ACI color (group 62) found among its entities. [Result.skipped] counts entities that
      * produced no usable geometry (e.g. a fit-point-only spline we couldn't interpolate).
      */
     fun parseShapes(text: String): Result {
@@ -104,7 +104,7 @@ object DxfParser {
 
     // ─── Entity extraction ────────────────────────────────────────────────────────
 
-    /** One entity's polylines tagged with its layer name and (optional) mapped ARGB colour. */
+    /** One entity's polylines tagged with its layer name and (optional) mapped ARGB color. */
     private class Tagged(val layer: String, val colorArgb: Int?, val polylines: List<Polyline>)
 
     private fun extractShapes(pairs: List<Pair<Int, String>>, scale: Double): Result {
@@ -149,7 +149,7 @@ object DxfParser {
             if (usable.isNotEmpty()) {
                 tagged.add(Tagged(layer, color, usable))
             } else if (type == "SPLINE") {
-                // A SPLINE we recognised but could not turn into geometry counts as skipped.
+                // A SPLINE we recognized but could not turn into geometry counts as skipped.
                 skipped++
             }
             i = end
@@ -253,13 +253,13 @@ object DxfParser {
     private data class OldPoly(val next: Int, val tagged: Tagged?, val missed: Boolean)
 
     /**
-     * Parse one old-style POLYLINE…VERTEX…SEQEND chain. Honours the closed flag (bit 1 of group 70)
+     * Parse one old-style POLYLINE…VERTEX…SEQEND chain. Honors the closed flag (bit 1 of group 70)
      * and per-vertex bulges (group 42), interpolating arcs the same way LWPOLYLINE does.
      * Returns the index just past the chain so the dispatch loop can continue in file order.
      */
     private fun parseOldPolyline(pairs: List<Pair<Int, String>>, start: Int, s: Double): OldPoly {
         var i = start
-        // Header of the POLYLINE entity: read flags + layer/colour up to the first VERTEX/SEQEND.
+        // Header of the POLYLINE entity: read flags + layer/color up to the first VERTEX/SEQEND.
         i++
         var flags = 0
         var layer = ""
@@ -341,7 +341,7 @@ object DxfParser {
 
     private fun parseEllipse(e: List<Pair<Int, String>>, s: Double): Polyline? {
         var cx = 0.0; var cy = 0.0
-        var axX = 1.0; var axY = 0.0   // major-axis endpoint relative to centre
+        var axX = 1.0; var axY = 0.0   // major-axis endpoint relative to center
         var ratio = 1.0                 // minor/major radius ratio
         var startP = 0.0; var endP = 2.0 * PI
         for ((c, v) in e) {
@@ -431,7 +431,7 @@ object DxfParser {
         val chord = sqrt(dx * dx + dy * dy)
         if (chord < 1e-10) return emptyList()
         val r = chord / (2.0 * sin(theta / 2.0))
-        // Centre: perpendicular to chord at midpoint, offset by r*cos(θ/2) (the centre-to-chord
+        // Center: perpendicular to chord at midpoint, offset by r*cos(θ/2) (the center-to-chord
         // distance, i.e. the apothem) toward the CCW side.
         val sg = sign(bulge)
         val apothem = r * cos(theta / 2.0)
@@ -473,7 +473,7 @@ object DxfParser {
             if (tc < knots[i + 1]) { k = i; break }
             k = i
         }
-        // Initialise working arrays with the relevant control points
+        // Initialize working arrays with the relevant control points
         val dX = DoubleArray(degree + 1) { xs[(k - degree + it).coerceIn(0, n - 1)] }
         val dY = DoubleArray(degree + 1) { ys[(k - degree + it).coerceIn(0, n - 1)] }
         // Triangular de Boor reduction

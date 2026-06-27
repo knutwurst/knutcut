@@ -95,8 +95,8 @@ class DrawToolTest {
         val expectedCx = (minX + maxX) / 2
         val expectedCy = (minY + maxY) / 2
 
-        assertEquals("centerMm.x == bounds centre x", expectedCx, layer.centerMm.xMm, 1e-9)
-        assertEquals("centerMm.y == bounds centre y", expectedCy, layer.centerMm.yMm, 1e-9)
+        assertEquals("centerMm.x == bounds center x", expectedCx, layer.centerMm.xMm, 1e-9)
+        assertEquals("centerMm.y == bounds center y", expectedCy, layer.centerMm.yMm, 1e-9)
     }
 
     @Test

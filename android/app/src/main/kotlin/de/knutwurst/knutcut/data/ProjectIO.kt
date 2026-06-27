@@ -7,7 +7,7 @@ import de.knutwurst.knutcut.svgcore.Pt
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Serialises the layer list (placement + geometry + colour) to/from JSON so a project can be saved
+/** Serialises the layer list (placement + geometry + color) to/from JSON so a project can be saved
  *  and reopened. Plain org.json, no new dependency — mirrors the custom-materials store in [Settings]. */
 object ProjectIO {
 
@@ -66,7 +66,7 @@ object ProjectIO {
             val pcolors = o.optJSONArray("pcolors")?.let { pc ->
                 (0 until pc.length()).map { if (pc.isNull(it)) null else pc.optInt(it) }
             }
-            // A non-finite centre means a broken layer — discard it rather than place geometry at NaN.
+            // A non-finite center means a broken layer — discard it rather than place geometry at NaN.
             val center = finitePt(o.optDouble("cx"), o.optDouble("cy")) ?: continue
             val editPath = o.optJSONObject("editPath")?.let { deserializeEditPath(it) }
             // Frozen edit pivot; only meaningful alongside an editPath. Legacy files lack it.

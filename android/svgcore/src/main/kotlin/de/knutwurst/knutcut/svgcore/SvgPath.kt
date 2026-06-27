@@ -8,7 +8,7 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.math.tan
 
-/** A path segment in absolute user coordinates. Arcs/quads are normalised to cubics. */
+/** A path segment in absolute user coordinates. Arcs/quads are normalized to cubics. */
 sealed class Seg
 data class Line(val to: Pt) : Seg()
 data class Cubic(val c1: Pt, val c2: Pt, val to: Pt) : Seg()
@@ -100,7 +100,7 @@ object SvgPath {
         return Cubic(c1, c2, p2)
     }
 
-    /** SVG elliptical arc to a list of cubic segments (endpoint -> centre parameterisation, W3C appendix). */
+    /** SVG elliptical arc to a list of cubic segments (endpoint -> center parameterisation, W3C appendix). */
     private fun arcToCubics(p0: Pt, rxIn: Double, ryIn: Double, xRotDeg: Double, large: Int, sweep: Int, p1: Pt): List<Cubic> {
         if (rxIn == 0.0 || ryIn == 0.0 || (p0 == p1)) return listOf(Cubic(p0, p1, p1))
         var rx = abs(rxIn); var ry = abs(ryIn)

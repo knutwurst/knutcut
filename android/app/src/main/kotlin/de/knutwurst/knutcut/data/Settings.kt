@@ -5,8 +5,9 @@ import android.content.Context
 /** Theme override: follow Android, or force light/dark. */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
-/** Mat preview colour mode: tool-coloured outlines only, or the original SVG colours. */
-enum class ColorMode { OUTLINE, COLOR }
+/** Mat preview color mode: tool-colored outlines only (OUTLINE), filled SVG colors with the outline
+ *  drawn on top (COLOR), or filled colors with no outline overlay (FILL). */
+enum class ColorMode { OUTLINE, COLOR, FILL }
 
 private const val KEY_MATERIALS_JSON = "customMaterialsJson"
 
@@ -103,7 +104,7 @@ class Settings(context: Context) {
         get() = p.getBoolean("autoUpdate", true)
         set(v) = p.edit().putBoolean("autoUpdate", v).apply()
 
-    /** Reorder contours by nearest-neighbour to shorten travel. Off by default (changes the path). */
+    /** Reorder contours by nearest-neighbor to shorten travel. Off by default (changes the path). */
     var optimizeCutOrder: Boolean
         get() = p.getBoolean("optimizeCutOrder", false)
         set(v) = p.edit().putBoolean("optimizeCutOrder", v).apply()
@@ -122,7 +123,7 @@ class Settings(context: Context) {
         get() = p.getFloat("snapMm", 5f)
         set(v) = p.edit().putFloat("snapMm", v).apply()
 
-    /** Smart alignment guides: snap a dragged layer's centre to another layer's (or the mat's) centre. */
+    /** Smart alignment guides: snap a dragged layer's center to another layer's (or the mat's) center. */
     var alignGuides: Boolean
         get() = p.getBoolean("alignGuides", true)
         set(v) = p.edit().putBoolean("alignGuides", v).apply()

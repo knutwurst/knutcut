@@ -49,7 +49,7 @@ import kotlin.math.roundToInt
 
 /**
  * The image-trace dialog: a posterised preview with a draggable crop rectangle (to isolate one
- * object) plus the four knobs (colours, drop background, simplify, speckle). Every change calls
+ * object) plus the four knobs (colors, drop background, simplify, speckle). Every change calls
  * [KnutcutViewModel.updateTraceParams], which recomputes the trace off-thread (debounced).
  */
 @Composable

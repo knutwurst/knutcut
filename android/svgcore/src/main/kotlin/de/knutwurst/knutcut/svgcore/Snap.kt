@@ -14,9 +14,9 @@ object Snap {
         if (stepMm <= 0.0) value else (value / stepMm).roundToLong() * stepMm
 
     /**
-     * New centre for a layer whose placed top-left should land on the [stepMm] grid. [tlOffset] is
-     * (top-left − centre), which is invariant under translation, so the caller can pass the running
-     * (un-snapped) centre each frame without losing sub-grid movement.
+     * New center for a layer whose placed top-left should land on the [stepMm] grid. [tlOffset] is
+     * (top-left − center), which is invariant under translation, so the caller can pass the running
+     * (un-snapped) center each frame without losing sub-grid movement.
      */
     fun gridCenter(center: Pt, tlOffset: Pt, stepMm: Double): Pt {
         if (stepMm <= 0.0) return center

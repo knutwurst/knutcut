@@ -62,10 +62,10 @@ class ProjectIOTest {
 
     @Test
     fun discardsLayerWithMissingCentre() {
-        // No cx/cy → optDouble returns NaN. The layer must be dropped, not placed at a NaN centre.
+        // No cx/cy → optDouble returns NaN. The layer must be dropped, not placed at a NaN center.
         val json = """[{"name":"Broken","tool":"KNIFE","visible":true,
             "polys":[{"c":true,"p":[[0,0],[10,0],[10,10]]}]}]"""
-        assertTrue("layer with non-finite centre is discarded", ProjectIO.fromJson(json).isEmpty())
+        assertTrue("layer with non-finite center is discarded", ProjectIO.fromJson(json).isEmpty())
     }
 
     @Test

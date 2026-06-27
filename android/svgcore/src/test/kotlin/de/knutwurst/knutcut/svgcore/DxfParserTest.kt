@@ -163,16 +163,16 @@ class DxfParserTest {
         // Diameter should be ≈50mm in both axes
         assertClose(50.0, b.widthMm, "diameter X", eps = 0.5)
         assertClose(50.0, b.heightMm, "diameter Y", eps = 0.5)
-        // Centre should be ≈0,0
-        assertClose(0.0, (b.minX + b.maxX) / 2, "centre X", eps = 0.5)
-        assertClose(0.0, (b.minY + b.maxY) / 2, "centre Y", eps = 0.5)
+        // Center should be ≈0,0
+        assertClose(0.0, (b.minX + b.maxX) / 2, "center X", eps = 0.5)
+        assertClose(0.0, (b.minY + b.maxY) / 2, "center Y", eps = 0.5)
     }
 
     // ─── ARC ─────────────────────────────────────────────────────────────────────
 
     @Test
     fun arcQuarterCircle() {
-        // Quarter arc from 0° to 90°, radius 10mm, centre at origin
+        // Quarter arc from 0° to 90°, radius 10mm, center at origin
         val text = dxf("""
             0
             ARC
@@ -369,7 +369,7 @@ class DxfParserTest {
 
     @Test
     fun ellipseFull() {
-        // Centre (0,0), major axis endpoint (40,0), ratio 0.5 → 80mm × 40mm ellipse.
+        // Center (0,0), major axis endpoint (40,0), ratio 0.5 → 80mm × 40mm ellipse.
         val text = dxf("""
             0
             ELLIPSE
@@ -646,7 +646,7 @@ class DxfParserTest {
         assertClose(5.0, Bounds.of(polys[0].points).widthMm, "only entities line", eps = 0.01)
     }
 
-    // ─── Units: cm and metres ────────────────────────────────────────────────────────
+    // ─── Units: cm and meters ────────────────────────────────────────────────────────
 
     @Test
     fun centimetresConvertedToMm() {
@@ -730,7 +730,7 @@ class DxfParserTest {
         assertFalse(DxfParser.looksLikeDxf("   \n  \n"))
     }
 
-    // ─── parseShapes: layer grouping + colour ────────────────────────────────────────
+    // ─── parseShapes: layer grouping + color ────────────────────────────────────────
 
     @Test
     fun parseShapesGroupsByLayer() {

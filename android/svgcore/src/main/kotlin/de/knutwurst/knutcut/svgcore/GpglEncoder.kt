@@ -1,7 +1,7 @@
 package de.knutwurst.knutcut.svgcore
 
 /**
- * Turns polylines (in millimetres) into Silhouette GPGL pen commands: "M<y>,<x>" to lift and travel
+ * Turns polylines (in millimeters) into Silhouette GPGL pen commands: "M<y>,<x>" to lift and travel
  * to the start of a contour, then "D<y>,<x>" to cut to each following point. Coordinates are integer
  * Silhouette units (see [mmToSu]) and — matching inkscape-silhouette's Graphtec.py — the editor's
  * (x, y) is emitted swapped as (y, x); the cutter's native axes are the transpose of the editor's.

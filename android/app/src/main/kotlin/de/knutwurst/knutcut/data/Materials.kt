@@ -6,7 +6,7 @@ data class Material(val id: String, val name: String, val force: Int, val nameDe
 /**
  * The name to show in the UI: the German preset name only when the UI runs in German, otherwise the
  * English [name]. User-defined materials have no [nameDe], so they always show their raw name.
- * Honours the in-app language because [de.knutwurst.knutcut.ui.LocaleUtil] sets the default locale.
+ * Honors the in-app language because [de.knutwurst.knutcut.ui.LocaleUtil] sets the default locale.
  */
 fun Material.display(): String =
     if (nameDe != null && java.util.Locale.getDefault().language == "de") nameDe else name
@@ -32,7 +32,7 @@ object Materials {
         Material("ae1a84b6-4644-4b0f-a403-4569ae90b434", "Flash heat trasfer vinyl", 220, "Glitzer-Thermotransferfolie"),
         Material("ac7b427e-5053-4409-961b-a084f57c7169", "Transfer sheet", 240, "Transferbogen"),
         Material("987927b8-1ffd-4979-8f71-c546b0f71301", "Pearlescent vinyl", 190, "Perlmuttvinyl"),
-        Material("950d2e3c-5416-4da5-8034-6bc9c9136091", "Coloured papercard (200g)", 210, "Farbiger Karton (200 g)"),
+        Material("950d2e3c-5416-4da5-8034-6bc9c9136091", "Colored papercard (200g)", 210, "Farbiger Karton (200 g)"),
         Material("91d57a61-c944-40b4-9a34-f8f969c77896", "Dermatoglyph paper (100g)", 190, "Strukturpapier (100 g)"),
         Material("8847e3c6-9ee5-461f-a9ad-5e6ee32486bd", "Kraft paper (250g)", 260, "Kraftpapier (250 g)"),
         Material("83cfabca-313f-4075-a8c3-58bdea2300ec", "Gloss photo paper (230g)", 250, "Glanzfotopapier (230 g)"),
@@ -42,7 +42,7 @@ object Materials {
         Material("669ee240-3f0c-452d-a5fe-045314f6aced", "Both side coated art paper (200g)", 220, "Beidseitig gestrichenes Kunstdruckpapier (200 g)"),
         Material("6118c496-4970-49e8-9823-4643c99670a8", "Matte film", 180, "Mattfolie"),
         Material("3bc7039f-e460-4600-81e7-cfcb1bb3bcb2", "Papercard (300g)", 300, "Karton (300 g)"),
-        Material("301de468-3528-47d8-a78d-ebb8574e6c8d", "Coloured heat transfer vinyl", 190, "Farbige Thermotransferfolie"),
+        Material("301de468-3528-47d8-a78d-ebb8574e6c8d", "Colored heat transfer vinyl", 190, "Farbige Thermotransferfolie"),
         Material("2a9d8aa8-38d4-463b-9764-dd6e9c9f7e75", "Matte gold heat transfer vinyl", 210, "Matt-goldene Thermotransferfolie"),
         Material("2a91f598-99b5-40e1-ae90-60667ab8bf9e", "Hard plastic film", 260, "Hartplastikfolie"),
         Material("1c2dc5dc-ef94-4546-9922-b1909c39386e", "Normal vinyl", 180, "Normales Vinyl"),

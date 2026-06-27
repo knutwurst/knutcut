@@ -184,7 +184,7 @@ class PathSimplifyTest {
 
     @Test
     fun smoothToPathInteriorNodesAreSmoothWithEqualHandles() {
-        // Uneven spacing (near neighbour on the left, far on the right): the two handles of the
+        // Uneven spacing (near neighbor on the left, far on the right): the two handles of the
         // interior node must still come out equal length, and the node must be smooth. Open-path
         // endpoints stay corners with a single handle.
         val pts = listOf(Pt(0.0, 0.0), Pt(10.0, 0.0), Pt(40.0, 0.0))
@@ -259,7 +259,7 @@ class PathSimplifyTest {
     @Test
     fun smoothToPathThreePointClosedVerticalDoesNotProduceFigureEight() {
         // Three nearly-vertical points in a closed path so that for the middle node
-        // prev and next are the same (both neighbours are the endpoints, which are
+        // prev and next are the same (both neighbors are the endpoints, which are
         // the same y distance away). The Catmull-Rom tangent (next - prev)/2 could
         // approach zero if next ≈ prev, giving the (1,0) fallback.
         //
@@ -416,7 +416,7 @@ class PathSimplifyTest {
     fun smoothToPathTwoCollinearPointsClosedZeroTangentFallback() {
         // Force the zero-tangent fallback: 3 collinear points where for node 0,
         // prev == next → tangent = (0,0). Should fall back to the segment direction
-        // (towards the next neighbour) rather than (1,0).
+        // (towards the next neighbor) rather than (1,0).
         //
         // Arrange: points at (0,0), (0,5), (0,0) — the first and third are coincident,
         // making prev == curr == next for node 1 also. For node 0:
@@ -427,18 +427,18 @@ class PathSimplifyTest {
         //   pts = (0,0), (10,0), (0,0)   closed
         // Node 1 (10,0): prev=(0,0), next=(0,0) → tx=(0-0)/2=0, ty=0 → zero tangent
         // Fallback (1,0) would produce handleOut at (10+dist,0) → handle in +x direction.
-        // Correct fallback: unit vec from node to next neighbour = (0-10,0-0) = (-10,0) → (-1,0)
-        // OR unit vec towards any neighbour that is not the anchor itself.
+        // Correct fallback: unit vec from node to next neighbor = (0-10,0-0) = (-10,0) → (-1,0)
+        // OR unit vec towards any neighbor that is not the anchor itself.
         // Either way, a handle pointing left (-x) avoids the figure-8 produced by (1,0).
         val pts = listOf(Pt(0.0, 0.0), Pt(10.0, 0.0), Pt(0.0, 0.0))
         val path = smoothToPath(pts, closed = true)
         // The middle node (10,0) with zero Catmull-Rom tangent must get a handle that
         // does NOT place the handleOut at a position with xMm > 10 (which would be the
-        // (1,0) fallback direction pointing to the right — away from both neighbours).
+        // (1,0) fallback direction pointing to the right — away from both neighbors).
         val midNode = path.nodes[1]
         if (midNode.handleOut != null) {
             assertTrue(
-                "handleOut of zero-tangent middle node should point toward neighbours (x <= anchor.x), got ${midNode.handleOut}",
+                "handleOut of zero-tangent middle node should point toward neighbors (x <= anchor.x), got ${midNode.handleOut}",
                 midNode.handleOut!!.xMm <= midNode.anchor.xMm + 1e-6
             )
         }

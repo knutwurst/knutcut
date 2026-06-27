@@ -3,6 +3,13 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.62.0
+- New display mode "Color only": the mat shows filled colors with no outline overlay, so the preview
+  looks like the finished vinyl. The Display setting now offers three modes — Outline only, Color +
+  outline, and Color only.
+- Switched all in-app English text and code comments from British to US spelling (color, center,
+  optimize, and so on). UI strings, the README and this changelog are now US English.
+
 ## 0.61.2
 - Image trace: smoother curves. The outline smoothing now does more rounding passes (a quadratic
   B-spline fit), so traced edges read as clean curves instead of faceted steps. It rounds toward the
@@ -28,21 +35,21 @@ published `latest.json` in the releases repo.
 ## 0.60.1
 - Image trace: crop and contrast. A draggable rectangle on the preview isolates one object before
   tracing, so a single shape can be lifted out of a busy photo. Quantisation now runs in CIELAB
-  (perceptual) instead of RGB median-cut, so a low colour count actually separates dark from light —
-  at 2 colours the subject pops out instead of turning into grey mush. The crop region is quantised
+  (perceptual) instead of RGB median-cut, so a low color count actually separates dark from light —
+  at 2 colors the subject pops out instead of turning into grey mush. The crop region is quantised
   on its own, sharpening contrast further, and imports at a usable size.
 
 ## 0.60.0
 - Import PNG/JPG/BMP/WebP images and trace them to cuttable vector layers. Posterize mode quantises
-  the picture to a handful of colours and turns each colour region into its own coloured layer (holes
-  included), so it drops straight into the per-layer colour workflow. A preview dialog sets the number
-  of colours, drops the background, and tunes detail and speckle removal before adding. Share a photo
+  the picture to a handful of colors and turns each color region into its own colored layer (holes
+  included), so it drops straight into the per-layer color workflow. A preview dialog sets the number
+  of colors, drops the background, and tunes detail and speckle removal before adding. Share a photo
   to Knutcut or pick one via "Import image". High-contrast art (logos, clipart) traces best; photos
   come out rough.
 
 ## 0.59.5
 - Finished the English translation. Strings that were still hardcoded in German now follow the
-  chosen language: material names, generated layer names (split, merge, merge-by-colour, duplicate
+  chosen language: material names, generated layer names (split, merge, merge-by-color, duplicate
   suffix, imported and PLT layers), the cut/draw/plot button, the connect status, the text-tool font
   names, and the mat's accessibility label. Set the app to English and the UI is fully English.
 
@@ -60,7 +67,7 @@ published `latest.json` in the releases repo.
 ## 0.59.2
 - Fixed "no cuttable paths" on UTF-16 SVGs (e.g. CorelDRAW exports). Imported files were always
   decoded as UTF-8, which turned a UTF-16 file into garbage the parser couldn't read. The byte-order
-  mark is now honoured (UTF-16 LE/BE and UTF-8 BOM), so these files open normally.
+  mark is now honored (UTF-16 LE/BE and UTF-8 BOM), so these files open normally.
 
 ## 0.59.1
 - No more "shape added" toasts when drawing or adding a shape/motif — the shape appears on the mat,
@@ -76,16 +83,16 @@ published `latest.json` in the releases repo.
   and repository are unchanged).
 
 ## 0.58.7
-- Colour picker: the "no colour" button is gone. It's now the first swatch — a hatched/slashed
-  circle for "no colour / transparent" — alongside the colours, which also lifts the rest a little.
+- Color picker: the "no color" button is gone. It's now the first swatch — a hatched/slashed
+  circle for "no color / transparent" — alongside the colors, which also lifts the rest a little.
 
 ## 0.58.6
-- Reverted the colour-picker keyboard experiments: the hex-field auto-scroll (0.58.4) had no effect,
-  and the edge-to-edge change (0.58.5) squeezed the rest of the app. Back to the 0.58.3 behaviour —
+- Reverted the color-picker keyboard experiments: the hex-field auto-scroll (0.58.4) had no effect,
+  and the edge-to-edge change (0.58.5) squeezed the rest of the app. Back to the 0.58.3 behavior —
   the picker opens at half height and expands when you tap the hex field.
 
 ## 0.58.3
-- Colour picker opens at half height again. It only expands to full when you tap the hex field, so
+- Color picker opens at half height again. It only expands to full when you tap the hex field, so
   the field stays visible above the keyboard.
 
 ## 0.58.2
@@ -115,7 +122,7 @@ Robustness pass across the plotter link, file handling and SVG import:
 - SPP: the socket is closed when connect() fails (no leak).
 - Saving a project/SVG reports failure when the file can't be opened (no false "saved").
 - Opening a project reads with the same 16 MB cap as a normal import.
-- A corrupt .kcp can no longer load NaN coordinates: non-finite points/centre/scale/rotation are
+- A corrupt .kcp can no longer load NaN coordinates: non-finite points/center/scale/rotation are
   rejected or defaulted, and broken layers are dropped.
 - SVG import skips hidden elements (display:none, visibility:hidden, opacity:0) so construction
   layers don't become cut paths; visibility is inherited and a child can override it.
@@ -126,23 +133,23 @@ Robustness pass across the plotter link, file handling and SVG import:
 - The update download derives a valid filename even if a future latest.json carries only apkUrl.
 
 ## 0.57.6
-- Colour picker: the keyboard no longer hides the hex field. The sheet opens full height, its content
+- Color picker: the keyboard no longer hides the hex field. The sheet opens full height, its content
   scrolls, and it lifts above the on-screen keyboard so the focused hex field stays visible.
 
 ## 0.57.5
-- Colour picker stays open when you pick a colour, so you can try several; a "Fertig" button (or a
-  swipe) closes it. Picking still applies the colour immediately.
+- Color picker stays open when you pick a color, so you can try several; a "Fertig" button (or a
+  swipe) closes it. Picking still applies the color immediately.
 
 ## 0.57.4
-- The colour fill fix now applies to layers of any size. The containment grouping is cached per
+- The color fill fix now applies to layers of any size. The containment grouping is cached per
   layer (it's placement-independent), so the old 400-contour fallback — which reintroduced the
   overlap gaps on big merged layers — is gone.
-- Custom colour picker: the hex field updates immediately on tap/drag instead of lagging one step.
-- Custom colour picker: an 8-digit (#AARRGGBB) hex is no longer half-accepted; only 6-digit RGB is
+- Custom color picker: the hex field updates immediately on tap/drag instead of lagging one step.
+- Custom color picker: an 8-digit (#AARRGGBB) hex is no longer half-accepted; only 6-digit RGB is
   used, since the picker has no alpha channel.
 
 ## 0.57.3
-- Colour picker: the custom colour picker is shown directly instead of behind an "Eigene Farbe"
+- Color picker: the custom color picker is shown directly instead of behind an "Eigene Farbe"
   expander — the sheet has the room.
 
 ## 0.57.2
@@ -153,16 +160,16 @@ Robustness pass across the plotter link, file handling and SVG import:
   undo step, so a stale insert leaves no dangling history).
 
 ## 0.57.1
-- Fixed colour fill on a merged, uniformly-coloured layer leaving gaps. The "Farbig" fill grouped
-  every same-colour contour into one even-odd path, so once a whole layer shared one colour,
-  overlapping shapes cancelled in their overlap. Filling now groups by colour and containment:
+- Fixed color fill on a merged, uniformly-colored layer leaving gaps. The "Farbig" fill grouped
+  every same-color contour into one even-odd path, so once a whole layer shared one color,
+  overlapping shapes cancelled in their overlap. Filling now groups by color and containment:
   nested contours still carve real holes (letter counters, donut holes), but shapes that merely
   overlap fill solidly.
 
 ## 0.57.0
-- New: set a layer's colour. The toolbar's duplicate button is now a colour button that opens a
+- New: set a layer's color. The toolbar's duplicate button is now a color button that opens a
   picker — a curated swatch palette for quick choices, plus an expandable custom picker with a
-  hue bar, a saturation/brightness field and a hex field, and a "no colour" reset. The colour shows
+  hue bar, a saturation/brightness field and a hex field, and a "no color" reset. The color shows
   as the fill in "Farbig" mode and as the dot in the layer list. (Duplicate moved into the ⋯ menu.)
 - Tiling moved out of the layer sheet into its own dialog: the sheet now has a compact "Kacheln…"
   button that opens a focused window with the grid, a live columns × rows preview and a spacing
@@ -218,7 +225,7 @@ Robustness pass across the plotter link, file handling and SVG import:
 - SVG export and freehand drawing handle large or self-intersecting input more robustly.
 
 ## 0.56.1
-- Settings → Projekt: export the visible design as an SVG (stroked outlines at real millimetre
+- Settings → Projekt: export the visible design as an SVG (stroked outlines at real millimeter
   size, placement baked in), so the design opens in other vector tools and re-imports here.
 
 ## 0.56.0
@@ -241,7 +248,7 @@ Robustness pass across the plotter link, file handling and SVG import:
 
 ## 0.55.2
 - Library previews follow the display setting: "Farbig" shows a filled silhouette, "Nur Outline"
-  shows the outline (the toolpath). The motifs have no colour of their own, so the fill uses a
+  shows the outline (the toolpath). The motifs have no color of their own, so the fill uses a
   neutral tint.
 
 ## 0.55.1
@@ -277,8 +284,8 @@ Robustness pass across the plotter link, file handling and SVG import:
 ## 0.54.1
 - DXF import fixes: entities keep their file order; polylines defined in block/table sections no
   longer leak into the drawing; closed splines close properly; old-style POLYLINE arcs (bulges)
-  are honoured; fit-point-only splines no longer vanish silently. DXF layers now map to separate
-  editor layers with their colour (ACI), and file detection is stricter.
+  are honored; fit-point-only splines no longer vanish silently. DXF layers now map to separate
+  editor layers with their color (ACI), and file detection is stricter.
 
 ## 0.54.0
 - DXF import: open .dxf files from the file picker or share from any app. Supports LINE,
@@ -294,7 +301,7 @@ Robustness pass across the plotter link, file handling and SVG import:
 
 ## 0.53.2
 - Opening a .kcp via the normal file button loads it as a project (no more "not an SVG" error);
-  the file is recognised by content, so the extension doesn't matter.
+  the file is recognized by content, so the extension doesn't matter.
 
 ## 0.53.1
 - "Changelog" entry in the About section, shown from the bundled file (offline).
@@ -361,13 +368,13 @@ Robustness pass across the plotter link, file handling and SVG import:
 ## 0.45.0–0.47.x
 - Project save/load (layers and placement as JSON).
 - Tile/array layout for the selected layer.
-- Optional nearest-neighbour cut-order optimisation (off by default).
+- Optional nearest-neighbor cut-order optimization (off by default).
 - 20 mm test-cut square in the add menu.
 
 ## 0.39.0–0.44.0
 - Silhouette support over Bluetooth LE (GPGL): device picker, pressure/speed, bounds and cancel
   handling, alongside the existing VEVOR (SPP) path.
-- SVG colour display and a colour mode; group layers by colour.
+- SVG color display and a color mode; group layers by color.
 - Import confirmation dialog (replace or add).
 
 ## 0.38.1–0.38.9
@@ -389,7 +396,7 @@ Robustness pass across the plotter link, file handling and SVG import:
 
 ## 0.34.0–0.34.3
 - Editor alignment and snapping overhaul; pre-cut tool-switch directly in the cut sheet.
-- Mat geometry modelled as a 12-inch grid with a gripper start offset.
+- Mat geometry modeled as a 12-inch grid with a gripper start offset.
 
 ## 0.29.0–0.29.4
 - Proportional corner handles, side handles, and top-left-anchored free resize.

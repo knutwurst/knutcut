@@ -80,7 +80,7 @@ class EnvelopeWarpTest {
     }
 
     // ---------------------------------------------------------------------------
-    // Centre of the source maps to the average of the four corners.
+    // Center of the source maps to the average of the four corners.
     // ---------------------------------------------------------------------------
 
     @Test
@@ -91,7 +91,7 @@ class EnvelopeWarpTest {
         val br = pt(90.0, 90.0)
         val bl = pt(10.0, 70.0)
 
-        // Centre of the bounding box: u=0.5, v=0.5
+        // Center of the bounding box: u=0.5, v=0.5
         val source = listOf(Polyline(listOf(pt(50.0, 50.0)), closed = false))
         val result = EnvelopeWarp.bilinear(source, b, tl, tr, br, bl).first().points.first()
 

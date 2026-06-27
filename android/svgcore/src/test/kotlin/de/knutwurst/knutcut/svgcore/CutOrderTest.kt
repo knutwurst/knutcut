@@ -15,7 +15,7 @@ class CutOrderTest {
 
     @Test
     fun shortensTravelByVisitingTheNearestContourNext() {
-        // Naive order A,B,C jumps far and back; nearest-neighbour should visit A,C,B.
+        // Naive order A,B,C jumps far and back; nearest-neighbor should visit A,C,B.
         val a = seg(0.0, 1.0)
         val b = seg(10.0, 11.0)
         val c = seg(2.0, 3.0)
@@ -25,7 +25,7 @@ class CutOrderTest {
         assertEquals("keeps every contour", 3, opt.size)
         assertEquals("starts from the first contour", a, opt.first())
         assertEquals("visits the nearer contour (C) before the far one (B)", listOf(a, c, b), opt)
-        assertTrue("optimised travel must not be longer", travel(opt) <= travel(naive))
+        assertTrue("optimized travel must not be longer", travel(opt) <= travel(naive))
         assertEquals(18.0, travel(naive), 1e-9)
         assertEquals(8.0, travel(opt), 1e-9)
     }

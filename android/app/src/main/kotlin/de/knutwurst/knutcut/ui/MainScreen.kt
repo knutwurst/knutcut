@@ -593,7 +593,7 @@ private fun LibrarySheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                             items(items, key = { it.id }) { item ->
                                 LibraryItem(
                                     item = item,
-                                    filled = vm.colorMode == ColorMode.COLOR,
+                                    filled = vm.colorMode != ColorMode.OUTLINE,
                                     onClick = {
                                         vm.addLibrarySvg(item.name, item.svg)
                                         onDismiss()
@@ -681,7 +681,7 @@ private fun LibraryItem(item: PlotterSvgItem, filled: Boolean, onClick: () -> Un
         value = withContext(Dispatchers.Default) { PlotterSvgPreviewCache.preview(item.id, item.svg) }
     }
     // Follows the global display toggle: "Farbig" → filled silhouette, "Nur Outline" → toolpath.
-    // The motifs carry no colour of their own (currentColor), so the fill uses a neutral theme tint.
+    // The motifs carry no color of their own (currentColor), so the fill uses a neutral theme tint.
     val color = if (filled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary
     Surface(
         shape = RoundedCornerShape(8.dp),
@@ -822,7 +822,7 @@ private fun EditorHintBar(vm: KnutcutViewModel) {
 }
 
 /**
- * A round tool-mode toggle that glows (filled in the brand colour with a soft shadow) while active
+ * A round tool-mode toggle that glows (filled in the brand color with a soft shadow) while active
  * and sits flat/tonal when inactive. Used for Select / Draw / Magic in the toolbar.
  */
 @Composable
@@ -1050,7 +1050,7 @@ private fun EditingBar(
     if (showColorSheet && perLayer) {
         LayerColorSheet(
             current = vm.layers.getOrNull(vm.selectedLayer)?.colorArgb,
-            // Apply but keep the sheet open, so several colours can be tried; close via "Fertig"/swipe.
+            // Apply but keep the sheet open, so several colors can be tried; close via "Fertig"/swipe.
             onPick = { vm.setSelectedColor(it) },
             onDismiss = { showColorSheet = false },
         )
@@ -1225,7 +1225,7 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             }
             vm.layers.forEachIndexed { i, layer ->
                 val selected = vm.selectedLayer == i
-                // Representative colour: per-layer colorArgb, or the first non-null polyline colour.
+                // Representative color: per-layer colorArgb, or the first non-null polyline color.
                 val layerColor = layer.colorArgb ?: layer.colorList().firstOrNull { it != null }
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1464,9 +1464,10 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                 Spacer(Modifier.height(12.dp))
                 Text(stringResource(R.string.ui_colors), style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = vm.colorMode == ColorMode.OUTLINE, onClick = { vm.changeColorMode(ColorMode.OUTLINE) }, label = { Text(stringResource(R.string.ui_outline_only)) })
                     FilterChip(selected = vm.colorMode == ColorMode.COLOR, onClick = { vm.changeColorMode(ColorMode.COLOR) }, label = { Text(stringResource(R.string.ui_colorful)) })
+                    FilterChip(selected = vm.colorMode == ColorMode.FILL, onClick = { vm.changeColorMode(ColorMode.FILL) }, label = { Text(stringResource(R.string.ui_color_only)) })
                 }
                 Spacer(Modifier.height(12.dp))
                 Text(stringResource(R.string.ui_appearance), style = MaterialTheme.typography.bodyMedium)

@@ -12,7 +12,7 @@ object Nest {
     data class Placed(val id: Int, val x: Double, val y: Double, val w: Double, val h: Double, val rotated: Boolean)
 
     fun pack(boxes: List<Box>, areaWidth: Double, gap: Double, allow90: Boolean): List<Placed> {
-        // Normalise to landscape when allowed (and it still fits the width) so rows stay short,
+        // Normalize to landscape when allowed (and it still fits the width) so rows stay short,
         // then pack tallest-first (first-fit decreasing height).
         data class Item(val id: Int, val w: Double, val h: Double, val rotated: Boolean)
         val items = boxes.map { b ->

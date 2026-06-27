@@ -1,7 +1,7 @@
 package de.knutwurst.knutcut.svgcore
 
 /**
- * Greedy nearest-neighbour reordering of polylines to shorten the pen-up travel between contours:
+ * Greedy nearest-neighbor reordering of polylines to shorten the pen-up travel between contours:
  * start with the first, then always cut the contour whose start point is closest to where the last
  * one ended. Order-only — geometry is untouched. Off by default in the app because it changes the
  * emitted path and wants a real-device check before being trusted.

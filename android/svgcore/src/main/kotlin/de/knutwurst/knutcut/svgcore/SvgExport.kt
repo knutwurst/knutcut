@@ -3,15 +3,15 @@ package de.knutwurst.knutcut.svgcore
 import java.util.Locale
 
 /**
- * Writes placed geometry (millimetres, y-down) to a plain SVG of stroked outlines — the paths the
- * plotter would cut or draw. Coordinates are emitted in millimetres (width/height in mm with a 1:1
+ * Writes placed geometry (millimeters, y-down) to a plain SVG of stroked outlines — the paths the
+ * plotter would cut or draw. Coordinates are emitted in millimeters (width/height in mm with a 1:1
  * viewBox), so the file opens at the real size in other tools and re-imports through [SvgParser]
  * without scaling. Closed polylines get a trailing `Z`; every path is stroke-only (no fill), which
  * keeps multi-contour shapes (holes/counters) readable and avoids fill-rule surprises.
  */
 object SvgExport {
 
-    /** One outline to write, with an optional packed-ARGB colour (null → black). */
+    /** One outline to write, with an optional packed-ARGB color (null → black). */
     data class Stroke(val polyline: Polyline, val colorArgb: Int? = null)
 
     private const val STROKE_WIDTH_MM = 0.5

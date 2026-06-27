@@ -6,7 +6,7 @@ import de.knutwurst.knutcut.svgcore.Pt
 
 /**
  * One shape/layer of the loaded SVG, with its tool, visibility, and its own placement on the mat
- * ([centerMm] = where its centre sits, plus per-layer scale and rotation), so split layers can be
+ * ([centerMm] = where its center sits, plus per-layer scale and rotation), so split layers can be
  * arranged independently.
  */
 data class Layer(
@@ -20,9 +20,9 @@ data class Layer(
     val rotationDeg: Double = 0.0,
     val flipX: Boolean = false,
     val flipY: Boolean = false,
-    /** Original SVG colour (packed ARGB), or null when the element carried no colour information. */
+    /** Original SVG color (packed ARGB), or null when the element carried no color information. */
     val colorArgb: Int? = null,
-    /** Per-polyline colour (packed ARGB) for merged layers that hold shapes of different colours,
+    /** Per-polyline color (packed ARGB) for merged layers that hold shapes of different colors,
      *  aligned 1:1 with [polylines]. Null means every polyline uses [colorArgb]. */
     val polylineColors: List<Int?>? = null,
     /**
@@ -34,8 +34,8 @@ data class Layer(
     /**
      * Stable local-frame pivot for an editable layer, captured when [editPath] is created.
      *
-     * The placement matrix normally pivots about the live bounding-box centre of [polylines]. While
-     * node-editing that centre moves as the geometry changes, which would re-centre the whole shape
+     * The placement matrix normally pivots about the live bounding-box center of [polylines]. While
+     * node-editing that center moves as the geometry changes, which would re-center the whole shape
      * and make the other nodes drift (and a drag feed back on itself). Freezing the pivot here keeps
      * the editing frame fixed, so dragging a node moves only that node. Non-null iff [editPath] is.
      */
@@ -47,6 +47,6 @@ data class Layer(
      */
     val textSpec: TextSpec? = null,
 ) {
-    /** Colour of each polyline, expanding the single [colorArgb] when no per-polyline list is set. */
+    /** Color of each polyline, expanding the single [colorArgb] when no per-polyline list is set. */
     fun colorList(): List<Int?> = polylineColors ?: List(polylines.size) { colorArgb }
 }

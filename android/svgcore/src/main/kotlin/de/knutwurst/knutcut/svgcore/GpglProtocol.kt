@@ -45,7 +45,7 @@ object GpglProtocol {
     private const val EOT = '\u0004'
     private const val ENQ = '\u0005'
 
-    /** ESC EOT: initialise the plotter (sent bare, without an ETX). */
+    /** ESC EOT: initialize the plotter (sent bare, without an ETX). */
     val INIT = "$ESC$EOT"
 
     /** ESC ENQ: ask for device status (sent bare, without an ETX). */

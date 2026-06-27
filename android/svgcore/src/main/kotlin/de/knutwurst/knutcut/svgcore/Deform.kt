@@ -164,7 +164,7 @@ object PathWarp {
     /**
      * Map each point of each polyline in [source] onto [guide].
      *
-     * The source x-range is normalised to [0, guide.length] based on [sourceBounds].
+     * The source x-range is normalized to [0, guide.length] based on [sourceBounds].
      * The source y-offset from [baseline] is translated into a perpendicular offset along
      * the guide's normal.  A point ABOVE the baseline (y < baselineY when baseline=BOTTOM)
      * gives a negative v and therefore a positive normal displacement — it ends on the

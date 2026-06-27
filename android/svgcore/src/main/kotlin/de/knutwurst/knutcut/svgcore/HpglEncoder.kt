@@ -1,7 +1,7 @@
 package de.knutwurst.knutcut.svgcore
 
 /**
- * Turns polylines (in millimetres) into the plotter's pen commands: "PU<x>,<y>" to lift and travel
+ * Turns polylines (in millimeters) into the plotter's pen commands: "PU<x>,<y>" to lift and travel
  * to the start of a contour, then "PD<x>,<y>" to cut to each following point. Coordinates are
  * integer plotter units (see [mmToUnits]). Consecutive points that round to the same unit are
  * dropped so we never emit a zero-length move.

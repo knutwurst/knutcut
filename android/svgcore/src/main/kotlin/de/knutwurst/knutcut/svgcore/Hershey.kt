@@ -1,7 +1,7 @@
 package de.knutwurst.knutcut.svgcore
 
 /**
- * A parsed Hershey single-stroke vector font (the public-domain ".jhf" format). Glyphs are centre-line
+ * A parsed Hershey single-stroke vector font (the public-domain ".jhf" format). Glyphs are center-line
  * strokes, so a pen draws clean letters instead of the hollow outlines an outline font produces.
  * Android-free so it can be unit-tested; the app reads the .jhf asset into a String and passes it here.
  *

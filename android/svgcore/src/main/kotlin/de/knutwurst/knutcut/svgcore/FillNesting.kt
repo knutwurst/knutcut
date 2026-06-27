@@ -1,18 +1,18 @@
 package de.knutwurst.knutcut.svgcore
 
 /**
- * Groups contours for COLOUR-mode filling.
+ * Groups contours for COLOR-mode filling.
  *
  * The renderer fills each returned group as one even-odd path, and draws groups independently. The
- * grouping rule makes the two cases behave the way a user expects when a whole layer shares a colour:
+ * grouping rule makes the two cases behave the way a user expects when a whole layer shares a color:
  *
- *  - Contours of the same colour where one is fully nested inside another share a group, so the inner
+ *  - Contours of the same color where one is fully nested inside another share a group, so the inner
  *    one carves a real hole (letter counters, donut holes).
- *  - Contours that merely overlap (neither contains the other) — or differ in colour — go into
- *    separate groups, so overlapping same-colour shapes union instead of cancelling each other out.
+ *  - Contours that merely overlap (neither contains the other) — or differ in color — go into
+ *    separate groups, so overlapping same-color shapes union instead of cancelling each other out.
  *
- * Without this, every same-colour contour was merged into one even-odd path; after merging layers and
- * assigning one colour, overlapping shapes then cancelled in their overlap and left gaps.
+ * Without this, every same-color contour was merged into one even-odd path; after merging layers and
+ * assigning one color, overlapping shapes then cancelled in their overlap and left gaps.
  *
  * Containment is affine-invariant, so the result is independent of the layer's placement.
  */
@@ -22,9 +22,9 @@ object FillNesting {
 
     /**
      * Containment relation between [contours]: each returned pair `(outer, inner)` means contour
-     * `outer` fully contains contour `inner`. Colour-independent and affine-invariant, so the result
-     * can be cached per geometry and reused across placements and colour changes. The O(n²) work
-     * lives here; combine it with colours cheaply via [groups].
+     * `outer` fully contains contour `inner`. Color-independent and affine-invariant, so the result
+     * can be cached per geometry and reused across placements and color changes. The O(n²) work
+     * lives here; combine it with colors cheaply via [groups].
      */
     fun containmentPairs(contours: List<Polyline>): List<Pair<Int, Int>> {
         val n = contours.size
@@ -44,7 +44,7 @@ object FillNesting {
 
     /**
      * Combine the cached [containment] pairs with per-contour [colors] (null = no fill) into fill
-     * groups: same-colour contours where one contains the other share a group (even-odd hole), all
+     * groups: same-color contours where one contains the other share a group (even-odd hole), all
      * else stays separate (overlapping shapes union). Cheap — O(n + pairs). Groups are ordered by
      * first appearance (document order) so painter's order is preserved.
      */
@@ -68,7 +68,7 @@ object FillNesting {
         return byRoot.values.map { it.toList() }
     }
 
-    /** Convenience: containment + colour grouping in one call (used by tests). */
+    /** Convenience: containment + color grouping in one call (used by tests). */
     fun fillGroups(contours: List<Polyline>, colors: List<Int?>): List<List<Int>> =
         groups(contours.size, containmentPairs(contours), colors)
 

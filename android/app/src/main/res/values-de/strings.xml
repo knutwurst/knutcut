@@ -202,7 +202,8 @@
     <string name="ui_optimize_hint">Kürzere Leerwege zwischen Konturen. Ändert den Pfad – am Gerät prüfen.</string>
     <string name="ui_colors">Farben</string>
     <string name="ui_outline_only">Nur Outline</string>
-    <string name="ui_colorful">Farbig</string>
+    <string name="ui_colorful">Farbe + Outline</string>
+    <string name="ui_color_only">Nur Farbe</string>
     <string name="ui_appearance">Erscheinungsbild</string>
     <string name="ui_system">System</string>
     <string name="ui_light">Hell</string>

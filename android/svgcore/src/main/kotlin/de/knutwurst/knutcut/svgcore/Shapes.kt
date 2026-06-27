@@ -4,7 +4,7 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
-/** Primitive shapes as closed polylines in millimetres, centred on the origin. */
+/** Primitive shapes as closed polylines in millimeters, centered on the origin. */
 object Shapes {
 
     fun rect(widthMm: Double, heightMm: Double): Polyline {

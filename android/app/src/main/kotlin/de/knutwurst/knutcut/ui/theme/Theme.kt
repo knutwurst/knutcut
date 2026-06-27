@@ -25,7 +25,7 @@ private val DarkColors = darkColorScheme(
     tertiary = Amber,
 )
 
-/** Applies light/dark colours based on the user's [ThemeMode] (SYSTEM follows Android). */
+/** Applies light/dark colors based on the user's [ThemeMode] (SYSTEM follows Android). */
 @Composable
 fun KnutcutTheme(themeMode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -> Unit) {
     val dark = when (themeMode) {

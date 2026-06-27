@@ -66,7 +66,7 @@ class BlePlotterLink(
                 @Suppress("DEPRECATION") writeChar.value = chunk
                 @Suppress("DEPRECATION") gatt.writeCharacteristic(writeChar)
             }
-            // Serialise against the GATT queue (only one operation may be outstanding). A timeout
+            // Serialize against the GATT queue (only one operation may be outstanding). A timeout
             // (null) or a failed write (false) means the chunk didn't go out: throw so the caller
             // (GpglSession.cut) aborts instead of treating an undelivered command stream as sent.
             if (writeAcks.poll(WRITE_TIMEOUT_MS, TimeUnit.MILLISECONDS) != true) {

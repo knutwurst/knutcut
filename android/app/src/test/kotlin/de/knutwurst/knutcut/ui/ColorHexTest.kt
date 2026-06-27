@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/** Pure hex <-> ARGB helpers used by the layer colour picker. */
+/** Pure hex <-> ARGB helpers used by the layer color picker. */
 class ColorHexTest {
 
     @Test

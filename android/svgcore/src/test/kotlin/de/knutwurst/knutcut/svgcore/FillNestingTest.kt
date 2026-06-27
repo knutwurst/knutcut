@@ -15,11 +15,11 @@ class FillNestingTest {
 
     @Test
     fun nestedSameColourFormsOneGroupSoTheHoleCarves() {
-        // Outer square with a smaller square fully inside (a donut / letter counter), same colour.
+        // Outer square with a smaller square fully inside (a donut / letter counter), same color.
         val outer = square(0.0, 0.0, 100.0)
         val inner = square(30.0, 30.0, 40.0)
         val groups = FillNesting.fillGroups(listOf(outer, inner), listOf(CYAN, CYAN))
-        assertEquals("nested same-colour contours share one even-odd group", 1, groups.size)
+        assertEquals("nested same-color contours share one even-odd group", 1, groups.size)
         assertEquals(listOf(0, 1), groups[0])
     }
 
@@ -42,7 +42,7 @@ class FillNestingTest {
 
     @Test
     fun nestedDifferentColoursStaySeparate() {
-        // A small shape inside a big one but a different colour: the inner is its own fill on top,
+        // A small shape inside a big one but a different color: the inner is its own fill on top,
         // not a hole in the outer.
         val outer = square(0.0, 0.0, 100.0)
         val inner = square(30.0, 30.0, 40.0)
@@ -71,20 +71,20 @@ class FillNestingTest {
 
     @Test
     fun containmentPairsAreColourIndependentAndComposeIntoGroups() {
-        // containmentPairs is the cacheable geometry step; groups() applies colours cheaply.
+        // containmentPairs is the cacheable geometry step; groups() applies colors cheaply.
         val outer = square(0.0, 0.0, 100.0)
         val inner = square(30.0, 30.0, 40.0)
         val contours = listOf(outer, inner)
         val pairs = FillNesting.containmentPairs(contours)
         assertEquals("outer contains inner", listOf(0 to 1), pairs)
-        // Same colour → one group (hole carves); different colour → two groups (inner on top).
+        // Same color → one group (hole carves); different color → two groups (inner on top).
         assertEquals(1, FillNesting.groups(2, pairs, listOf(CYAN, CYAN)).size)
         assertEquals(2, FillNesting.groups(2, pairs, listOf(CYAN, RED)).size)
     }
 
     @Test
     fun scalesToManyContoursWithoutMerging() {
-        // 50 separate, non-overlapping same-colour squares → 50 independent groups. Guards that the
+        // 50 separate, non-overlapping same-color squares → 50 independent groups. Guards that the
         // grouping has no contour-count cap (the renderer no longer falls back above a threshold).
         val contours = (0 until 50).map { square(it * 30.0, 0.0, 20.0) }
         val groups = FillNesting.fillGroups(contours, List(50) { CYAN })

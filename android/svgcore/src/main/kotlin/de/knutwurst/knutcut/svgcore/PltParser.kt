@@ -3,7 +3,7 @@ package de.knutwurst.knutcut.svgcore
 import kotlin.math.abs
 
 /**
- * Parses an HPGL/PLT file into polylines in millimetres. `PU` (pen up) starts a new contour and
+ * Parses an HPGL/PLT file into polylines in millimeters. `PU` (pen up) starts a new contour and
  * `PD` (pen down) draws to each following coordinate; both may carry several coordinate pairs.
  * Coordinates are plotter units (40 per mm). Everything else (IN, SP, PG, …) is ignored.
  */

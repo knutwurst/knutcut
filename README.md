@@ -27,11 +27,11 @@ The software that ships with these plotters wants a login, ships a broken German
 
 ## Trace a photo into a cut
 
-Drop in a PNG, JPG, or BMP and Knutcut traces it to cuttable vector layers on the phone, no desktop software needed. Frame the part you want with the crop box and posterize it into a few colours; each colour becomes its own layer. The tracer works in perceptual colour space, so even two colours lift the subject off the background instead of muddying into grey.
+Drop in a PNG, JPG, or BMP and Knutcut traces it to cuttable vector layers on the phone, no desktop software needed. Frame the part you want with the crop box and posterize it into a few colors; each color becomes its own layer. The tracer works in perceptual color space, so even two colors lift the subject off the background instead of muddying into grey.
 
 <table>
   <tr>
-    <td align="center" width="50%"><img src="images/trace1.jpg" width="250" alt="Crop box and trace controls on a photo"><br><sub><b>Crop to the subject, set the colours</b></sub></td>
+    <td align="center" width="50%"><img src="images/trace1.jpg" width="250" alt="Crop box and trace controls on a photo"><br><sub><b>Crop to the subject, set the colors</b></sub></td>
     <td align="center" width="50%"><img src="images/trace2.jpg" width="250" alt="Traced silhouette on the mat, ready to cut"><br><sub><b>A clean cut layer, ready to plot</b></sub></td>
   </tr>
 </table>
@@ -40,7 +40,7 @@ Drop in a PNG, JPG, or BMP and Knutcut traces it to cuttable vector layers on th
 
 <table>
   <tr>
-    <td align="center" width="25%"><img src="images/colors.jpg" width="185" alt="Per-layer colour picker"><br><sub><b>Per-layer colour</b></sub></td>
+    <td align="center" width="25%"><img src="images/colors.jpg" width="185" alt="Per-layer color picker"><br><sub><b>Per-layer color</b></sub></td>
     <td align="center" width="25%"><img src="images/layers.jpg" width="185" alt="Layers and nesting"><br><sub><b>Layers &amp; nesting</b></sub></td>
     <td align="center" width="25%"><img src="images/devices.jpg" width="185" alt="Plotter picker"><br><sub><b>Plotter picker</b></sub></td>
     <td align="center" width="25%"><img src="images/transform.jpg" width="185" alt="Bend and transform"><br><sub><b>Bend &amp; transform</b></sub></td>
@@ -51,15 +51,15 @@ Drop in a PNG, JPG, or BMP and Knutcut traces it to cuttable vector layers on th
 
 **Mat editor.** Place, scale, rotate, mirror, and duplicate your design on a true-to-size mat with a mm grid and cm ruler. Pinch to zoom and pan, drag to move, snap to the guides. Undo and redo every step.
 
-**Layers.** Rename, reorder, show or hide, and recolour each layer. Group by colour, merge or split, and tile a layer into an n×m grid to fill the sheet. Auto-arrange packs everything tight to save material, with optional 90° rotation.
+**Layers.** Rename, reorder, show or hide, and recolour each layer. Group by color, merge or split, and tile a layer into an n×m grid to fill the sheet. Auto-arrange packs everything tight to save material, with optional 90° rotation.
 
-**Colour.** Give every layer its own colour from the swatch palette or a full HSV picker with hex input, so the design on screen matches the vinyl you cut.
+**Color.** Give every layer its own color from the swatch palette or a full HSV picker with hex input, so the design on screen matches the vinyl you cut.
 
 **Shapes and text.** Draw freehand, drop in shapes, or set text in outline and single-stroke (Hershey) fonts. Convert any shape to editable nodes and bend it by hand.
 
-**Open and export.** Reads SVGs from any editor, Inkscape, Illustrator, or CorelDraw, whatever the file encoding (CorelDraw's UTF-16 exports included). Open or share SVG and PLT files, then export the whole design back out as a real-size SVG with every layer and colour, ready to re-open anywhere.
+**Open and export.** Reads SVGs from any editor, Inkscape, Illustrator, or CorelDraw, whatever the file encoding (CorelDraw's UTF-16 exports included). Open or share SVG and PLT files, then export the whole design back out as a real-size SVG with every layer and color, ready to re-open anywhere.
 
-**Trace a photo.** Import a PNG, JPG, or BMP and posterize-trace it into coloured cut layers. A crop box isolates one object, and perceptual (CIELAB) colour clustering separates the subject from the background even at two colours. Tune colours, detail, and speckle removal in a live preview.
+**Trace a photo.** Import a PNG, JPG, or BMP and posterize-trace it into colored cut layers. A crop box isolates one object, and perceptual (CIELAB) color clustering separates the subject from the background even at two colors. Tune colors, detail, and speckle removal in a live preview.
 
 **Cut.** Send to a VEVOR Smart or E-cut over classic Bluetooth, or to a Silhouette over Bluetooth LE. Pick a material preset or set pressure, knife compensation, and the number of passes yourself. Assign pen or knife per layer.
 

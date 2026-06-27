@@ -45,7 +45,7 @@ class NodeEditorViewModelTest {
     }
 
     // -------------------------------------------------------------------------
-    // Free rotation: rotateBy normalises into [0, 360)
+    // Free rotation: rotateBy normalizes into [0, 360)
     // -------------------------------------------------------------------------
 
     @Test
@@ -116,7 +116,7 @@ class NodeEditorViewModelTest {
         val localOrigin = Pt(0.0, 0.0)
         val w = vm.layerLocalToWorld(0, localOrigin)
         // The world point for the local origin is not necessarily the same as localOrigin
-        // because the placement matrix includes the layer's centre offset.  We just verify
+        // because the placement matrix includes the layer's center offset.  We just verify
         // that the round-trip still holds.
         val w2 = w ?: error("layerLocalToWorld returned null")
         val backLocal = vm.worldToLayerLocal(0, w2) ?: error("worldToLayerLocal returned null")
@@ -437,7 +437,7 @@ class NodeEditorViewModelTest {
 
     @Test
     fun movingOneAnchorLeavesTheOtherAnchorsWhereTheyAre() {
-        // Root cause of the runaway: the layer's matrix re-centres on the live polyline bounds, so
+        // Root cause of the runaway: the layer's matrix re-centers on the live polyline bounds, so
         // dragging one node shifts the whole coordinate frame and every OTHER node jumps in world
         // space. During a drag that feeds back on the finger mapping and the node shoots off. Editing
         // one anchor must not move the others.

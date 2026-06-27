@@ -9,12 +9,12 @@ import kotlin.math.sin
 object Placement {
 
     /**
-     * The matrix that places a shape with [localBounds] so its centre sits at [center], scaled and
-     * rotated (and optionally mirrored) about its own centre. Mirroring is a sign flip on the scale,
+     * The matrix that places a shape with [localBounds] so its center sits at [center], scaled and
+     * rotated (and optionally mirrored) about its own center. Mirroring is a sign flip on the scale,
      * so the magnitude in [scaleX]/[scaleY] stays positive and resize handles keep working.
      *
      * [localCenter] overrides the pivot: pass a fixed local point to pivot about it instead of the
-     * live bounds centre. Editable layers use this so editing a node doesn't shift the whole frame.
+     * live bounds center. Editable layers use this so editing a node doesn't shift the whole frame.
      */
     fun matrix(
         localBounds: Bounds,
@@ -39,11 +39,11 @@ object Placement {
     /** Scale factor that turns a bounding-box length of [current] into [target] (1.0 if degenerate). */
     fun scaleFor(current: Double, target: Double): Double = if (current > 1e-6) target / current else 1.0
 
-    /** New scale magnitudes and placement centre produced by a resize-handle drag. */
+    /** New scale magnitudes and placement center produced by a resize-handle drag. */
     data class Resize(val scaleX: Double, val scaleY: Double, val center: Pt)
 
     /**
-     * New scale + centre for dragging a resize handle to [dragWorld] (world mm) while the opposite
+     * New scale + center for dragging a resize handle to [dragWorld] (world mm) while the opposite
      * handle at [anchorWorld] stays fixed.
      *
      * [handle]: 0..3 = a corner (uniform/proportional scale); 5 or 7 = a left/right side handle
@@ -95,7 +95,7 @@ object Placement {
             else ->
                 if (abs(ldy) > 1e-6) sy = (fy * uy / ldy).coerceAtLeast(minScale)
         }
-        // Keep the anchor fixed: centre = anchor + R(θ)·F·S·(centerLocal − anchorLocal).
+        // Keep the anchor fixed: center = anchor + R(θ)·F·S·(centerLocal − anchorLocal).
         val ax = (centerLocal.xMm - anchorLocal.xMm) * sx * fx
         val ay = (centerLocal.yMm - anchorLocal.yMm) * sy * fy
         val cp = cos(rot); val sp = sin(rot)

@@ -56,7 +56,7 @@ import de.knutwurst.knutcut.R
 import kotlinx.coroutines.launch
 
 // ---------------------------------------------------------------------------
-// Pure colour helpers (no Android types — unit-tested in ColorHexTest).
+// Pure color helpers (no Android types — unit-tested in ColorHexTest).
 // ---------------------------------------------------------------------------
 
 /** Parse "#RRGGBB", "RRGGBB" or "#AARRGGBB" into a packed ARGB int, or null when invalid.
@@ -82,11 +82,11 @@ private val PALETTE: List<Int> = listOf(
 ).map { it.toInt() }
 
 /**
- * Bottom-sheet colour picker for the selected layer. [current] is the layer's current display colour
- * (null = none / tool default). [onPick] receives the chosen ARGB, or null for "no colour".
+ * Bottom-sheet color picker for the selected layer. [current] is the layer's current display color
+ * (null = none / tool default). [onPick] receives the chosen ARGB, or null for "no color".
  *
  * A curated swatch palette covers the common case (tap = apply); an expandable custom section offers
- * a full hue + saturation/value picker with a hex field for an exact colour.
+ * a full hue + saturation/value picker with a hex field for an exact color.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,8 +107,8 @@ fun LayerColorSheet(current: Int?, onPick: (Int?) -> Unit, onDismiss: () -> Unit
             Text(stringResource(R.string.ui_layer_color), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(12.dp))
 
-            // Swatch palette — tap applies immediately. The first swatch is "no colour" (transparent),
-            // shown as a hatched circle, so it sits with the colours instead of needing its own button.
+            // Swatch palette — tap applies immediately. The first swatch is "no color" (transparent),
+            // shown as a hatched circle, so it sits with the colors instead of needing its own button.
             (listOf<Int?>(null) + PALETTE).chunked(8).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { argb ->
@@ -125,7 +125,7 @@ fun LayerColorSheet(current: Int?, onPick: (Int?) -> Unit, onDismiss: () -> Unit
             Spacer(Modifier.height(8.dp))
             CustomColorPicker(current, onHexFocused = { scope.launch { sheetState.expand() } }) { onPick(it) }
 
-            // Picking a colour applies it but leaves the sheet open; this closes it.
+            // Picking a color applies it but leaves the sheet open; this closes it.
             Spacer(Modifier.height(8.dp))
             Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.ui_done))
@@ -148,15 +148,15 @@ private fun Swatch(argb: Int, selected: Boolean, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         if (selected) {
-            // Tick in a contrasting colour so it shows on light and dark swatches alike.
+            // Tick in a contrasting color so it shows on light and dark swatches alike.
             val lum = (0.299 * ((argb shr 16) and 0xFF) + 0.587 * ((argb shr 8) and 0xFF) + 0.114 * (argb and 0xFF)) / 255.0
             Icon(Icons.Default.Check, contentDescription = null, tint = if (lum > 0.6) Color.Black else Color.White, modifier = Modifier.size(20.dp))
         }
     }
 }
 
-/** The "no colour" / transparent swatch: a neutral circle with a diagonal slash, sized like the
- *  colour swatches so it sits as the first entry in the palette. */
+/** The "no color" / transparent swatch: a neutral circle with a diagonal slash, sized like the
+ *  color swatches so it sits as the first entry in the palette. */
 @Composable
 private fun NoColorSwatch(selected: Boolean, onClick: () -> Unit) {
     val ring = MaterialTheme.colorScheme.onSurface
@@ -171,7 +171,7 @@ private fun NoColorSwatch(selected: Boolean, onClick: () -> Unit) {
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        // Diagonal slash = "no colour / transparent".
+        // Diagonal slash = "no color / transparent".
         Canvas(Modifier.fillMaxSize()) {
             val pad = size.minDimension * 0.24f
             drawLine(slash, Offset(pad, size.height - pad), Offset(size.width - pad, pad), strokeWidth = 3.5f)
@@ -191,7 +191,7 @@ private fun CustomColorPicker(current: Int?, onHexFocused: () -> Unit, onApply: 
     val color = Color.hsv(hue, sat, value)
     val argb = color.toArgb()
     // Recompute from the live hue/sat/value (which tap/drag set just before calling this) rather than
-    // from `argb`, which still holds this composition's old colour — otherwise the hex field lags one
+    // from `argb`, which still holds this composition's old color — otherwise the hex field lags one
     // step behind.
     fun syncHexFromHsv() { hex = argbToHex(Color.hsv(hue, sat, value).toArgb()) }
 

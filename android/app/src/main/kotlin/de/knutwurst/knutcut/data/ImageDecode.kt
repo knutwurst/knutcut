@@ -17,7 +17,7 @@ import kotlin.math.roundToInt
  *
  * The image is downsampled so its long edge is at most [maxEdge] px — tracing a few-hundred-pixel
  * image is fast and the cut detail is plenty, while a full-resolution photo would be slow and blow
- * up memory. JPEG EXIF orientation is honoured so sideways phone photos trace upright.
+ * up memory. JPEG EXIF orientation is honored so sideways phone photos trace upright.
  */
 object ImageDecode {
 

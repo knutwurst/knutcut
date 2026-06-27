@@ -99,7 +99,7 @@ object TextArc {
             val cosP = cos(phi)
             val sinP = sin(phi)
 
-            // Rotate each point about the glyph's baseline CENTRE (half, 0) — the same point that is
+            // Rotate each point about the glyph's baseline CENTER (half, 0) — the same point that is
             // placed on the arc at (glyphOriginX, glyphOriginY). Pivoting about the local origin (left
             // edge) instead would offset every glyph by half its width and make it tilt about the wrong
             // axis, which shows up as uneven spacing / overlap.

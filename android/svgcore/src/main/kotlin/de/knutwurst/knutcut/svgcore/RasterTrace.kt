@@ -7,13 +7,13 @@ import kotlin.math.roundToInt
 /**
  * Posterize-trace a raster image (PNG/JPG/BMP/…) into cuttable vector contours.
  *
- * The pipeline is, in order: median-cut colour quantisation → optional background drop → per-colour
- * marching-squares boundary tracing → RDP simplification → millimetre [Polyline]s. It is pure Kotlin
+ * The pipeline is, in order: median-cut color quantisation → optional background drop → per-color
+ * marching-squares boundary tracing → RDP simplification → millimeter [Polyline]s. It is pure Kotlin
  * (no Android types) so it runs in JVM unit tests; the app feeds it an ARGB pixel array decoded from
- * the picked image and turns each [TracedColor] into a coloured layer.
+ * the picked image and turns each [TracedColor] into a colored layer.
  *
  * Photographs trace messily by nature — this targets high-contrast art, logos and clipart. The
- * colour count and speckle/detail knobs are the mitigation.
+ * color count and speckle/detail knobs are the mitigation.
  */
 
 /** An ARGB raster (row-major, length == width*height) to vectorise. */
@@ -28,13 +28,13 @@ data class CropRect(val x: Int, val y: Int, val w: Int, val h: Int)
 data class TraceParams(
     /** Palette size for the posterisation (clamped to 2..12). */
     val numColors: Int = 6,
-    /** Drop the colour that dominates the (crop) border, so a solid background isn't cut. */
+    /** Drop the color that dominates the (crop) border, so a solid background isn't cut. */
     val dropBackground: Boolean = true,
     /** RDP tolerance in mm: higher = fewer points / smoother staircases, lower = more faithful. */
     val detailMm: Double = 0.4,
     /** Contours whose area is below this (mm²) are discarded as speckle. */
     val minAreaMm2: Double = 4.0,
-    /** Image pixels per millimetre — sets the real-world size of the traced geometry. */
+    /** Image pixels per millimeter — sets the real-world size of the traced geometry. */
     val pxPerMm: Double = 4.0,
     /** Round the pixel staircase into swung curves (corner-preserving). Off = raw polygon. */
     val smooth: Boolean = true,
@@ -42,13 +42,13 @@ data class TraceParams(
     val crop: CropRect? = null,
 )
 
-/** One quantised colour and its closed contours (outer boundaries and holes), in millimetres. */
+/** One quantised color and its closed contours (outer boundaries and holes), in millimeters. */
 data class TracedColor(val argb: Int, val contours: List<Polyline>)
 
 /**
  * Trace output: [colors] are the cuttable layers, ordered largest-area first so big shapes sit
  * behind small ones. [palette] + [indexMap] (one palette index per pixel, -1 = transparent) let a
- * caller paint a posterised preview without re-quantising. [backgroundIndex] is the dropped colour
+ * caller paint a posterised preview without re-quantising. [backgroundIndex] is the dropped color
  * (or -1 when none was dropped).
  */
 data class TraceResult(
@@ -65,7 +65,7 @@ object RasterTrace {
     private const val ALPHA_CUTOFF = 128
 
     /**
-     * [shouldContinue] is polled at coarse boundaries (k-means iterations, per traced colour) so a
+     * [shouldContinue] is polled at coarse boundaries (k-means iterations, per traced color) so a
      * caller can abandon a superseded recompute instead of burning CPU; this pure code has no other
      * cancellation. A cancelled run returns whatever it has built so far (the caller discards it).
      */
@@ -77,7 +77,7 @@ object RasterTrace {
 
         val bg = if (params.dropBackground) detectBackground(region.width, region.height, indexMap, palette.size) else -1
 
-        // Population per palette colour, to order layers (largest first) and skip empty colours.
+        // Population per palette color, to order layers (largest first) and skip empty colors.
         val counts = IntArray(palette.size)
         for (idx in indexMap) if (idx >= 0) counts[idx]++
         val order = palette.indices.sortedByDescending { counts[it] }
@@ -105,21 +105,21 @@ object RasterTrace {
     }
 
     // ---------------------------------------------------------------------------
-    // Perceptual (CIELAB k-means) colour quantisation
+    // Perceptual (CIELAB k-means) color quantisation
     // ---------------------------------------------------------------------------
 
     private const val KMEANS_ITERS = 16
 
     /**
-     * Quantise to at most [k] colours by k-means in CIELAB, so clusters separate by perceived
-     * lightness/chroma rather than raw RGB population. That is what lets a low colour count split
+     * Quantise to at most [k] colors by k-means in CIELAB, so clusters separate by perceived
+     * lightness/chroma rather than raw RGB population. That is what lets a low color count split
      * dark-vs-light (the figure pops out) instead of averaging into mush. Deterministic: weighted
      * k-means++ seeding (no RNG) plus a fixed iteration cap.
      *
      * Returns (palette as packed 0xFFRRGGBB, per-pixel palette index; -1 for transparent pixels).
      */
     private fun quantize(img: RasterImage, k: Int, shouldContinue: () -> Boolean = { true }): Pair<IntArray, IntArray> {
-        // 5-bit/channel histogram of opaque pixels (true colour sums for accurate averages). Clustering
+        // 5-bit/channel histogram of opaque pixels (true color sums for accurate averages). Clustering
         // runs over the ≤32768 populated cells, not per pixel, so Lab conversion stays cheap.
         val cntC = IntArray(1 shl 15); val sumR = LongArray(1 shl 15); val sumG = LongArray(1 shl 15); val sumB = LongArray(1 shl 15)
         for (p in img.pixels) {
@@ -146,7 +146,7 @@ object RasterTrace {
         // the nearest existing seed (pure distance², NOT weighted by population). This is the key to the
         // user's "expected the subject, got grey soup": a small but very different region (the dark
         // figure) must win a seed over a large secondary background tone. Population still biases the
-        // centroid UPDATE below, so the palette colours stay representative.
+        // centroid UPDATE below, so the palette colors stay representative.
         val seeds = IntArray(kk)
         seeds[0] = (0 until m).maxByOrNull { wt[it] } ?: 0
         val d2 = DoubleArray(m) { labDist2(labL, labA, labB, it, labL[seeds[0]], labA[seeds[0]], labB[seeds[0]]) }
@@ -175,7 +175,7 @@ object RasterTrace {
             if (!changed) break
         }
 
-        // Palette colour = count-weighted average RGB of each cluster's cells; empty clusters dropped.
+        // Palette color = count-weighted average RGB of each cluster's cells; empty clusters dropped.
         val accR = DoubleArray(kk); val accG = DoubleArray(kk); val accB = DoubleArray(kk); val accW = DoubleArray(kk)
         for (i in 0 until m) { val j = assign[i]; val w = wt[i].toDouble(); accR[j] += rAvg[i] * w; accG[j] += gAvg[i] * w; accB[j] += bAvg[i] * w; accW[j] += w }
         val clusterToPalette = IntArray(kk) { -1 }

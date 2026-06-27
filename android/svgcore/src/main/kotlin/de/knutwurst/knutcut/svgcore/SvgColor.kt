@@ -3,8 +3,8 @@ package de.knutwurst.knutcut.svgcore
 import kotlin.math.roundToInt
 
 /**
- * Parses CSS/SVG colour strings into a packed ARGB int (0xAARRGGBB). Kept Android-free so the
- * editor can show the original colours and the planned multicolour wizard can group layers by them.
+ * Parses CSS/SVG color strings into a packed ARGB int (0xAARRGGBB). Kept Android-free so the
+ * editor can show the original colors and the planned multicolour wizard can group layers by them.
  * Returns null for "none", "transparent", or anything it can't read.
  */
 object SvgColor {
@@ -64,7 +64,7 @@ object SvgColor {
         return argb(a, ((r1 + m) * 255).roundToInt(), ((g1 + m) * 255).roundToInt(), ((b1 + m) * 255).roundToInt())
     }
 
-    /** A colour channel: an int 0..255 or a percentage. */
+    /** A color channel: an int 0..255 or a percentage. */
     private fun channel(v: String): Int? {
         val n = if (v.endsWith("%")) v.dropLast(1).toDoubleOrNull()?.let { it / 100.0 * 255.0 } else v.toDoubleOrNull()
         return n?.roundToInt()?.coerceIn(0, 255)
@@ -81,7 +81,7 @@ object SvgColor {
         return (a shl 24) or (r shl 16) or (g shl 8) or b
     }
 
-    // The CSS basic + a few common named colours. Enough for hand-authored and exported SVGs.
+    // The CSS basic + a few common named colors. Enough for hand-authored and exported SVGs.
     private val NAMED: Map<String, Int> = mapOf(
         "black" to 0xFF000000.toInt(), "white" to 0xFFFFFFFF.toInt(), "red" to 0xFFFF0000.toInt(),
         "green" to 0xFF008000.toInt(), "lime" to 0xFF00FF00.toInt(), "blue" to 0xFF0000FF.toInt(),

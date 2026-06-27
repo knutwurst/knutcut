@@ -3,7 +3,7 @@ package de.knutwurst.knutcut.svgcore
 import kotlin.math.abs
 import kotlin.math.hypot
 
-/** Flattens cubic/quadratic beziers into line segments within a millimetre tolerance. */
+/** Flattens cubic/quadratic beziers into line segments within a millimeter tolerance. */
 object PathFlattener {
     const val DEFAULT_TOLERANCE_MM = 0.1
 

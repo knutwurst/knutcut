@@ -31,7 +31,7 @@ class GpglSession(
     }
 
     /**
-     * Run a full cut: initialise, wait for ready, send setup, stream the plot in safe chunks, then
+     * Run a full cut: initialize, wait for ready, send setup, stream the plot in safe chunks, then
      * the trailer. [onProgress] is called with 0f..1f as the plot stream is sent. Returns true once
      * the whole sequence has been written.
      */

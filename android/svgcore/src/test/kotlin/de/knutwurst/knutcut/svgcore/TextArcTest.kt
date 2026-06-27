@@ -46,14 +46,14 @@ class TextArcTest {
     }
 
     // ---------------------------------------------------------------------------
-    // Each glyph rotates about its own baseline centre and lands ON the arc.
+    // Each glyph rotates about its own baseline center and lands ON the arc.
     // ---------------------------------------------------------------------------
 
     @Test
     fun eachGlyphBaselineCentreSitsOnTheArc() {
         // Three squares, W = 30. The baseline midpoint of every glyph (midpoint of its two y=0
         // corners, points[0]=(0,0) and points[1]=(10,0) locally) must lie exactly on the arc circle.
-        // If a glyph were rotated about its left edge instead of its centre, the midpoint would be
+        // If a glyph were rotated about its left edge instead of its center, the midpoint would be
         // pushed off the circle — the bug that caused uneven spacing / overlapping letters.
         val glyphs = listOf(square(), square(), square())
         val curve = 0.5
@@ -62,14 +62,14 @@ class TextArcTest {
         val w = 30.0
         val r = w / (curve * 2.0 * PI)   // signed radius
         val cx = w / 2.0
-        val cy = r                       // centre at (W/2, R)
+        val cy = r                       // center at (W/2, R)
 
         for (i in 0 until 3) {
             val p = result[i].points
             val midX = (p[0].xMm + p[1].xMm) / 2.0
             val midY = (p[0].yMm + p[1].yMm) / 2.0
             val dist = hypot(midX - cx, midY - cy)
-            assertEquals("glyph $i baseline centre must be on the arc (radius |R|)", abs(r), dist, 1e-6)
+            assertEquals("glyph $i baseline center must be on the arc (radius |R|)", abs(r), dist, 1e-6)
         }
     }
 
@@ -204,13 +204,13 @@ class TextArcTest {
 
     @Test
     fun fullCircleFirstAndLastGlyphCentroidsAreClose() {
-        // With 4 glyphs (W=40), θ=2π, the angular gap between adjacent glyph centres is
-        // 10/R = 10·2π/40 = π/2.  The first centre is at angle −3π/4 from the apex
+        // With 4 glyphs (W=40), θ=2π, the angular gap between adjacent glyph centers is
+        // 10/R = 10·2π/40 = π/2.  The first center is at angle −3π/4 from the apex
         // (φ = (5−20)/R = −15/R = −3π/4) and the last at +3π/4.  They are closer to the
         // apex than glyph 1 (φ = −π/4) is to glyph 2 (φ = +π/4) … no, easier:
         //
         // Use a property that holds unambiguously: the angular separation between glyph 0 and
-        // glyph 3 as seen from the circle centre must equal 2π * 30/40 = 3π/2 ≈ 4.712 rad.
+        // glyph 3 as seen from the circle center must equal 2π * 30/40 = 3π/2 ≈ 4.712 rad.
         // We verify that the angular distance is more than π (i.e. they are not on the same
         // "short arc") and less than 2π (they haven't wrapped more than once).
         val glyphs = listOf(square(), square(), square(), square())
@@ -247,7 +247,7 @@ class TextArcTest {
         val cx = W / 2.0
         val cy = R  // circle center for positive curve
 
-        // Centre of each glyph on the arc, measured as angle from circle center.
+        // Center of each glyph on the arc, measured as angle from circle center.
         fun angle(g: Int): Double {
             val c = centroid(result, g)
             return atan2(c.yMm - cy, c.xMm - cx)
@@ -256,7 +256,7 @@ class TextArcTest {
         val a0 = angle(0)
         val a3 = angle(3)
         var span = a3 - a0
-        // Normalise to [0, 2π)
+        // Normalize to [0, 2π)
         while (span < 0) span += 2.0 * PI
         while (span >= 2.0 * PI) span -= 2.0 * PI
 

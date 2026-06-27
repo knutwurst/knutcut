@@ -30,7 +30,7 @@
     <string name="st_no_visible_layers">No visible layers.</string>
     <string name="st_design_off_area">Design outside the cutting area of %1$s (%2$d×%3$d mm).</string>
     <string name="st_cutting_silhouette">Cutting (Silhouette)…</string>
-    <string name="st_cancelled">Cancelled.</string>
+    <string name="st_cancelled">Canceled.</string>
     <string name="st_connecting_plotter">Connecting to the plotter…</string>
     <string name="st_no_response">No response from the plotter.</string>
     <string name="st_scan_failed">Search failed. Check Bluetooth and the scan permission.</string>
@@ -43,7 +43,7 @@
     <string name="st_sent_to_plotter">Finished sending to the plotter.</string>
     <string name="st_error_generic">Error: %1$s</string>
     <string name="st_material_detected">Material detected – press the feed button on the plotter.</string>
-    <string name="st_cancelling">Cancelling…</string>
+    <string name="st_cancelling">Canceling…</string>
 
     <plurals name="st_project_loaded">
         <item quantity="one">Project loaded (%1$d layer).</item>
@@ -154,14 +154,14 @@
     <string name="ui_plot">Plot</string>
     <string name="ui_explode">Split</string>
     <string name="ui_merge_all">Merge all</string>
-    <string name="ui_group_by_color">Group by colour</string>
+    <string name="ui_group_by_color">Group by color</string>
     <string name="ui_tiles">Tiles</string>
     <string name="ui_tile_selected">Tile the selected layer</string>
     <string name="ui_spacing_mm">Spacing (mm)</string>
     <string name="ui_select_layer_first">Select a layer first</string>
-    <string name="ui_layer_color">Layer colour</string>
-    <string name="ui_no_color">No colour</string>
-    <string name="ui_custom_color">Custom colour</string>
+    <string name="ui_layer_color">Layer color</string>
+    <string name="ui_no_color">No color</string>
+    <string name="ui_custom_color">Custom color</string>
     <string name="ui_hex">Hex</string>
     <string name="ui_save_material">Save material</string>
     <string name="ui_auto_arrange">Auto-arrange</string>
@@ -188,7 +188,7 @@
     <string name="ui_snap_hint">Objects snap to this grid while dragging.</string>
     <string name="ui_off">Off</string>
     <string name="ui_align_guides">Alignment guides</string>
-    <string name="ui_align_guides_hint">Centres snap to other layers and the mat centre.</string>
+    <string name="ui_align_guides_hint">Centers snap to other layers and the mat center.</string>
     <string name="ui_auto_close">Close drawn shapes</string>
     <string name="ui_auto_close_hint">A freehand stroke whose ends roughly meet becomes a closed, cuttable shape.</string>
     <string name="ui_unit">Unit</string>
@@ -200,11 +200,12 @@
     <string name="ui_updating">Updating…</string>
     <string name="ui_check_update">Check for a new version</string>
     <string name="ui_auto_check">Check automatically on launch</string>
-    <string name="ui_optimize_order">Optimise cut order</string>
+    <string name="ui_optimize_order">Optimize cut order</string>
     <string name="ui_optimize_hint">Shorter travel between contours. Changes the path – verify on the device.</string>
-    <string name="ui_colors">Colours</string>
+    <string name="ui_colors">Colors</string>
     <string name="ui_outline_only">Outline only</string>
-    <string name="ui_colorful">Colour</string>
+    <string name="ui_colorful">Color + outline</string>
+    <string name="ui_color_only">Color only</string>
     <string name="ui_appearance">Appearance</string>
     <string name="ui_system">System</string>
     <string name="ui_light">Light</string>
@@ -258,7 +259,7 @@
     <string name="ui_material_item">%1$s · %2$d</string>
     <string name="ui_device_ble">%1$s (BLE)</string>
     <string name="ui_confirm_other_msg">“%1$s” is not a supported VEVOR plotter. Plotter functions may fail. Connect anyway?</string>
-    <string name="ui_confirm_ble_msg">“%1$s” is not a recognised Silhouette plotter. Only connect if your model above is set to a Silhouette – otherwise the cut will fail. Connect anyway?</string>
+    <string name="ui_confirm_ble_msg">“%1$s” is not a recognized Silhouette plotter. Only connect if your model above is set to a Silhouette – otherwise the cut will fail. Connect anyway?</string>
     <string name="ui_header_sub">v%1$s · Oliver Köster</string>
     <string name="ui_footer_version">Knutcut v%1$s · Oliver Köster</string>
     <plurals name="ui_layers_title">
@@ -348,12 +349,12 @@
     <string name="ui_copy_suffix">" (copy)"</string>
     <string name="ui_shape_n">Shape %1$d</string>
     <string name="ui_all_shapes">All shapes</string>
-    <string name="ui_no_color_layer">No colour</string>
+    <string name="ui_no_color_layer">No color</string>
     <string name="ui_merged">Merged</string>
     <string name="st_connected_to">Connected to %1$s.</string>
     <string name="st_connected_unsupported">Connected to %1$s (not a supported plotter).</string>
     <string name="st_sent_silhouette">Sent to the Silhouette.</string>
-    <string name="st_silhouette_no_answer">Silhouette didn\'t respond, cancelled.</string>
+    <string name="st_silhouette_no_answer">Silhouette didn\'t respond, canceled.</string>
     <string name="cd_workarea">Work area: %1$s</string>
     <string name="cd_workarea_empty">Work area, mat selected</string>
     <!-- Text-tool font names -->
@@ -372,12 +373,12 @@
     <!-- Image (raster) tracing -->
     <string name="ui_import_image">Import image…</string>
     <string name="ui_trace_title">Trace image</string>
-    <string name="ui_trace_colors">Colours</string>
+    <string name="ui_trace_colors">Colors</string>
     <string name="ui_trace_drop_bg">Remove background</string>
     <string name="ui_trace_smooth">Smooth curves</string>
     <string name="ui_trace_simplify">Simplify</string>
     <string name="ui_trace_speckle">Min. speckle</string>
-    <string name="ui_trace_summary">%1$d colours · %2$d paths</string>
+    <string name="ui_trace_summary">%1$d colors · %2$d paths</string>
     <string name="ui_trace_empty">Nothing to trace at these settings.</string>
     <string name="st_image_unreadable">Could not read the image.</string>
     <string name="st_image_one_at_a_time">Only the first image was traced.</string>

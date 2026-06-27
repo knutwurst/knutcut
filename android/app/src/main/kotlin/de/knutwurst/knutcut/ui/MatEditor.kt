@@ -84,7 +84,7 @@ private const val TAP_SLOP_DP = 6f      // movement below this counts as a tap, 
 private const val CORNER_DP = 8f        // drawn size of a corner handle square
 private const val SIDE_DP = 7f          // drawn size of a side-midpoint handle square
 private const val ROTATE_DOT_DP = 5f    // drawn radius of the rotate handle dot
-// Smart-guide line colour: a high-contrast magenta that reads on both light and dark mats.
+// Smart-guide line color: a high-contrast magenta that reads on both light and dark mats.
 private val GUIDE_COLOR = Color(0xFFFF4081)
 
 // Node editor visual constants, in dp (multiplied by the screen density at the draw site so the
@@ -122,7 +122,9 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
     LaunchedEffect(vm.editorTool) { if (vm.editorTool != EditorTool.DRAW) liveStroke = emptyList() }
 
     // Derive the grid/ruler tones from the theme so they stay visible on both light and dark.
-    val colorMode = vm.colorMode == ColorMode.COLOR
+    // OUTLINE = strokes only; COLOR = fill + outline overlay; FILL = fill only (no outline).
+    val drawFills = vm.colorMode != ColorMode.OUTLINE
+    val drawOutlines = vm.colorMode != ColorMode.FILL
     val onSurface = MaterialTheme.colorScheme.onSurface
     val gridMinor = onSurface.copy(alpha = 0.16f)
     val gridMajor = onSurface.copy(alpha = 0.38f)
@@ -557,7 +559,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 val startScaleY = vm.scaleY
                 var totalDrag = 0f
                 var pushedHistory = false
-                // Running, un-snapped centre for the move (so snapping never swallows small drags).
+                // Running, un-snapped center for the move (so snapping never swallows small drags).
                 var moveCenter = vm.centerMm
 
                 while (true) {
@@ -643,11 +645,11 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
 
         drawRulers(vm.mat, origin, ppm, rulerColor)
 
-        // design — in OUTLINE mode knife layers use the primary colour, pen layers the secondary.
-        // In COLOR mode each path is filled with its SVG colour and outlined in the theme's onSurface
-        // colour (white in dark mode, near-black in light mode), so it stays readable on any background.
-        // Same-colour paths are grouped into a single even-odd path so holes within a shape are kept.
-        // Anything off the mat is always drawn in the error colour regardless of mode.
+        // design — in OUTLINE mode knife layers use the primary color, pen layers the secondary.
+        // In COLOR mode each path is filled with its SVG color and outlined in the theme's onSurface
+        // color (white in dark mode, near-black in light mode), so it stays readable on any background.
+        // Same-color paths are grouped into a single even-odd path so holes within a shape are kept.
+        // Anything off the mat is always drawn in the error color regardless of mode.
         for ((tool, pls, cols, fillGroups) in vm.placedLayers()) {
             val toolColor = if (tool == Tool.PEN) penColor else knifeColor
             val paths = pls.map { pl ->
@@ -658,11 +660,11 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                     if (pl.closed) close()
                 }
             }
-            if (colorMode) {
+            if (drawFills) {
                 // Fill groups (precomputed + cached in the view model, see FillNesting): a contour
-                // nested inside another same-colour contour carves a real hole via EvenOdd, while
+                // nested inside another same-color contour carves a real hole via EvenOdd, while
                 // shapes that merely overlap stay separate and union. This keeps holes (letter
-                // counters) yet fills a uniformly-coloured, merged layer solidly where shapes overlap.
+                // counters) yet fills a uniformly-colored, merged layer solidly where shapes overlap.
                 for (g in fillGroups) {
                     val c = cols.getOrNull(g.first()) ?: continue
                     val group = Path().apply { fillType = PathFillType.EvenOdd; g.forEach { addPath(paths[it]) } }
@@ -670,11 +672,14 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 }
             }
             // Outlines on top — theme onSurface in COLOR mode guarantees contrast on both dark and
-            // light backgrounds; tool colour in OUTLINE mode.
-            val outlineColor = if (colorMode) onSurface else toolColor
+            // light backgrounds; tool color in OUTLINE mode.
+            val outlineColor = if (drawFills) onSurface else toolColor
             pls.forEachIndexed { idx, pl ->
                 if (pl.points.isEmpty()) return@forEachIndexed
-                val stroke = if (pl.points.any { vm.isOutsideMat(it) }) offMatColor else outlineColor
+                val off = pl.points.any { vm.isOutsideMat(it) }
+                // FILL mode is pure color with no outline overlay — but always flag off-mat paths.
+                if (!drawOutlines && !off) return@forEachIndexed
+                val stroke = if (off) offMatColor else outlineColor
                 drawPath(paths[idx], stroke, style = Stroke(width = 2.5f))
             }
         }
@@ -691,7 +696,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
 
         // Selection box + resize/rotate handles — in SELECT and ROTATE modes. In DRAW/NODES they are
         // noise and their rotate/resize handles must not compete with drawing or node editing. In
-        // ROTATE mode the corner/side grips are drawn as dots, signalling that they turn (not resize).
+        // ROTATE mode the corner/side grips are drawn as dots, signaling that they turn (not resize).
         val rotating = vm.editorTool == EditorTool.ROTATE
         val corners = if (vm.editorTool == EditorTool.SELECT || rotating) vm.placedCorners().map { s(it) } else emptyList()
         if (corners.size == 4) {
@@ -724,7 +729,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
             drawCircle(handleColor, radius = ROTATE_DOT_DP * density, center = rot)
         }
 
-        // smart alignment guides (centre snapping) while dragging
+        // smart alignment guides (center snapping) while dragging
         vm.alignGuideX?.let { gx ->
             val x = s(Pt(gx, 0.0)).x
             drawLine(guideColor, Offset(x, s(Pt(0.0, 0.0)).y), Offset(x, s(Pt(0.0, vm.mat.heightMm)).y), strokeWidth = 1.5f)
@@ -771,8 +776,8 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                     }
                 }
 
-                // Anchor dot. Every node first gets a surface-coloured backing disc so it reads on any
-                // mat colour. The selected node is noticeably larger, uses the highlight colour and is
+                // Anchor dot. Every node first gets a surface-colored backing disc so it reads on any
+                // mat color. The selected node is noticeably larger, uses the highlight color and is
                 // wrapped in an extra ring, so it's obvious at a glance which node is active.
                 if (isSelected) {
                     drawCircle(nodeSelectedColor.copy(alpha = 0.22f), radius = selectedR + 7f * density, center = anchorScreen, style = Fill)
@@ -800,12 +805,12 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
 
                 // Ghost circle: the arc the text wraps around (skip when nearly straight).
                 if (abs(c) >= 4) {
-                    val r = wMm / (c / 100.0 * 2.0 * PI)   // signed radius; >0 = centre below baseline
+                    val r = wMm / (c / 100.0 * 2.0 * PI)   // signed radius; >0 = center below baseline
                     val rPx = (abs(r) * ppm).toFloat()
                     if (rPx < 6000f) drawCircle(deformGuideColor, radius = rPx, center = s(Pt(cx, cyc + r)), style = Stroke(width = 1.5f))
                 }
 
-                // Vertical guide track through the text centre.
+                // Vertical guide track through the text center.
                 drawLine(guideColor.copy(alpha = 0.5f), s(Pt(cx, cyc - BEND_DRAG_RANGE_MM)), s(Pt(cx, cyc + BEND_DRAG_RANGE_MM)), strokeWidth = 1.5f)
 
                 // Knob at the current curve (up = arch up).

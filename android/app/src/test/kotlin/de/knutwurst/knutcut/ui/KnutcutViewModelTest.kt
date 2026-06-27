@@ -91,8 +91,8 @@ class KnutcutViewModelTest {
         // One original + (2*3 - 1) copies.
         assertEquals(6, vm.layers.size)
         // The copies are offset, not stacked on the original.
-        val centres = vm.layers.map { it.centerMm }.toSet()
-        assertEquals("each tile sits at its own position", 6, centres.size)
+        val centers = vm.layers.map { it.centerMm }.toSet()
+        assertEquals("each tile sits at its own position", 6, centers.size)
     }
 
     @Test
@@ -359,10 +359,10 @@ class KnutcutViewModelTest {
         vm.setSelectedColor(0xFFE53935.toInt())
 
         assertEquals(0xFFE53935.toInt(), vm.layers[0].colorArgb)
-        assertNull("per-polyline colours cleared so the layer takes one colour", vm.layers[0].polylineColors)
+        assertNull("per-polyline colors cleared so the layer takes one color", vm.layers[0].polylineColors)
         assertTrue("one undo step", vm.canUndo)
         vm.undo()
-        assertNull("undo restores the original (no) colour", vm.layers[0].colorArgb)
+        assertNull("undo restores the original (no) color", vm.layers[0].colorArgb)
     }
 
     @Test

@@ -5,7 +5,7 @@ import org.junit.Test
 
 class PlacementTest {
 
-    // A 10×10 box at the origin, placed so its centre stays at (5,5): an identity placement.
+    // A 10×10 box at the origin, placed so its center stays at (5,5): an identity placement.
     private val box = Bounds(0.0, 0.0, 10.0, 10.0)
     private val center = Pt(5.0, 5.0)
 
@@ -64,7 +64,7 @@ class PlacementTest {
         )
         assertEquals(2.0, r.scaleX, 1e-9)
         assertEquals(2.0, r.scaleY, 1e-9)
-        assertEquals(0.0, r.center.xMm, 1e-9) // a 20×20 box anchored at (10,10) is centred at (0,0)
+        assertEquals(0.0, r.center.xMm, 1e-9) // a 20×20 box anchored at (10,10) is centered at (0,0)
         assertEquals(0.0, r.center.yMm, 1e-9)
     }
 
