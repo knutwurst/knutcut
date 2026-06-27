@@ -3,6 +3,12 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.61.2
+- Image trace: smoother curves. The outline smoothing now does more rounding passes (a quadratic
+  B-spline fit), so traced edges read as clean curves instead of faceted steps. It rounds toward the
+  inside of the shape, so the cut never grows past the artwork, and genuine sharp corners stay crisp.
+  (An interpolating Bézier fit was tried first but it bulged tight corners outward — rejected.)
+
 ## 0.61.1
 - Image trace: crisp curves from full-resolution crops. When you crop to one object, that region is
   now re-read from the original photo at native resolution before tracing (only the crop, so memory

@@ -333,19 +333,20 @@ object RasterTrace {
     }
 
     // ---------------------------------------------------------------------------
-    // Contour smoothing (corner-preserving Chaikin corner-cutting)
+    // Contour smoothing (corner-preserving quadratic-B-spline / Chaikin corner-cutting)
     // ---------------------------------------------------------------------------
 
-    private const val SMOOTH_ITERS = 2
+    private const val SMOOTH_ITERS = 3
     private const val SMOOTH_CORNER_COS = 0.342 // keep turns sharper than ~70°…
     private const val SMOOTH_MIN_ARM_MM = 4.0   // …only where both arms are long. Short-armed sharp
                                                 // turns are the pixel staircase, so they get rounded.
 
     /**
-     * Round the pixel staircase of a traced contour into swung curves. Corner-cutting (Chaikin) is
-     * applied to every vertex except real corners — a vertex is kept crisp only when its turn is
-     * sharp AND both arms are long (a deliberate corner, not a one-pixel jog). Corners are detected
-     * once on the input polygon and pinned across iterations so they stay crisp.
+     * Fit smooth curves to the traced contour by repeated corner-cutting — the subdivision limit is a
+     * quadratic B-spline, i.e. real Bézier curves. Unlike an interpolating (Catmull-Rom) fit it stays
+     * INSIDE the polygon and never overshoots, so the cut never grows past the artwork. A vertex is
+     * kept crisp only when its turn is sharp AND both arms are long (a deliberate corner, not a
+     * one-pixel jog); corners are detected once and pinned across iterations.
      */
     private fun smoothClosed(poly: List<Pt>): List<Pt> {
         var pts = poly
