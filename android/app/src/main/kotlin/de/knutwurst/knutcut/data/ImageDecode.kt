@@ -18,7 +18,7 @@ import de.knutwurst.knutcut.svgcore.RasterImage
 object ImageDecode {
 
     /** Returns null when the uri can't be opened or isn't a decodable image. */
-    fun decode(resolver: ContentResolver, uri: Uri, maxEdge: Int = 768): RasterImage? {
+    fun decode(resolver: ContentResolver, uri: Uri, maxEdge: Int = 1200): RasterImage? {
         val (w0, h0) = readBounds(resolver, uri) ?: return null
         if (w0 <= 0 || h0 <= 0) return null
 

@@ -3,6 +3,16 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.61.0
+- Free rotation. The rotate button now opens a menu (90° right, 90° left, 180°, and Free rotate),
+  like the flip button. Pick "Free rotate" and the selection's corner handles turn the layer to any
+  angle instead of resizing it; the corners become round grips and the hint reminds you. The 90° and
+  180° steps still apply in one tap, and the small top handle keeps working too.
+- Image trace: smoother edges. Traced contours are interpolated into swung curves instead of the raw
+  pixel staircase, so they plot cleanly. Real corners (long straight edges meeting sharply) stay
+  crisp; a "Smooth curves" toggle (on by default) turns it off. Tracing also runs at a higher
+  resolution now for finer detail, which helps most when you crop to a small part of a photo.
+
 ## 0.60.1
 - Image trace: crop and contrast. A draggable rectangle on the preview isolates one object before
   tracing, so a single shape can be lifted out of a busy photo. Quantisation now runs in CIELAB

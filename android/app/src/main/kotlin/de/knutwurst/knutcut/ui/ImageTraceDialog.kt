@@ -100,6 +100,10 @@ fun ImageTraceDialog(vm: KnutcutViewModel) {
                     Text(stringResource(R.string.ui_trace_drop_bg), Modifier.weight(1f))
                     Switch(checked = params.dropBackground, onCheckedChange = { vm.updateTraceParams(params.copy(dropBackground = it)) })
                 }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.ui_trace_smooth), Modifier.weight(1f))
+                    Switch(checked = params.smooth, onCheckedChange = { vm.updateTraceParams(params.copy(smooth = it)) })
+                }
             }
         },
         confirmButton = {

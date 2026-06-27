@@ -97,7 +97,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Editor interaction mode: normal SELECT/move/resize, freehand DRAW, or node editor NODES. */
-enum class EditorTool { SELECT, DRAW, NODES }
+enum class EditorTool { SELECT, DRAW, NODES, ROTATE }
 
 class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -1506,7 +1506,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Rotate the selected layer by 90°. */
-    fun rotate90() { pushHistory(); rotationDeg = (rotationDeg + 90.0) % 360.0 }
+    fun rotate90() = rotateBy(90.0)
+
+    /** Rotate the selected layer by [deg] (relative), normalised to [0, 360). */
+    fun rotateBy(deg: Double) { pushHistory(); rotationDeg = (((rotationDeg + deg) % 360.0) + 360.0) % 360.0 }
 
     fun resetPlacement() {
         pushHistory()

@@ -119,6 +119,11 @@
     <string name="ui_shape_short">Form</string>
     <string name="ui_size_angle">Größe &amp; Winkel</string>
     <string name="ui_rotate90">Drehen 90°</string>
+    <string name="ui_rotate">Drehen</string>
+    <string name="ui_rotate_cw">90° rechts</string>
+    <string name="ui_rotate_ccw">90° links</string>
+    <string name="ui_rotate_180">180°</string>
+    <string name="ui_rotate_free">Frei drehen</string>
     <string name="ui_flip_h">Horizontal spiegeln</string>
     <string name="ui_flip_v">Vertikal spiegeln</string>
     <string name="ui_duplicate">Duplizieren</string>
@@ -315,6 +320,7 @@
     <string name="ui_node_convert">Bearbeitbar machen</string>
     <string name="ui_done">Fertig</string>
     <string name="ui_mode_select_hint">Ziehen zum Verschieben, Ecken oder Seiten zum Skalieren, oben zum Drehen.</string>
+    <string name="ui_mode_rotate_hint">Ecken ziehen zum Drehen. Zwei Finger verschieben und zoomen.</string>
     <string name="ui_mode_draw_hint">Zeichnen: mit dem Finger ziehen. Zwei Finger verschieben und zoomen.</string>
     <string name="ui_mode_nodes_hint">Formen: an Punkten ziehen zum Biegen, Linie doppeltippen fügt einen Punkt hinzu.</string>
     <!-- Modus-Segment -->
@@ -366,6 +372,7 @@
     <string name="ui_trace_title">Bild nachzeichnen</string>
     <string name="ui_trace_colors">Farben</string>
     <string name="ui_trace_drop_bg">Hintergrund entfernen</string>
+    <string name="ui_trace_smooth">Kanten glätten</string>
     <string name="ui_trace_simplify">Vereinfachung</string>
     <string name="ui_trace_speckle">Mindestfleck</string>
     <string name="ui_trace_summary">%1$d Farben · %2$d Pfade</string>

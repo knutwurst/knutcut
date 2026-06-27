@@ -45,6 +45,46 @@ class NodeEditorViewModelTest {
     }
 
     // -------------------------------------------------------------------------
+    // Free rotation: rotateBy normalises into [0, 360)
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun rotateByNormalisesIntoZeroTo360() {
+        val vm = vmWithPlainLayer()
+        vm.selectLayer(0)
+        vm.rotateBy(90.0)
+        assertEquals(90.0, vm.rotationDeg, 1e-9)
+        vm.rotateBy(-180.0) // 90 - 180 = -90 → 270
+        assertEquals(270.0, vm.rotationDeg, 1e-9)
+        vm.rotateBy(180.0)  // 270 + 180 = 450 → 90
+        assertEquals(90.0, vm.rotationDeg, 1e-9)
+        vm.rotateBy(-90.0)  // → 0
+        assertEquals(0.0, vm.rotationDeg, 1e-9)
+    }
+
+    @Test
+    fun rotateByIsUndoable() {
+        val vm = vmWithPlainLayer()
+        vm.selectLayer(0)
+        vm.rotateBy(90.0)
+        assertEquals(90.0, vm.rotationDeg, 1e-9)
+        vm.undo()
+        assertEquals("undo reverts the rotation", 0.0, vm.rotationDeg, 1e-9)
+    }
+
+    @Test
+    fun rotateByAffectsOnlyTheSelectedLayer() {
+        val vm = vm()
+        val tri = listOf(Polyline(listOf(Pt(0.0, 0.0), Pt(10.0, 5.0), Pt(20.0, 0.0)), false))
+        vm.addLayer("A", tri, Tool.PEN)
+        vm.addLayer("B", tri, Tool.PEN)
+        vm.selectLayer(1)
+        vm.rotateBy(45.0)
+        assertEquals("selected layer rotated", 45.0, vm.layers[1].rotationDeg, 1e-9)
+        assertEquals("other layer untouched", 0.0, vm.layers[0].rotationDeg, 1e-9)
+    }
+
+    // -------------------------------------------------------------------------
     // worldToLayerLocal / layerLocalToWorld round-trip
     // -------------------------------------------------------------------------
 

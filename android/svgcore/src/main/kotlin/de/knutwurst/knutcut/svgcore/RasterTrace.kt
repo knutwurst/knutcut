@@ -1,6 +1,7 @@
 package de.knutwurst.knutcut.svgcore
 
 import kotlin.math.abs
+import kotlin.math.hypot
 import kotlin.math.roundToInt
 
 /**
@@ -35,6 +36,8 @@ data class TraceParams(
     val minAreaMm2: Double = 4.0,
     /** Image pixels per millimetre — sets the real-world size of the traced geometry. */
     val pxPerMm: Double = 4.0,
+    /** Round the pixel staircase into swung curves (corner-preserving). Off = raw polygon. */
+    val smooth: Boolean = true,
     /** Only trace pixels inside this rectangle; null traces the whole image. */
     val crop: CropRect? = null,
 )
@@ -324,6 +327,57 @@ object RasterTrace {
         val simplified = simplifyRdp(rotated, p.detailMm).toMutableList()
         if (simplified.size >= 2 && simplified.first() == simplified.last()) simplified.removeAt(simplified.size - 1)
         if (simplified.size < 3) return null
-        return Polyline(simplified, closed = true)
+        val finished = if (p.smooth) smoothClosed(simplified) else simplified
+        if (finished.size < 3) return null
+        return Polyline(finished, closed = true)
+    }
+
+    // ---------------------------------------------------------------------------
+    // Contour smoothing (corner-preserving Chaikin corner-cutting)
+    // ---------------------------------------------------------------------------
+
+    private const val SMOOTH_ITERS = 2
+    private const val SMOOTH_CORNER_COS = 0.342 // keep turns sharper than ~70°…
+    private const val SMOOTH_MIN_ARM_MM = 4.0   // …only where both arms are long. Short-armed sharp
+                                                // turns are the pixel staircase, so they get rounded.
+
+    /**
+     * Round the pixel staircase of a traced contour into swung curves. Corner-cutting (Chaikin) is
+     * applied to every vertex except real corners — a vertex is kept crisp only when its turn is
+     * sharp AND both arms are long (a deliberate corner, not a one-pixel jog). Corners are detected
+     * once on the input polygon and pinned across iterations so they stay crisp.
+     */
+    private fun smoothClosed(poly: List<Pt>): List<Pt> {
+        var pts = poly
+        var keep = BooleanArray(pts.size) { isHardCorner(pts, it) }
+        repeat(SMOOTH_ITERS) {
+            val n = pts.size
+            if (n < 3) return pts
+            val outPts = ArrayList<Pt>(n * 2)
+            val outKeep = ArrayList<Boolean>(n * 2)
+            for (i in 0 until n) {
+                val prev = pts[(i - 1 + n) % n]; val cur = pts[i]; val nxt = pts[(i + 1) % n]
+                if (keep[i]) {
+                    outPts.add(cur); outKeep.add(true)
+                } else {
+                    outPts.add(Pt(cur.xMm + 0.25 * (prev.xMm - cur.xMm), cur.yMm + 0.25 * (prev.yMm - cur.yMm)))
+                    outPts.add(Pt(cur.xMm + 0.25 * (nxt.xMm - cur.xMm), cur.yMm + 0.25 * (nxt.yMm - cur.yMm)))
+                    outKeep.add(false); outKeep.add(false)
+                }
+            }
+            pts = outPts; keep = outKeep.toBooleanArray()
+        }
+        return pts
+    }
+
+    /** A vertex is a hard corner (kept crisp) when its turn is sharp and both arms are long. */
+    private fun isHardCorner(poly: List<Pt>, i: Int): Boolean {
+        val n = poly.size
+        val prev = poly[(i - 1 + n) % n]; val cur = poly[i]; val nxt = poly[(i + 1) % n]
+        val ix = cur.xMm - prev.xMm; val iy = cur.yMm - prev.yMm
+        val ox = nxt.xMm - cur.xMm; val oy = nxt.yMm - cur.yMm
+        val li = hypot(ix, iy); val lo = hypot(ox, oy)
+        if (li < SMOOTH_MIN_ARM_MM || lo < SMOOTH_MIN_ARM_MM) return false
+        return (ix * ox + iy * oy) / (li * lo) < SMOOTH_CORNER_COS
     }
 }

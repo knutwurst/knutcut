@@ -797,6 +797,7 @@ private fun EditorHintBar(vm: KnutcutViewModel) {
         vm.bendingText -> stringResource(R.string.ui_bend_hint)
         vm.editorTool == EditorTool.DRAW -> stringResource(R.string.ui_mode_draw_hint)
         vm.editorTool == EditorTool.NODES -> stringResource(R.string.ui_mode_nodes_hint)
+        vm.editorTool == EditorTool.ROTATE -> stringResource(R.string.ui_mode_rotate_hint)
         else -> stringResource(R.string.ui_mode_select_hint)
     }
     // Reserve room for two lines so the layout never jumps as the hint changes.
@@ -942,6 +943,7 @@ private fun EditingBar(
 ) {
     val perLayer = !vm.matSelected
     var showFlipMenu by remember { mutableStateOf(false) }
+    var showRotateMenu by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showColorSheet by remember { mutableStateOf(false) }
 
@@ -984,7 +986,24 @@ private fun EditingBar(
                     }
                 }
                 IconAction(stringResource(R.string.ui_size_angle), Icons.Default.AspectRatio, size = cell, enabled = perLayer, onClick = onSize)
-                IconAction(stringResource(R.string.ui_rotate90), Icons.AutoMirrored.Filled.RotateRight, size = cell, enabled = perLayer) { vm.rotate90() }
+                Box {
+                    ModeToggle(stringResource(R.string.ui_rotate), Icons.AutoMirrored.Filled.RotateRight, active = vm.editorTool == EditorTool.ROTATE, size = cell, enabled = perLayer) { showRotateMenu = true }
+                    DropdownMenu(expanded = showRotateMenu, onDismissRequest = { showRotateMenu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.ui_rotate_cw)) }, onClick = { showRotateMenu = false; vm.rotateBy(90.0) })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.ui_rotate_ccw)) }, onClick = { showRotateMenu = false; vm.rotateBy(-90.0) })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.ui_rotate_180)) }, onClick = { showRotateMenu = false; vm.rotateBy(180.0) })
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.ui_rotate_free)) },
+                            leadingIcon = { if (vm.editorTool == EditorTool.ROTATE) Icon(Icons.Default.Check, contentDescription = null) },
+                            onClick = {
+                                showRotateMenu = false
+                                vm.stopBendingText()
+                                vm.editorTool = if (vm.editorTool == EditorTool.ROTATE) EditorTool.SELECT else EditorTool.ROTATE
+                            },
+                        )
+                    }
+                }
                 Box {
                     IconAction(stringResource(R.string.ui_flip), Icons.Default.Flip, size = cell, enabled = perLayer) { showFlipMenu = true }
                     DropdownMenu(expanded = showFlipMenu, onDismissRequest = { showFlipMenu = false }) {

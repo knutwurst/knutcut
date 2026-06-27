@@ -45,8 +45,10 @@ class RasterTraceTest {
         return dr * dr + dg * dg + db * db
     }
 
-    private fun params(numColors: Int = 2, dropBg: Boolean = false, minAreaMm2: Double = 0.5, pxPerMm: Double = 1.0) =
-        TraceParams(numColors = numColors, dropBackground = dropBg, detailMm = 0.1, minAreaMm2 = minAreaMm2, pxPerMm = pxPerMm)
+    // Geometry tests trace with smoothing OFF so areas/corner counts stay exact; the smoothing pass
+    // is exercised by its own tests below.
+    private fun params(numColors: Int = 2, dropBg: Boolean = false, minAreaMm2: Double = 0.5, pxPerMm: Double = 1.0, smooth: Boolean = false) =
+        TraceParams(numColors = numColors, dropBackground = dropBg, detailMm = 0.1, minAreaMm2 = minAreaMm2, pxPerMm = pxPerMm, smooth = smooth)
 
     @Test
     fun medianCutFindsTheDistinctColours() {
@@ -335,5 +337,95 @@ class RasterTraceTest {
         val r = RasterTrace.trace(img, params(dropBg = true))
         assertTrue("the single colour is the background", r.backgroundIndex >= 0)
         assertTrue("nothing left to cut", r.colors.isEmpty())
+    }
+
+    /** A centred black square of [side] mm with a white margin (pxPerMm = 1). */
+    private fun blackSquare(side: Int, margin: Int = 2): RasterImage {
+        val w = side + 2 * margin; val h = side + 2 * margin
+        val px = IntArray(w * h) { WHITE }
+        for (y in margin until margin + side) for (x in margin until margin + side) px[y * w + x] = BLACK
+        return RasterImage(w, h, px)
+    }
+
+    @Test
+    fun smoothingKeepsRealCornersOfALargeSquare() {
+        // A 20 mm square: its corners are sharp AND have long arms, so smoothing must keep it square.
+        val black = colorFor(RasterTrace.trace(blackSquare(20), params(smooth = true)), BLACK)
+        assertNotNull(black)
+        assertEquals("a real square stays a 4-corner square", 4, black!!.contours[0].points.size)
+        assertEquals("area unchanged", 400.0, area(black.contours[0]), 0.001)
+    }
+
+    @Test
+    fun smoothingRoundsShortStaircaseCorners() {
+        // A 2 mm square: its corners have short arms (a staircase-scale jog), so smoothing rounds them
+        // — this is what turns the traced pixel staircase into swung curves.
+        val raw = colorFor(RasterTrace.trace(blackSquare(2), params(smooth = false)), BLACK)!!
+        val smoothed = colorFor(RasterTrace.trace(blackSquare(2), params(smooth = true)), BLACK)!!
+        assertEquals("raw is the bare 4-corner square", 4, raw.contours[0].points.size)
+        assertTrue("smoothing adds rounded points", smoothed.contours[0].points.size > 4)
+        val a = area(smoothed.contours[0])
+        assertTrue("rounded area is slightly under the square (was 4)", a in 3.0..4.0)
+    }
+
+    @Test
+    fun smoothingPreservesAThinFeature() {
+        // A 1 mm × 20 mm bar: every corner is short-armed (one arm = the 1 mm width), so all get
+        // rounded. Smoothing must not pinch it shut or invert it.
+        val w = 5; val h = 22; val px = IntArray(w * h) { WHITE }
+        for (y in 1..20) px[y * w + 2] = BLACK
+        val bar = colorFor(RasterTrace.trace(RasterImage(w, h, px), params(smooth = true)), BLACK)
+        assertNotNull("thin bar survives smoothing", bar)
+        val b = Bounds.of(bar!!.contours[0].points)
+        assertTrue("width not pinched shut nor inflated", b.widthMm in 0.5..1.5)
+        val a = area(bar.contours[0])
+        assertTrue("area shrinks slightly but does not collapse/invert", a in 12.0..20.0)
+    }
+
+    @Test
+    fun smoothingCornerRuleRespectsPxPerMm() {
+        // The 4 mm arm threshold is in millimetres, so it must track pxPerMm, not pixels. At 4 px/mm:
+        // a 12 px (=3 mm) square has short arms → rounded; a 20 px (=5 mm) square has long arms → kept.
+        val small = colorFor(RasterTrace.trace(blackSquare(12), params(pxPerMm = 4.0, smooth = true)), BLACK)!!
+        val large = colorFor(RasterTrace.trace(blackSquare(20), params(pxPerMm = 4.0, smooth = true)), BLACK)!!
+        assertTrue("3 mm square rounds (short arms)", small.contours[0].points.size > 4)
+        assertEquals("5 mm square keeps its corners (long arms)", 4, large.contours[0].points.size)
+    }
+
+    @Test
+    fun smoothingKeepsAHoleAsASeparateContour() {
+        val img = image(
+            "........",
+            ".######.",
+            ".#....#.",
+            ".#....#.",
+            ".#....#.",
+            ".#....#.",
+            ".######.",
+            "........",
+            legend = mapOf('.' to WHITE, '#' to BLACK),
+        )
+        val black = colorFor(RasterTrace.trace(img, params(smooth = true)), BLACK)
+        assertNotNull(black)
+        assertEquals("outer + hole both survive smoothing", 2, black!!.contours.size)
+        black.contours.forEach { assertTrue("each contour stays a polygon", it.points.size >= 3 && it.closed) }
+    }
+
+    @Test
+    fun smoothingOutputIsDeterministic() {
+        // The shipped path (smooth = true) must also be byte-identical across runs.
+        val warm = 0xFFEBE6DC.toInt(); val cool = 0xFFC8D2EB.toInt(); val dark = 0xFF202028.toInt()
+        val w = 30; val h = 30; val px = IntArray(w * h)
+        for (y in 0 until h) for (x in 0 until w) {
+            px[y * w + x] = if (x in 4..9 && y in 4..9) dark else if (x < 15) warm else cool
+        }
+        val img = RasterImage(w, h, px)
+        val a = RasterTrace.trace(img, params(numColors = 4, smooth = true))
+        val b = RasterTrace.trace(img, params(numColors = 4, smooth = true))
+        assertArrayEquals(a.palette, b.palette)
+        assertEquals(
+            a.colors.map { c -> c.argb to c.contours.map { it.points } },
+            b.colors.map { c -> c.argb to c.contours.map { it.points } },
+        )
     }
 }

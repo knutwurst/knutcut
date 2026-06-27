@@ -121,6 +121,11 @@
     <string name="ui_shape_short">Shape</string>
     <string name="ui_size_angle">Size &amp; angle</string>
     <string name="ui_rotate90">Rotate 90°</string>
+    <string name="ui_rotate">Rotate</string>
+    <string name="ui_rotate_cw">90° right</string>
+    <string name="ui_rotate_ccw">90° left</string>
+    <string name="ui_rotate_180">180°</string>
+    <string name="ui_rotate_free">Free rotate</string>
     <string name="ui_flip_h">Flip horizontally</string>
     <string name="ui_flip_v">Flip vertically</string>
     <string name="ui_duplicate">Duplicate</string>
@@ -317,6 +322,7 @@
     <string name="ui_node_convert">Make editable</string>
     <string name="ui_done">Done</string>
     <string name="ui_mode_select_hint">Drag to move, corner or side handles to resize, top handle to rotate.</string>
+    <string name="ui_mode_rotate_hint">Drag a corner to rotate. Two fingers pan and zoom.</string>
     <string name="ui_mode_draw_hint">Draw: drag with your finger. Two fingers pan and zoom.</string>
     <string name="ui_mode_nodes_hint">Shape: drag a point to bend, double-tap a line to add a point.</string>
     <!-- Mode segment -->
@@ -368,6 +374,7 @@
     <string name="ui_trace_title">Trace image</string>
     <string name="ui_trace_colors">Colours</string>
     <string name="ui_trace_drop_bg">Remove background</string>
+    <string name="ui_trace_smooth">Smooth curves</string>
     <string name="ui_trace_simplify">Simplify</string>
     <string name="ui_trace_speckle">Min. speckle</string>
     <string name="ui_trace_summary">%1$d colours · %2$d paths</string>

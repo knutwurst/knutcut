@@ -531,6 +531,9 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 val centerScreen = worldToScreen(vm.centerMm, origin, ppm)
                 var drag: Drag = hitTest(down.position, handlesScreen, cornersScreen, centerScreen, density)
 
+                // Free-rotate mode: the corner/side handles turn the layer instead of resizing it.
+                if (vm.editorTool == EditorTool.ROTATE && drag is Drag.Resize) drag = Drag.Rotate
+
                 // Missed the selected layer's box/handles? If the touch is inside another layer,
                 // select it and move that one instead of panning the view.
                 if (drag is Drag.PanCamera && vm.layers.isNotEmpty()) {
@@ -686,9 +689,11 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
             drawPath(strokePath, penColor, style = Stroke(width = 2f))
         }
 
-        // Selection box + resize/rotate handles — only in SELECT mode. In DRAW/NODES they are noise
-        // and their rotate/resize handles must not compete with drawing or node editing.
-        val corners = if (vm.editorTool == EditorTool.SELECT) vm.placedCorners().map { s(it) } else emptyList()
+        // Selection box + resize/rotate handles — in SELECT and ROTATE modes. In DRAW/NODES they are
+        // noise and their rotate/resize handles must not compete with drawing or node editing. In
+        // ROTATE mode the corner/side grips are drawn as dots, signalling that they turn (not resize).
+        val rotating = vm.editorTool == EditorTool.ROTATE
+        val corners = if (vm.editorTool == EditorTool.SELECT || rotating) vm.placedCorners().map { s(it) } else emptyList()
         if (corners.size == 4) {
             val box = Path().apply {
                 moveTo(corners[0].x, corners[0].y)
@@ -696,13 +701,22 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 close()
             }
             drawPath(box, handleColor, style = Stroke(width = 1.5f))
-            // corner handles (square) and side-midpoint handles (square, slightly smaller)
             val cornerPx = CORNER_DP * density
             val sidePx = SIDE_DP * density
-            corners.forEach { drawRect(handleColor, topLeft = Offset(it.x - cornerPx / 2, it.y - cornerPx / 2), size = Size(cornerPx, cornerPx)) }
-            for (i in 0 until 4) {
-                val m = (corners[i] + corners[(i + 1) % 4]) / 2f
-                drawRect(handleColor, topLeft = Offset(m.x - sidePx / 2, m.y - sidePx / 2), size = Size(sidePx, sidePx))
+            if (rotating) {
+                // Round grips = rotate; corners and side midpoints both turn the layer.
+                corners.forEach { drawCircle(handleColor, radius = cornerPx * 0.6f, center = it) }
+                for (i in 0 until 4) {
+                    val m = (corners[i] + corners[(i + 1) % 4]) / 2f
+                    drawCircle(handleColor, radius = sidePx * 0.5f, center = m)
+                }
+            } else {
+                // Square handles = resize: corners (uniform) and side-midpoints (one axis).
+                corners.forEach { drawRect(handleColor, topLeft = Offset(it.x - cornerPx / 2, it.y - cornerPx / 2), size = Size(cornerPx, cornerPx)) }
+                for (i in 0 until 4) {
+                    val m = (corners[i] + corners[(i + 1) % 4]) / 2f
+                    drawRect(handleColor, topLeft = Offset(m.x - sidePx / 2, m.y - sidePx / 2), size = Size(sidePx, sidePx))
+                }
             }
             val rot = rotateHandlePos(corners, s(vm.centerMm), density)
             val topMid = (corners[0] + corners[1]) / 2f
