@@ -291,23 +291,70 @@ class NodeEditorViewModelTest {
         assertEquals("no undo step added", undoBefore, vm.canUndo)
     }
 
-    @Test
-    fun convertSelectedToEditablePathNoOpWhenMultiplePolylines() {
+    // A small + a big closed contour in one layer (e.g. an imported shape with a counter / multi-part).
+    private fun vmWithMultiContourLayer(): KnutcutViewModel {
         val vm = vm()
-        val polylines = listOf(
-            Polyline(listOf(Pt(0.0, 0.0), Pt(10.0, 0.0)), false),
-            Polyline(listOf(Pt(0.0, 5.0), Pt(10.0, 5.0)), false),
-        )
-        vm.addLayer("Multi", polylines, Tool.PEN)
+        val small = Polyline(listOf(Pt(0.0, 0.0), Pt(4.0, 0.0), Pt(4.0, 4.0), Pt(0.0, 4.0)), true)    // area 16
+        val big = Polyline(listOf(Pt(20.0, 0.0), Pt(40.0, 0.0), Pt(40.0, 20.0), Pt(20.0, 20.0)), true) // area 400
+        vm.addLayer("Multi", listOf(small, big), Tool.PEN)
         vm.selectLayer(0)
+        return vm
+    }
 
-        val undoBefore = vm.canUndo
+    @Test
+    fun convertSelectedToEditablePathPicksLargestContourForMultiPolyline() {
+        val vm = vmWithMultiContourLayer()
+
         vm.convertSelectedToEditablePath()
 
-        // editPath must remain null — the layer is not convertible (two polylines).
-        assertNull("editPath stays null for multi-polyline layer", vm.layers[0].editPath)
-        // convert must not have added a new undo step beyond what was already there.
-        assertEquals("no extra undo step added by no-op convert", undoBefore, vm.canUndo)
+        // A multi-contour layer is now convertible: it edits one contour, the largest (index 1, the big
+        // square) by default. The other contours are kept in place.
+        assertNotNull("editPath created for multi-contour layer", vm.layers[0].editPath)
+        assertEquals("largest contour is active", 1, vm.layers[0].editPathIndex)
+        assertEquals("both contours kept", 2, vm.layers[0].polylines.size)
+        // The conversion is one undo step: undoing it removes the editPath again.
+        vm.undo()
+        assertNull("undo reverts the conversion", vm.layers[0].editPath)
+    }
+
+    @Test
+    fun setEditContourSwitchesActiveContour() {
+        val vm = vmWithMultiContourLayer()
+        vm.convertSelectedToEditablePath()
+        assertEquals(1, vm.layers[0].editPathIndex)
+
+        vm.setEditContour(0)
+        assertEquals("active contour switched", 0, vm.layers[0].editPathIndex)
+        assertNotNull("editPath present for the new contour", vm.layers[0].editPath)
+
+        // A stale index is a no-op.
+        vm.setEditContour(7)
+        assertEquals("out-of-range index ignored", 0, vm.layers[0].editPathIndex)
+    }
+
+    @Test
+    fun editingOneContourLeavesOthersUntouched() {
+        val vm = vmWithMultiContourLayer()
+        vm.convertSelectedToEditablePath()          // active = index 1 (big square)
+        assertEquals(1, vm.selectedEditPathIndex)
+        val inactiveBefore = vm.layers[0].polylines[0]   // the small square, not being edited
+
+        vm.beginNodeEdit()
+        vm.moveSelectedAnchor(0, Pt(99.0, 99.0))    // yank a node of the active contour far away
+
+        assertEquals("inactive contour is byte-for-byte unchanged", inactiveBefore, vm.layers[0].polylines[0])
+        assertTrue("active contour reflects the edit",
+            vm.layers[0].polylines[1].points.any { it.xMm == 99.0 && it.yMm == 99.0 })
+    }
+
+    @Test
+    fun nodeContourAtPicksTheContourUnderThePoint() {
+        val vm = vmWithMultiContourLayer()
+        vm.convertSelectedToEditablePath()
+        // A point right on the small square's edge resolves to contour 0 even though the big square is active.
+        assertEquals(0, vm.nodeContourAt(Pt(4.0, 2.0), 0.5))
+        // A point far from every outline resolves to nothing (no accidental switch on interior taps).
+        assertNull(vm.nodeContourAt(Pt(500.0, 500.0), 0.5))
     }
 
     // -------------------------------------------------------------------------

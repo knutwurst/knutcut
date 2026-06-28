@@ -29,6 +29,7 @@ object ProjectIO {
             }
             o.put("polys", pls)
             l.editPath?.let { o.put("editPath", serializeEditPath(it)) }
+            l.editPathIndex?.let { o.put("editIdx", it) }
             l.editOriginMm?.let { o.put("editOrigin", JSONArray().put(it.xMm).put(it.yMm)) }
             l.textSpec?.let { ts ->
                 o.put("textSpec", JSONObject()
@@ -69,6 +70,9 @@ object ProjectIO {
             // A non-finite center means a broken layer — discard it rather than place geometry at NaN.
             val center = finitePt(o.optDouble("cx"), o.optDouble("cy")) ?: continue
             val editPath = o.optJSONObject("editPath")?.let { deserializeEditPath(it) }
+            // Which contour the editPath edits. Legacy files (always single-contour editables) lack it
+            // → 0. Clamp into range so a corrupt index can't point past the polylines.
+            val editIdx = if (editPath != null) o.optInt("editIdx", 0).coerceIn(0, polys.size - 1) else null
             // Frozen edit pivot; only meaningful alongside an editPath. Legacy files lack it.
             val editOrigin = o.optJSONArray("editOrigin")
                 ?.takeIf { editPath != null && it.length() == 2 }
@@ -93,6 +97,7 @@ object ProjectIO {
                 colorArgb = if (o.has("color")) o.optInt("color") else null,
                 polylineColors = pcolors,
                 editPath = editPath,
+                editPathIndex = editIdx,
                 editOriginMm = editOrigin,
                 textSpec = textSpec,
             ))

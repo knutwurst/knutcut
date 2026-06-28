@@ -949,7 +949,10 @@ private fun EditingBar(
 
     val sel = vm.layers.getOrNull(vm.selectedLayer)
     val isTextLayer = perLayer && sel?.textSpec != null
-    val canNodeEdit = perLayer && sel != null && (sel.editPath != null || sel.polylines.size == 1)
+    // Any selected layer with geometry can be node-edited. Multi-contour layers (imported SVGs with
+    // holes, multi-part shapes, traced images) edit one contour at a time; the editor switches contour
+    // when another is tapped.
+    val canNodeEdit = perLayer && sel != null && sel.polylines.isNotEmpty()
     val magicEnabled = isTextLayer || canNodeEdit
     val magicActive = (isTextLayer && vm.bendingText) ||
         (!isTextLayer && canNodeEdit && vm.editorTool == EditorTool.NODES)

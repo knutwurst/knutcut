@@ -323,7 +323,7 @@
     <string name="ui_mode_select_hint">Ziehen zum Verschieben, Ecken oder Seiten zum Skalieren, oben zum Drehen.</string>
     <string name="ui_mode_rotate_hint">Ecken ziehen zum Drehen. Zwei Finger verschieben und zoomen.</string>
     <string name="ui_mode_draw_hint">Zeichnen: mit dem Finger ziehen. Zwei Finger verschieben und zoomen.</string>
-    <string name="ui_mode_nodes_hint">Formen: an Punkten ziehen zum Biegen, Linie doppeltippen fügt einen Punkt hinzu.</string>
+    <string name="ui_mode_nodes_hint">Formen: an Punkten ziehen zum Biegen, Linie doppeltippen fügt einen Punkt hinzu, anderen Teil antippen zum Bearbeiten.</string>
     <!-- Modus-Segment -->
     <string name="ui_mode_select">Auswählen</string>
     <string name="ui_mode_draw">Zeichnen</string>

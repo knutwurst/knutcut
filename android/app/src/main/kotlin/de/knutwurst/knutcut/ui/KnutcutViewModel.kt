@@ -36,6 +36,7 @@ import de.knutwurst.knutcut.data.ThemeMode
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Bounds
 import de.knutwurst.knutcut.svgcore.CutOrder
+import de.knutwurst.knutcut.svgcore.ContourPick
 import de.knutwurst.knutcut.svgcore.EditablePath
 import de.knutwurst.knutcut.svgcore.FillNesting
 import de.knutwurst.knutcut.svgcore.HandleSide
@@ -1031,6 +1032,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             visible = true,
             centerMm = center,
             editPath = path,
+            editPathIndex = 0,
             // Freeze the local frame at the creation center; node edits then move only the node, not
             // the whole shape (center == bounds center here, so the frame starts as world = local).
             editOriginMm = center,
@@ -1068,13 +1070,18 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return layerMatrix(layer).apply(p)
     }
 
-    /** Apply a new editPath to the selected layer and keep [polylines] in sync. */
+    /** Apply a new editPath to the selected layer and keep its active contour in [polylines] in sync.
+     *  Only the contour at [Layer.editPathIndex] is replaced; the layer's other contours are left as
+     *  they are, so editing one contour of a multi-contour shape never disturbs the rest. */
     private fun applyEditPath(newPath: EditablePath) {
         val i = selectedLayer
-        if (i !in layers.indices) return
+        val layer = layers.getOrNull(i) ?: return
+        val ci = layer.editPathIndex ?: 0
+        if (ci !in layer.polylines.indices) return
         val poly = newPath.toPolyline()
+        val newPolys = layer.polylines.toMutableList().also { it[ci] = poly }
         layers = layers.mapIndexed { idx, l ->
-            if (idx == i) l.copy(editPath = newPath, polylines = listOf(poly)) else l
+            if (idx == i) l.copy(editPath = newPath, polylines = newPolys) else l
         }
         pruneBoundsCache()
     }
@@ -1151,29 +1158,64 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         applyEditPath(path.deleteNode(i))
     }
 
+    /** Which contour of the selected layer is currently node-editable, or null when none is. */
+    val selectedEditPathIndex: Int?
+        get() = layers.getOrNull(selectedLayer)?.editPathIndex
+
     /**
-     * Convert the selected layer's single polyline to an editable path.
+     * Make one contour of the selected layer editable so the node editor can work on it.
      *
-     * No-op when the layer already has an editPath, or has more than one polyline.
+     * For a single-contour layer this is the whole shape; for an imported multi-contour layer it
+     * picks the largest contour (usually the main outline) — the editor lets the user tap any other
+     * contour to switch to it ([setEditContour]). No-op when the layer already has an editPath.
      * Pushes one undo step on success.
      */
     fun convertSelectedToEditablePath() {
         val i = selectedLayer
         val layer = layers.getOrNull(i) ?: return
         if (layer.editPath != null) return
-        if (layer.polylines.size != 1) return
+        if (layer.polylines.isEmpty()) return
+        val ci = ContourPick.largestByArea(layer.polylines).takeIf { it >= 0 } ?: 0
         pushHistory()
-        val poly = layer.polylines[0]
+        val poly = layer.polylines[ci]
         // Preserve the loaded shape's corners (not a freehand-style crush to a few nodes), so editing
         // a point doesn't collapse the outline.
         val newPath = toEditablePreservingShape(poly.points, poly.closed)
-        // Freeze the local pivot at the center the matrix is using right now, so converting does not
-        // shift the shape and later node edits stay in a fixed frame.
+        // Freeze the local pivot at the WHOLE layer's center, so editing any one contour keeps the
+        // frame fixed and the other contours don't move (Placement.matrix ignores the live bounds
+        // once a localCenter is set).
         val b = layerBounds(layer)
         val origin = Pt((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2)
         layers = layers.mapIndexed { idx, l ->
-            if (idx == i) l.copy(editPath = newPath, editOriginMm = origin) else l
+            if (idx == i) l.copy(editPath = newPath, editPathIndex = ci, editOriginMm = origin) else l
         }
+    }
+
+    /**
+     * Switch the node editor to contour [polyIndex] of the selected layer. The previously edited
+     * contour keeps its edits (they already live in [Layer.polylines]); the frozen edit frame
+     * ([Layer.editOriginMm]) is left untouched so the shape doesn't shift. No undo step — switching
+     * which contour is active is editor state, not a geometry change. No-op for a stale index or when
+     * it's already the active contour.
+     */
+    fun setEditContour(polyIndex: Int) {
+        val i = selectedLayer
+        val layer = layers.getOrNull(i) ?: return
+        if (polyIndex !in layer.polylines.indices) return
+        if (layer.editPathIndex == polyIndex) return
+        val poly = layer.polylines[polyIndex]
+        val newPath = toEditablePreservingShape(poly.points, poly.closed)
+        layers = layers.mapIndexed { idx, l ->
+            if (idx == i) l.copy(editPath = newPath, editPathIndex = polyIndex) else l
+        }
+    }
+
+    /** The contour of the selected layer whose outline is within [hitMm] of local point [p], or null.
+     *  Used by the node editor to switch the active contour when a different one is tapped. */
+    fun nodeContourAt(p: Pt, hitMm: Double): Int? {
+        val layer = layers.getOrNull(selectedLayer) ?: return null
+        val (idx, dist) = ContourPick.nearestBoundary(layer.polylines, p) ?: return null
+        return if (dist <= hitMm) idx else null
     }
 
     /** Mirror the selected layer (around its own center). */
@@ -1412,7 +1454,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return layer.copy(
             polylines = baked, centerMm = centerOf(baked.flatMap { it.points }),
             scaleX = 1.0, scaleY = 1.0, rotationDeg = 0.0, flipX = false, flipY = false,
-            editPath = null, editOriginMm = null,
+            editPath = null, editPathIndex = null, editOriginMm = null,
         )
     }
 

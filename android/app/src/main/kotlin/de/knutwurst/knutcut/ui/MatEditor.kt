@@ -514,10 +514,16 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                             }
 
                             if (!cancelledByTwoFinger && !longPressed && !moving) {
-                                // A tap. On a line, wait up to DOUBLE_TAP_MS for a second tap (= insert a
+                                // A tap. If it landed on a DIFFERENT contour of this layer, switch the
+                                // node editor to that contour (multi-contour shapes edit one at a time).
+                                val pickedContour = vm.nodeContourAt(downLocal, segHitMm)
+                                if (pickedContour != null && pickedContour != vm.selectedEditPathIndex) {
+                                    vm.setEditContour(pickedContour)
+                                    selectedNodeIndex = -1
+                                } else if (segHit != null) {
+                                // On a line, wait up to DOUBLE_TAP_MS for a second tap (= insert a
                                 // node); otherwise deselect the active node. withTimeoutOrNull so the
                                 // gesture isn't parked waiting for a tap that never comes.
-                                if (segHit != null) {
                                     val down2 = withTimeoutOrNull(DOUBLE_TAP_MS) { awaitFirstDown(requireUnconsumed = false) }
                                     var gotSecondTap = false
                                     if (down2 != null) {
@@ -785,6 +791,23 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
             val handleR = NODE_HANDLE_RADIUS_DP * density
             val selectedR = anchorR + NODE_SELECTED_GROW_DP * density
             val ringWidth = 2f * density
+
+            // Hint that the layer's OTHER contours are editable too: stroke them faintly so it's clear
+            // they can be tapped to switch the node editor to them. The active contour keeps its nodes.
+            val activeContour = vm.selectedEditPathIndex
+            val otherContourColor = handleColor.copy(alpha = 0.4f)
+            vm.layers.getOrNull(layerIdx)?.polylines?.forEachIndexed { ci, pl ->
+                if (ci == activeContour || pl.points.size < 2) return@forEachIndexed
+                val path = Path().apply {
+                    val first = localToScreen(pl.points.first())
+                    moveTo(first.x, first.y)
+                    for (k in 1 until pl.points.size) {
+                        val sp = localToScreen(pl.points[k]); lineTo(sp.x, sp.y)
+                    }
+                    if (pl.closed) close()
+                }
+                drawPath(path, otherContourColor, style = Stroke(width = 1.6f * density))
+            }
 
             for ((ni, node) in nodeEditPath.nodes.withIndex()) {
                 val anchorScreen = localToScreen(node.anchor)

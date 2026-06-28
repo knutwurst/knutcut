@@ -26,11 +26,15 @@ data class Layer(
      *  aligned 1:1 with [polylines]. Null means every polyline uses [colorArgb]. */
     val polylineColors: List<Int?>? = null,
     /**
-     * Editable Bézier path for freehand-drawn layers.  When non-null,
-     * [polylines] == listOf(editPath.toPolyline()); [polylines] remains the single source of truth
-     * for rendering and cutting.
+     * Editable Bézier path for the contour currently being node-edited.  When non-null,
+     * [polylines]`[`[editPathIndex]`]` == editPath.toPolyline(); the layer's other polylines stay
+     * static. [polylines] remains the single source of truth for rendering and cutting. A freehand
+     * layer has a single contour (editPathIndex 0); an imported multi-contour layer edits one contour
+     * at a time and the editor switches [editPathIndex] when another contour is tapped.
      */
     val editPath: EditablePath? = null,
+    /** Which polyline [editPath] is the editable version of. Non-null iff [editPath] is. */
+    val editPathIndex: Int? = null,
     /**
      * Stable local-frame pivot for an editable layer, captured when [editPath] is created.
      *

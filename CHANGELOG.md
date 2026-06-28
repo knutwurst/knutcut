@@ -3,6 +3,12 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.63.0
+- Node-edit any imported shape, not just drawn ones. The Shape tool now opens for every layer,
+  including imported SVGs with several contours (a letter with a counter, a multi-part logo, a traced
+  image). It edits one contour at a time; the other contours of the layer are drawn faintly, and you
+  tap one to switch to editing it. Editing a contour never moves the rest of the layer.
+
 ## 0.62.1
 - Quick display-mode toggle right on the mat (top-right): switch between Outline only, Color + outline,
   and Color only with one tap. The active mode is highlighted and the preview updates instantly. It's
