@@ -3,6 +3,12 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.63.2
+- Round a corner by double-tapping it in the Shape tool. Until now, smoothing a bare corner (every
+  point of an imported or traced shape is one) did nothing, because there were no curve handles to
+  work from. Smoothing now builds handles from the neighboring points, so the corner actually rounds
+  and you can drag the handles to adjust it — the same as on a hand-drawn line.
+
 ## 0.63.1
 - Bend any line by dragging it in the Shape tool. Grab a line between two points and pull — the curve
   follows your finger. This works on imported shapes too (their corner points gain curve handles as

@@ -95,13 +95,42 @@ fun EditablePath.moveHandle(i: Int, which: HandleSide, to: Pt): EditablePath {
  *
  * When [smooth] = true: make handles collinear through the anchor by averaging their
  * directions and keeping their individual distances.  If only one handle exists it is
- * mirrored to the other side.
+ * mirrored to the other side.  If the node is a BARE CORNER (no handles at all — e.g. a
+ * vertex of an imported or traced contour), handles are synthesized from the neighbour
+ * anchors so smoothing actually ROUNDS the corner instead of being a no-op.
  * When [smooth] = false: just flip the flag; handles stay where they are (corner).
  */
 fun EditablePath.setSmooth(i: Int, smooth: Boolean): EditablePath {
     val node = nodes[i]
     val updated = if (!smooth) {
         node.copy(smooth = false)
+    } else if (node.handleIn == null && node.handleOut == null) {
+        // Bare corner: round it using a Catmull-Rom tangent through the neighbour anchors, with handle
+        // length clamped to 1/3 of the shorter neighbour arm so the curve doesn't overshoot. An open
+        // path's endpoints have only one neighbour, so they stay sharp (nothing sensible to round to).
+        val anchor = node.anchor
+        val n = nodes.size
+        val prev = if (closed) nodes[(i - 1 + n) % n].anchor else if (i > 0) nodes[i - 1].anchor else null
+        val next = if (closed) nodes[(i + 1) % n].anchor else if (i < n - 1) nodes[i + 1].anchor else null
+        if (prev == null || next == null) {
+            node.copy(smooth = true)
+        } else {
+            val tx = next.xMm - prev.xMm; val ty = next.yMm - prev.yMm
+            val tl = hypot(tx, ty)
+            if (tl < 1e-12) {
+                node.copy(smooth = true)
+            } else {
+                val ux = tx / tl; val uy = ty / tl
+                val dIn = hypot(anchor.xMm - prev.xMm, anchor.yMm - prev.yMm)
+                val dOut = hypot(next.xMm - anchor.xMm, next.yMm - anchor.yMm)
+                val len = minOf(dIn, dOut) / 3.0
+                node.copy(
+                    handleIn = Pt(anchor.xMm - ux * len, anchor.yMm - uy * len),
+                    handleOut = Pt(anchor.xMm + ux * len, anchor.yMm + uy * len),
+                    smooth = true,
+                )
+            }
+        }
     } else {
         val anchor = node.anchor
         val hIn = node.handleIn

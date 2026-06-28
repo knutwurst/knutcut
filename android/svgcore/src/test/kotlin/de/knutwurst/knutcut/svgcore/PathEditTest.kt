@@ -258,6 +258,47 @@ class PathEditTest {
         assertEquals((3.0 + hypot(2.0, 2.0)) / 2.0, distIn, 1e-9)
     }
 
+    @Test
+    fun setSmoothRoundsBareCornerByGeneratingHandles() {
+        // A right-angle corner at (10,0) between (0,0) and (10,10), no handles (an imported vertex).
+        val path = EditablePath(
+            listOf(PathNode(Pt(0.0, 0.0)), PathNode(Pt(10.0, 0.0)), PathNode(Pt(10.0, 10.0))),
+            closed = false,
+        )
+        val n = path.setSmooth(1, true).nodes[1]
+        assertTrue("node is now smooth", n.smooth)
+        assertNotNull("rounding created an in-handle", n.handleIn)
+        assertNotNull("rounding created an out-handle", n.handleOut)
+        // Handles are collinear through the anchor (C1 smooth): the in- and out-directions are parallel.
+        val inx = n.anchor.xMm - n.handleIn!!.xMm; val iny = n.anchor.yMm - n.handleIn!!.yMm
+        val outx = n.handleOut!!.xMm - n.anchor.xMm; val outy = n.handleOut!!.yMm - n.anchor.yMm
+        assertEquals("handles collinear", 0.0, inx * outy - iny * outx, 1e-9)
+        // Handle length is 1/3 of the shorter neighbour arm (both arms are 10 here).
+        assertEquals(10.0 / 3.0, hypot(outx, outy), 1e-9)
+    }
+
+    @Test
+    fun setSmoothBareCornerOpenEndpointStaysSharp() {
+        // An open path's endpoint has only one neighbour — nothing to round to, so it stays a corner.
+        val path = EditablePath(listOf(PathNode(Pt(0.0, 0.0)), PathNode(Pt(10.0, 0.0))), closed = false)
+        val n = path.setSmooth(0, true).nodes[0]
+        assertTrue(n.smooth)
+        assertNull("endpoint gets no handles", n.handleIn)
+        assertNull("endpoint gets no handles", n.handleOut)
+    }
+
+    @Test
+    fun setSmoothBareCornerOnClosedPathRoundsViaWrap() {
+        // On a closed triangle every vertex has both neighbours (the seam wraps), so all can round.
+        val path = EditablePath(
+            listOf(PathNode(Pt(0.0, 0.0)), PathNode(Pt(10.0, 0.0)), PathNode(Pt(5.0, 10.0))),
+            closed = true,
+        )
+        val n = path.setSmooth(0, true).nodes[0]
+        assertNotNull(n.handleIn)
+        assertNotNull(n.handleOut)
+    }
+
     // -----------------------------------------------------------------------
     // deleteNode
     // -----------------------------------------------------------------------
