@@ -1470,7 +1470,8 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                 Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = vm.colorMode == ColorMode.OUTLINE, onClick = { vm.changeColorMode(ColorMode.OUTLINE) }, label = { Text(stringResource(R.string.ui_outline_only)) })
                     FilterChip(selected = vm.colorMode == ColorMode.COLOR, onClick = { vm.changeColorMode(ColorMode.COLOR) }, label = { Text(stringResource(R.string.ui_colorful)) })
-                    FilterChip(selected = vm.colorMode == ColorMode.FILL, onClick = { vm.changeColorMode(ColorMode.FILL) }, label = { Text(stringResource(R.string.ui_color_only)) })
+                    // "Color only" needs colors to show anything — without them, colorless outlines vanish.
+                    FilterChip(enabled = vm.hasColors, selected = vm.colorMode == ColorMode.FILL, onClick = { vm.changeColorMode(ColorMode.FILL) }, label = { Text(stringResource(R.string.ui_color_only)) })
                 }
                 Spacer(Modifier.height(12.dp))
                 Text(stringResource(R.string.ui_appearance), style = MaterialTheme.typography.bodyMedium)

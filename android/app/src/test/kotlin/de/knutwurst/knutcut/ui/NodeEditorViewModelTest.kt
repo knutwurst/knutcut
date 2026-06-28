@@ -348,6 +348,32 @@ class NodeEditorViewModelTest {
     }
 
     @Test
+    fun dragSelectedSegmentBendsActiveContourOnly() {
+        val vm = vmWithMultiContourLayer()
+        vm.convertSelectedToEditablePath()        // active = index 1 (big square), corner nodes, no handles
+        val inactiveBefore = vm.layers[0].polylines[0]
+        val activeBefore = vm.layers[0].polylines[1]
+
+        vm.beginNodeEdit()
+        vm.dragSelectedSegment(0, 0.5, Pt(30.0, -40.0))   // pull the top edge's midpoint outward
+
+        assertEquals("inactive contour untouched", inactiveBefore, vm.layers[0].polylines[0])
+        assertTrue("active contour was bent (corner nodes gained curve handles)",
+            vm.layers[0].polylines[1] != activeBefore)
+    }
+
+    @Test
+    fun hasColorsReflectsLayerColors() {
+        val vm = vm()
+        vm.addLayer("Plain", listOf(Polyline(listOf(Pt(0.0, 0.0), Pt(10.0, 0.0), Pt(10.0, 10.0), Pt(0.0, 10.0)), true)), Tool.PEN)
+        assertFalse("a colorless drawn shape has no colors", vm.hasColors)
+
+        vm.selectLayer(0)
+        vm.setSelectedColor(0xFFFF0000.toInt())
+        assertTrue("setting a color makes hasColors true", vm.hasColors)
+    }
+
+    @Test
     fun nodeContourAtPicksTheContourUnderThePoint() {
         val vm = vmWithMultiContourLayer()
         vm.convertSelectedToEditablePath()

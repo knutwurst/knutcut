@@ -110,20 +110,24 @@ private const val BEND_DRAG_RANGE_MM = 80.0
 /** One segment of the on-mat display-mode toggle: an icon that highlights when its mode is active
  *  and switches to it on tap (the mat redraws instantly, so you see what each mode does). */
 @Composable
-private fun DisplayModeChip(vm: KnutcutViewModel, mode: ColorMode, icon: ImageVector, descRes: Int) {
+private fun DisplayModeChip(vm: KnutcutViewModel, mode: ColorMode, icon: ImageVector, descRes: Int, enabled: Boolean = true) {
     val active = vm.colorMode == mode
     Box(
         modifier = Modifier
             .size(34.dp)
             .clip(CircleShape)
-            .background(if (active) MaterialTheme.colorScheme.primary else Color.Transparent)
-            .clickable { vm.changeColorMode(mode) },
+            .background(if (active && enabled) MaterialTheme.colorScheme.primary else Color.Transparent)
+            .then(if (enabled) Modifier.clickable { vm.changeColorMode(mode) } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             icon,
             contentDescription = androidx.compose.ui.res.stringResource(descRes),
-            tint = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = when {
+                !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                active -> MaterialTheme.colorScheme.onPrimary
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
             modifier = Modifier.size(20.dp),
         )
     }
@@ -452,9 +456,11 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                             return@awaitEachGesture
                         }
 
-                        // Missed handles and anchors. Dragging the shape (a segment line, or anywhere
-                        // inside the selected layer) MOVES the whole layer, just like Select. A long-press
-                        // or double-tap on a line inserts a node. A drag on empty mat pans the view.
+                        // Missed handles and anchors. Dragging a LINE bends that part of the curve (it
+                        // pulls the on-curve point to the finger, creating handles as needed — so even a
+                        // corner-node shape from an imported SVG bends). Dragging the inside of a closed
+                        // shape MOVES the whole layer. A long-press or double-tap on a line inserts a
+                        // node. A drag on empty mat pans the view.
                         val segHitMm = min(NODE_HIT_DP * density * 2 / ppm, 12f).toDouble()
                         val segHit = editPath.nearestSegment(downLocal, segHitMm)
                         val onLayer = segHit != null || vm.layerAt(downWorld) == layerIdx
@@ -463,6 +469,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                             var total = 0f
                             var longPressed = false
                             var moving = false
+                            var bending = false
                             var cancelledByTwoFinger = false
                             var moveCenter = vm.centerMm
 
@@ -493,7 +500,7 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                                 total += p.positionChange().getDistance()
 
                                 // Long-press on a line (no drag) inserts a node.
-                                if (!longPressed && !moving && segHit != null &&
+                                if (!longPressed && !moving && !bending && segHit != null &&
                                     elapsed >= viewConfiguration.longPressTimeoutMillis &&
                                     total < TAP_SLOP_DP * density) {
                                     longPressed = true
@@ -501,19 +508,28 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                                     selectedNodeIndex = -1
                                 }
 
-                                // Drag moves the whole layer (one undo step for the gesture).
+                                // Drag: bend the grabbed line, or (inside a shape) move the whole layer.
                                 if (!longPressed && total > viewConfiguration.touchSlop) {
-                                    if (!moving) { vm.pushHistory(); moving = true }
                                     ppm = ppmFor(sizePx, vm.mat, vm.camScale)
                                     origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
-                                    val dp = p.positionChange()
-                                    moveCenter = Pt(moveCenter.xMm + dp.x / ppm, moveCenter.yMm + dp.y / ppm)
-                                    vm.moveSelectedTo(moveCenter, (8f / ppm).toDouble())
+                                    if (segHit != null) {
+                                        // Pull the on-curve point at the grabbed spot to the finger.
+                                        if (!bending) { vm.beginNodeEdit(); bending = true }
+                                        val curWorld = clampToMat(screenToWorld(p.position, origin, ppm), vm.mat.widthMm, vm.mat.heightMm)
+                                        val curLocal = vm.worldToLayerLocal(layerIdx, curWorld) ?: curWorld
+                                        vm.dragSelectedSegment(segHit.segmentIndex, segHit.t, curLocal)
+                                    } else {
+                                        // No line under the finger: move the whole layer (one undo step).
+                                        if (!moving) { vm.pushHistory(); moving = true }
+                                        val dp = p.positionChange()
+                                        moveCenter = Pt(moveCenter.xMm + dp.x / ppm, moveCenter.yMm + dp.y / ppm)
+                                        vm.moveSelectedTo(moveCenter, (8f / ppm).toDouble())
+                                    }
                                 }
                                 p.consume()
                             }
 
-                            if (!cancelledByTwoFinger && !longPressed && !moving) {
+                            if (!cancelledByTwoFinger && !longPressed && !moving && !bending) {
                                 // A tap. If it landed on a DIFFERENT contour of this layer, switch the
                                 // node editor to that contour (multi-contour shapes edit one at a time).
                                 val pickedContour = vm.nodeContourAt(downLocal, segHitMm)
@@ -714,8 +730,11 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
             pls.forEachIndexed { idx, pl ->
                 if (pl.points.isEmpty()) return@forEachIndexed
                 val off = pl.points.any { vm.isOutsideMat(it) }
-                // FILL mode is pure color with no outline overlay — but always flag off-mat paths.
-                if (!drawOutlines && !off) return@forEachIndexed
+                // FILL mode is pure color with no outline overlay — but always flag off-mat paths, and
+                // fall back to an outline for any path with no fill color (it would be invisible
+                // otherwise: a freshly drawn, colorless shape under a leftover "Color only" setting).
+                val hasFill = cols.getOrNull(idx) != null
+                if (!drawOutlines && !off && hasFill) return@forEachIndexed
                 val stroke = if (off) offMatColor else outlineColor
                 drawPath(paths[idx], stroke, style = Stroke(width = 2.5f))
             }
@@ -909,7 +928,9 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
               androidx.compose.foundation.layout.Row(modifier = Modifier.padding(2.dp)) {
                   DisplayModeChip(vm, ColorMode.OUTLINE, Icons.Outlined.CheckBoxOutlineBlank, de.knutwurst.knutcut.R.string.ui_outline_only)
                   DisplayModeChip(vm, ColorMode.COLOR, Icons.Default.Gradient, de.knutwurst.knutcut.R.string.ui_colorful)
-                  DisplayModeChip(vm, ColorMode.FILL, Icons.Filled.Square, de.knutwurst.knutcut.R.string.ui_color_only)
+                  // "Color only" is only useful when something has a color; otherwise colorless
+                  // outlines would vanish, so it's disabled until colors exist.
+                  DisplayModeChip(vm, ColorMode.FILL, Icons.Filled.Square, de.knutwurst.knutcut.R.string.ui_color_only, enabled = vm.hasColors)
               }
           }
       }

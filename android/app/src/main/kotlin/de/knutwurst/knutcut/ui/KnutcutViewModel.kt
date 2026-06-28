@@ -233,6 +233,11 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     val hasDesign: Boolean get() = layers.isNotEmpty()
 
+    /** True when any layer carries a color. A "Color only" display has nothing to show without one —
+     *  colorless outlines (e.g. freshly drawn lines) would be invisible — so the UI gates that mode. */
+    val hasColors: Boolean
+        get() = layers.any { l -> l.colorArgb != null || l.polylineColors?.any { it != null } == true }
+
     fun selectTheme(m: ThemeMode) { settings.themeMode = m; themeMode = m }
 
     /** Switch the mat preview between tool-colored outlines and the SVG's own colors. Persisted. */

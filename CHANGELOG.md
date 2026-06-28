@@ -3,6 +3,15 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.63.1
+- Bend any line by dragging it in the Shape tool. Grab a line between two points and pull — the curve
+  follows your finger. This works on imported shapes too (their corner points gain curve handles as
+  needed), so bending is no longer limited to hand-drawn lines. Dragging inside a closed shape still
+  moves the whole layer.
+- "Color only" display mode is now disabled until something actually has a color. A freshly drawn,
+  colorless shape can no longer vanish under a leftover "Color only" setting — colorless paths fall
+  back to an outline.
+
 ## 0.63.0
 - Node-edit any imported shape, not just drawn ones. The Shape tool now opens for every layer,
   including imported SVGs with several contours (a letter with a counter, a multi-part logo, a traced
