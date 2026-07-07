@@ -41,6 +41,9 @@
     <string name="st_start_not_pressed">Start button not pressed (timeout).</string>
     <string name="st_transfer_aborted">Transfer aborted at chunk %1$d.</string>
     <string name="st_sent_to_plotter">Finished sending to the plotter.</string>
+    <string name="st_finishing_plot">Finishing the plot…</string>
+    <string name="st_plot_done">Plot finished.</string>
+    <string name="st_plot_done_eject">Plot finished. Press the eject button (arrow keys) on the machine to feed the mat out.</string>
     <string name="st_error_generic">Error: %1$s</string>
     <string name="st_material_detected">Material detected – press the feed button on the plotter.</string>
     <string name="st_cancelling">Canceling…</string>
@@ -256,6 +259,7 @@
     <string name="ui_width_unit">Width (%1$s)</string>
     <string name="ui_height_unit">Height (%1$s)</string>
     <string name="ui_angle">Angle (°)</string>
+    <string name="ui_lock_aspect">Lock aspect ratio</string>
     <string name="ui_material_item">%1$s · %2$d</string>
     <string name="ui_device_ble">%1$s (BLE)</string>
     <string name="ui_confirm_other_msg">“%1$s” is not a supported VEVOR plotter. Plotter functions may fail. Connect anyway?</string>

@@ -39,6 +39,9 @@
     <string name="st_start_not_pressed">Start-Taste nicht gedrückt (Zeitüberschreitung).</string>
     <string name="st_transfer_aborted">Übertragung abgebrochen bei Chunk %1$d.</string>
     <string name="st_sent_to_plotter">Fertig an den Plotter gesendet.</string>
+    <string name="st_finishing_plot">Plot wird fertiggestellt…</string>
+    <string name="st_plot_done">Plot beendet.</string>
+    <string name="st_plot_done_eject">Plot beendet. Drücke die Auswurf-Taste (Pfeil-Tasten) am Gerät, um die Matte auszuwerfen.</string>
     <string name="st_error_generic">Fehler: %1$s</string>
     <string name="st_material_detected">Material erkannt – drücke die Einzugstaste am Plotter.</string>
     <string name="st_cancelling">Abbrechen…</string>
@@ -254,6 +257,7 @@
     <string name="ui_width_unit">Breite (%1$s)</string>
     <string name="ui_height_unit">Höhe (%1$s)</string>
     <string name="ui_angle">Winkel (°)</string>
+    <string name="ui_lock_aspect">Seitenverhältnis sperren</string>
     <string name="ui_material_item">%1$s · %2$d</string>
     <string name="ui_device_ble">%1$s (BLE)</string>
     <string name="ui_confirm_other_msg">„%1$s“ ist kein unterstützter VEVOR-Plotter. Die Plotter-Funktionen können fehlschlagen. Trotzdem verbinden?</string>

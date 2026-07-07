@@ -3,6 +3,15 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.64.0
+- Size & angle: a "Lock aspect ratio" option (on by default). With it on, typing a width updates the
+  height to match (and the other way round), so a design keeps its proportions when you resize by
+  number. Turn it off to stretch one side freely.
+- After a cut, the app no longer says "sent" and stops there. The machine keeps cutting from its
+  buffer for a few seconds and gives no "done" signal, so the app now waits for the buffer to drain
+  and then reports the plot is finished, prompting you to press the machine's eject (arrow) button to
+  feed the mat out.
+
 ## 0.63.2
 - Round a corner by double-tapping it in the Shape tool. Until now, smoothing a bare corner (every
   point of an imported or traced shape is one) did nothing, because there were no curve handles to

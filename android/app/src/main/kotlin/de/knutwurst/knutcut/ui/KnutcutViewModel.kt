@@ -2119,7 +2119,13 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             // Finish: end the file so the machine lifts the tool and returns (stock sends TB66 here).
             withContext(Dispatchers.IO) { Log.d(TAG, "finish TB66 -> ${session.send(PltCommand("TB66;"))}") }
             recordMaterialUse(material.id)   // remember it under "recently used" now that it actually plotted
-            finishCut(s(R.string.st_sent_to_plotter))
+            // The machine keeps cutting from its internal buffer after the last chunk is acknowledged,
+            // and the protocol has no "finished" signal (the stock app just shows a finish screen after
+            // sending). Let the buffer drain, then report done — and, on machines with the feed key,
+            // prompt the user to press its eject (arrow) button to feed the mat out.
+            status = s(R.string.st_finishing_plot)
+            delay(PLOT_DRAIN_MS)
+            finishCut(if (model.hasPaperKey) s(R.string.st_plot_done_eject) else s(R.string.st_plot_done))
         } catch (e: CancellationException) {
             cutting = false
             status = s(R.string.st_cancelled)
@@ -2188,6 +2194,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         const val MAX_IMPORT_MB = 16        // per-file import cap
         const val TRACE_DEFAULT_LONG_EDGE_MM = 150.0 // default size of a freshly traced image
         const val PLT_CHUNK = 30            // commands per pltFile chunk (the stock sendFile value)
+        const val PLOT_DRAIN_MS = 8000L     // wait after the last chunk for the machine's buffer to finish cutting
+
         const val MAT_GAP_MM = 5.0          // gap between pieces when appending / auto-arranging
         const val MATERIAL_POLL_ATTEMPTS = 240
         const val MATERIAL_POLL_MS = 700L   // load-gate polling: ~168 s total

@@ -1605,17 +1605,50 @@ private fun TransformDialog(vm: KnutcutViewModel, onDismiss: () -> Unit) {
     val b = vm.bounds
     val unit = vm.displayUnit
     fun fmt(mm: Double) = String.format(Locale.GERMAN, "%.2f", unit.fromMm(mm))
-    var w by remember { mutableStateOf(fmt((b?.widthMm ?: 0.0) * vm.scaleX)) }
-    var h by remember { mutableStateOf(fmt((b?.heightMm ?: 0.0) * vm.scaleY)) }
+    fun fmtU(v: Double) = String.format(Locale.GERMAN, "%.2f", v)
+    val curW = (b?.widthMm ?: 0.0) * vm.scaleX
+    val curH = (b?.heightMm ?: 0.0) * vm.scaleY
+    // Width:height ratio (height / width) held constant while the lock is on.
+    val aspect = remember { if (curW > 1e-6) curH / curW else 1.0 }
+    var w by remember { mutableStateOf(fmt(curW)) }
+    var h by remember { mutableStateOf(fmt(curH)) }
     var ang by remember { mutableStateOf(vm.rotationDeg.toInt().toString()) }
+    var lockAspect by remember { mutableStateOf(true) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.ui_size_angle)) },
         text = {
             Column {
-                OutlinedTextField(w, { w = it }, singleLine = true, label = { Text(stringResource(R.string.ui_width_unit, unit.label)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(
+                    w,
+                    { v ->
+                        w = v
+                        // Locked: typing a width drives the height so the proportions can't drift.
+                        if (lockAspect) v.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }?.let { h = fmtU(it * aspect) }
+                    },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.ui_width_unit, unit.label)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(h, { h = it }, singleLine = true, label = { Text(stringResource(R.string.ui_height_unit, unit.label)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(
+                    h,
+                    { v ->
+                        h = v
+                        if (lockAspect && aspect > 1e-6) v.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }?.let { w = fmtU(it / aspect) }
+                    },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.ui_height_unit, unit.label)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { lockAspect = !lockAspect },
+                ) {
+                    Checkbox(checked = lockAspect, onCheckedChange = { lockAspect = it })
+                    Text(stringResource(R.string.ui_lock_aspect))
+                }
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(ang, { ang = it }, singleLine = true, label = { Text(stringResource(R.string.ui_angle)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             }
