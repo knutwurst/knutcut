@@ -145,6 +145,14 @@
     <string name="ui_top">Oben</string>
     <string name="ui_bottom">Unten</string>
     <string name="ui_ready_to_plot">Bereit zum Plotten</string>
+    <string name="ui_plotting">Plotten läuft…</string>
+    <string name="ui_plot_done_title">Fertig</string>
+    <string name="ui_plot_failed_title">Nicht fertig geworden</string>
+    <string name="ui_plot_canceled_title">Abgebrochen</string>
+    <string name="ui_cancel_plot">Plot abbrechen</string>
+    <string name="ui_back_to_review">Zurück</string>
+    <string name="ui_pass_n_of_m">Durchgang %1$d von %2$d</string>
+    <string name="ui_percent">%1$d %%</string>
     <string name="ui_plot_review_hint">Tippe auf eine Form oder Zeile, um sie mitzuplotten oder wegzulassen.</string>
     <string name="ui_plot_preview_desc">Vorschau der Matte</string>
     <string name="ui_layers_heading">Ebenen</string>

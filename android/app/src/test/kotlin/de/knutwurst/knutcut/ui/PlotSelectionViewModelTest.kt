@@ -98,7 +98,7 @@ class PlotSelectionViewModelTest {
     }
 
     @Test
-    fun startingACutResetsThePickForNextTime() {
+    fun startingACutFreezesThePickedLayersAndKeepsThePick() {
         val vm = vmWithThreeLayers()
         vm.selectModel(Devices.models.first { it.family == PlotterFamily.SPP_VEVOR })
         vm.attachLinkForTest(FakeLink(LinkTransport.SPP))
@@ -106,8 +106,19 @@ class PlotSelectionViewModelTest {
 
         vm.cut()
 
-        // Every refusal path returns before the snapshot, so a cleared pick proves the cut got past it
-        // (asserting `cutting` here would race the cut coroutine).
-        assertNull("the pick is captured by the cut and cleared", vm.plotSelection)
+        // Every refusal path returns before the snapshot, so the frozen strokes prove the cut got past
+        // it (asserting `cutting` here would race the cut coroutine). B and C are one square each.
+        assertEquals(2, vm.cutStrokes.size)
+        // The sheet stays open during the plot and "Back" after a failure returns to the same picks.
+        assertEquals(setOf(1, 2), vm.plotSelection)
+    }
+
+    @Test
+    fun openingTheReviewStartsFresh() {
+        val vm = vmWithThreeLayers()
+        vm.togglePlotLayer(0)
+        vm.beginPlotReview()
+        assertNull(vm.plotSelection)
+        assertNull(vm.cutOutcome)
     }
 }

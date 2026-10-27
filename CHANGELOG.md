@@ -3,6 +3,20 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.66.0
+- The plot sheet now stays open for the whole plot instead of closing on Start. The mat preview
+  grows and the cut paths draw themselves live, in the order they go to the machine, with a
+  glowing dot where the tool is and the remaining paths as a faint trail. Below it: what the
+  machine is doing (load material, press start, cutting, finishing), a large percentage and a
+  thick progress bar with moving stripes, or a soft sweep while waiting on the machine.
+- When the plot ends, the cut shapes fill up, a check mark pops in, the phone gives one short
+  buzz, and the finish message (press the eject button) stays on screen until you close it. If a
+  plot fails or is canceled, the sheet says why and "Back" returns to the layer list with your
+  picks kept.
+- The sheet can't be swiped away while a plot runs, and the screen stays on; "Cancel plot" is
+  always at hand. If Start is refused (for example, no plotter connected), the reason shows right
+  in the sheet.
+
 ## 0.65.3
 - Plot review: if the design is replaced while the review is open (for example by sharing a file into
   the app), the layer picks start over instead of pointing at the wrong layers, which could leave

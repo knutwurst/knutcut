@@ -71,6 +71,26 @@ class DemoModeViewModelTest {
         val done = setOf(app.getString(R.string.st_plot_done_eject), app.getString(R.string.st_plot_done))
         assertTrue("finished with the done message, got: ${vm.status}", vm.status in done)
         assertTrue("a demo run doesn't count as material use", vm.recentMaterialIds.isEmpty())
+        assertEquals(KnutcutViewModel.CutOutcome.SUCCESS, vm.cutOutcome)
+        assertEquals("the live trace has the square", 1, vm.cutStrokes.size)
+        assertEquals("progress stays full for the finish screen", 1f, vm.progress, 0f)
+    }
+
+    @Test
+    fun cancelingADemoCutEndsAsCanceled() {
+        val vm = vm()
+        vm.addLayer("Square", listOf(Polyline(listOf(Pt(0.0, 0.0), Pt(20.0, 0.0), Pt(20.0, 20.0), Pt(0.0, 20.0)), true)), Tool.KNIFE)
+        vm.connectDemo()
+        vm.cut()
+        vm.cancelCut()
+        val looper = shadowOf(Looper.getMainLooper())
+        var rounds = 0
+        while (vm.cutting && rounds++ < 200) { Thread.sleep(20); looper.idleFor(Duration.ofMillis(500)) }
+        assertFalse(vm.cutting)
+        assertEquals(KnutcutViewModel.CutOutcome.CANCELED, vm.cutOutcome)
+
+        vm.clearCutOutcome()
+        assertEquals("Back returns to the review", null, vm.cutOutcome)
     }
 
     @Test

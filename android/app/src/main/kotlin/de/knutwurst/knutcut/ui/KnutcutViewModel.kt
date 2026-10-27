@@ -205,6 +205,18 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var cutting by mutableStateOf(false); private set
     var progress by mutableStateOf(0f); private set
 
+    /** How a cut ended, for the plot review's finish screen. */
+    enum class CutOutcome { SUCCESS, FAILED, CANCELED }
+
+    /** How the last cut ended; null while one runs or since the review was opened. */
+    var cutOutcome by mutableStateOf<CutOutcome?>(null); private set
+
+    /** One path of a cut, placed on the mat, with the tool that draws it. */
+    data class CutStroke(val tool: Tool, val polyline: Polyline)
+
+    /** The paths of the running (or last) cut in the order they're sent, for the live trace. */
+    var cutStrokes by mutableStateOf<List<CutStroke>>(emptyList()); private set
+
     // Status message plus a sequence that bumps on EVERY assignment, so the UI re-toasts even when the
     // same message is set twice in a row (e.g. the identical error reported again).
     private val _status = mutableStateOf<String?>(null)
@@ -1602,6 +1614,12 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** Start a plot review with every visible layer included. */
     fun resetPlotSelection() { plotSelection = null }
 
+    /** Open the plot review fresh: all layers picked, no finish screen from an earlier cut. */
+    fun beginPlotReview() { plotSelection = null; cutOutcome = null }
+
+    /** Leave the finish screen of a failed or canceled cut and go back to picking (picks are kept). */
+    fun clearCutOutcome() { if (!cutting) cutOutcome = null }
+
     /** Whether layer [i] is part of the next plot (visible and, if a selection exists, picked). */
     fun isPlotIncluded(i: Int): Boolean {
         val l = layers.getOrNull(i) ?: return false
@@ -2036,7 +2054,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         // Freeze what gets plotted now. The run paths wait for the feed and start keys before they
         // stream, and the user can keep editing meanwhile — that must not change the running plot.
         cutPlan = plan
-        plotSelection = null
+        cutStrokes = strokesInSendOrder(plan)
+        cutOutcome = null
         cutting = true
         progress = 0f
         cutJob = viewModelScope.launch {
@@ -2081,10 +2100,11 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             val ok = withContext(Dispatchers.IO) {
                 GpglSession(l).cut(silDev, cutSettings, polylines, shouldContinue = { isActive }) { p -> progress = p }
             }
-            finishCut(if (ok) s(R.string.st_sent_silhouette) else s(R.string.st_silhouette_no_answer))
+            if (ok) finishCut(s(R.string.st_sent_silhouette), CutOutcome.SUCCESS)
+            else finishCut(s(R.string.st_silhouette_no_answer))
         } catch (e: CancellationException) {
             withContext(NonCancellable + Dispatchers.IO) { runCatching { l.write(GpglProtocol.INIT) } }
-            finishCut(s(R.string.st_cancelled))
+            finishCut(s(R.string.st_cancelled), CutOutcome.CANCELED)
             throw e
         } catch (e: Exception) {
             // A failed write (e.g. a dropped BLE chunk) throws out of cut() — report it instead of
@@ -2186,9 +2206,10 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             // prompt the user to press its eject (arrow) button to feed the mat out.
             status = s(R.string.st_finishing_plot)
             delay(PLOT_DRAIN_MS)
-            finishCut(if (model.hasPaperKey) s(R.string.st_plot_done_eject) else s(R.string.st_plot_done))
+            finishCut(if (model.hasPaperKey) s(R.string.st_plot_done_eject) else s(R.string.st_plot_done), CutOutcome.SUCCESS)
         } catch (e: CancellationException) {
             cutting = false
+            cutOutcome = CutOutcome.CANCELED
             status = s(R.string.st_cancelled)
             // Stop streaming and tell the machine to finish the current file (the stock app's stop).
             withContext(NonCancellable + Dispatchers.IO) {
@@ -2204,10 +2225,30 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun finishCut(msg: String) {
+    private fun finishCut(msg: String, outcome: CutOutcome = CutOutcome.FAILED) {
         cutting = false
-        progress = 0f
+        cutOutcome = outcome
         status = msg
+    }
+
+    /**
+     * The placed paths of [ls] in the order the run paths stream them: per tool in first-use order
+     * for VEVOR (each tool block optimized on its own), all together for Silhouette.
+     */
+    private fun strokesInSendOrder(ls: List<Layer>): List<CutStroke> {
+        fun placed(layer: Layer): List<Polyline> {
+            val m = layerMatrix(layer)
+            return layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
+        }
+        fun ordered(polys: List<Polyline>) = if (optimizeCutOrder) CutOrder.optimize(polys) else polys
+        return if (model.family == PlotterFamily.BLE_SILHOUETTE) {
+            val tool = if (ls.any { it.tool == Tool.KNIFE }) Tool.KNIFE else Tool.PEN
+            ordered(ls.flatMap { placed(it) }).map { CutStroke(tool, it) }
+        } else {
+            ls.map { it.tool }.distinct().flatMap { t ->
+                ordered(ls.filter { it.tool == t }.flatMap { placed(it) }).map { CutStroke(t, it) }
+            }
+        }
     }
 
     /**

@@ -213,7 +213,8 @@ fun MainScreen(vm: KnutcutViewModel) {
     fun openDevices() { if (hasConnectPerm) showDevices = true else permLauncher.launch(bluetoothPermissions()) }
 
     LaunchedEffect(vm.statusSeq) {
-        if (!vm.cutting) vm.status?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+        // The plot sheet shows the plot's messages itself (progress, finish, why Start was refused).
+        if (!vm.cutting && !showCut) vm.status?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
     }
     LaunchedEffect(hasConnectPerm) { vm.autoConnect() }
 
@@ -309,7 +310,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                         onSize = { showTransform = true },
                         onLayers = { showLayers = true },
                         onMaterial = { showMaterial = true },
-                        onConnectOrCut = { if (vm.connected) { vm.resetPlotSelection(); showCut = true } else openDevices() },
+                        onConnectOrCut = { if (vm.connected) { vm.beginPlotReview(); showCut = true } else openDevices() },
                         onDelete = { showDeleteConfirm = true },
                         onAlign = { showAlignDialog = true },
                     )
