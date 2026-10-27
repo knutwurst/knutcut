@@ -109,6 +109,11 @@ class Settings(context: Context) {
         get() = p.getBoolean("optimizeCutOrder", false)
         set(v) = p.edit().putBoolean("optimizeCutOrder", v).apply()
 
+    /** Demo mode: a simulated plotter stands in for a real one, so the app can be tried without a machine. */
+    var demoMode: Boolean
+        get() = p.getBoolean("demoMode", false)
+        set(v) = p.edit().putBoolean("demoMode", v).apply()
+
     /** Silhouette cut speed (GPGL "!" command); clamped per family at cut time. */
     var silhouetteSpeed: Int
         get() = p.getInt("silhouetteSpeed", 10)

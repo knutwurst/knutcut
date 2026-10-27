@@ -62,6 +62,7 @@ import de.knutwurst.knutcut.svgcore.GpglSession
 import de.knutwurst.knutcut.svgcore.SilhouetteFamily
 import de.knutwurst.knutcut.svgcore.HpglEncoder
 import de.knutwurst.knutcut.svgcore.LinkTransport
+import de.knutwurst.knutcut.svgcore.DemoPlotterLink
 import de.knutwurst.knutcut.svgcore.ManagedLink
 import de.knutwurst.knutcut.svgcore.Matrix
 import de.knutwurst.knutcut.svgcore.mmToUnits
@@ -192,6 +193,12 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var connecting by mutableStateOf(false); private set
     var connected by mutableStateOf(false); private set
     private var link: ManagedLink? = null
+
+    /** Demo mode: a [DemoPlotterLink] stands in for the plotter (see [changeDemoMode]). Persisted. */
+    var demoMode by mutableStateOf(settings.demoMode); private set
+
+    /** True while the simulated demo plotter is the connected device. */
+    val demoConnected: Boolean get() = connected && link is DemoPlotterLink
 
     // Cut.
     /** Indices of the visible layers picked in the plot review; null = all visible (the default).
@@ -1822,8 +1829,33 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Turn demo mode on or off. On: drop any real connection and connect the simulated plotter, so
+     * the whole flow (review, feed/start prompts, progress, finish message) runs without a machine.
+     * Off: drop the simulated plotter and try the last real one again. Refused while a cut runs.
+     */
+    fun changeDemoMode(on: Boolean) {
+        if (on == demoMode || cutting) return
+        demoMode = on
+        settings.demoMode = on
+        link?.close(); link = null; connected = false; device = null
+        if (on) connectDemo() else { status = s(R.string.st_demo_off); autoConnect() }
+    }
+
+    /** Attach the simulated plotter. It speaks the VEVOR protocol, so a VEVOR model is selected. */
+    fun connectDemo(silent: Boolean = false) {
+        if (connecting || cutting) return
+        if (model.family != PlotterFamily.SPP_VEVOR) selectModel(Devices.models.first { it.family == PlotterFamily.SPP_VEVOR })
+        link?.close()
+        link = DemoPlotterLink()
+        device = null
+        connected = true
+        if (!silent) status = s(R.string.st_demo_connected)
+    }
+
     /** On launch (or when permission arrives): reconnect to the last device if Bluetooth is on. */
     fun autoConnect() {
+        if (demoMode) { if (!connected) connectDemo(silent = true); return }
         if (connected || connecting) return
         val addr = settings.deviceAddress ?: return
         val ctx = getApplication<Application>()

@@ -3,6 +3,13 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.65.1
+- Demo mode, for trying the app without a plotter. Turn it on at the very bottom of Settings → About.
+  A simulated plotter stands in for the machine: it connects instantly, goes through the same
+  feed and start prompts, shows transfer progress and the finish message, but nothing is cut. A
+  "DEMO" badge next to the title shows while it's on, and the setting is remembered until you turn
+  it off again.
+
 ## 0.65.0
 - New review step before every plot. It shows the whole mat exactly as it will be plotted: layers
   that will run are drawn in their tool color, layers you leave out stay as faint dashed outlines, and

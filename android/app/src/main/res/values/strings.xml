@@ -41,6 +41,13 @@
     <string name="st_start_not_pressed">Start button not pressed (timeout).</string>
     <string name="st_transfer_aborted">Transfer aborted at chunk %1$d.</string>
     <string name="st_sent_to_plotter">Finished sending to the plotter.</string>
+    <string name="st_demo_connected">Demo mode: a simulated plotter is connected.</string>
+    <string name="st_demo_off">Demo mode off.</string>
+    <string name="ui_demo_mode">Demo mode</string>
+    <string name="ui_demo_mode_off">Leave demo mode</string>
+    <string name="ui_demo_hint">A simulated plotter is connected. Everything works as usual, but nothing is actually cut.</string>
+    <string name="ui_connected_demo">Connected to the demo plotter (simulated)</string>
+    <string name="ui_demo_badge" translatable="false">DEMO</string>
     <string name="st_finishing_plot">Finishing the plot…</string>
     <string name="st_plot_done">Plot finished.</string>
     <string name="st_plot_done_eject">Plot finished. Press the eject button (arrow keys) on the machine to feed the mat out.</string>

@@ -205,7 +205,13 @@ fun MainScreen(vm: KnutcutViewModel) {
         uri?.let { vm.beginImageTrace(it) }
     }
     fun pickImage() = imageLauncher.launch(arrayOf("image/*"))
-    fun openDevices() { if (hasConnectPerm) showDevices = true else permLauncher.launch(bluetoothPermissions()) }
+    fun openDevices() {
+        when {
+            vm.demoMode -> vm.connectDemo()   // no Bluetooth needed: reconnect the simulated plotter
+            hasConnectPerm -> showDevices = true
+            else -> permLauncher.launch(bluetoothPermissions())
+        }
+    }
 
     LaunchedEffect(vm.statusSeq) {
         if (!vm.cutting) vm.status?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
@@ -225,12 +231,29 @@ fun MainScreen(vm: KnutcutViewModel) {
                 )
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        "Knutcut",
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Knutcut",
+                            style = MaterialTheme.typography.titleLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        // Always visible while demo mode is on, so nobody mistakes it for a real machine.
+                        if (vm.demoMode) {
+                            Spacer(Modifier.width(8.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                shape = RoundedCornerShape(50),
+                            ) {
+                                Text(
+                                    stringResource(R.string.ui_demo_badge),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                )
+                            }
+                        }
+                    }
                     Text(
                         stringResource(R.string.ui_header_sub, version),
                         style = MaterialTheme.typography.labelSmall,
@@ -1434,6 +1457,7 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                 Text(
                     when {
                         vm.connecting -> stringResource(R.string.ui_connecting)
+                        vm.demoConnected -> stringResource(R.string.ui_connected_demo)
                         vm.connectedToPlotter -> stringResource(R.string.ui_connected, vm.model.displayName)
                         vm.connectedToSilhouette -> stringResource(R.string.ui_connected_ble2, vm.model.displayName)
                         vm.connected -> stringResource(R.string.ui_connected_unsupported, vm.device?.name ?: "?")
@@ -1482,7 +1506,20 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                 }
                 Text(stringResource(R.string.ui_footer_version, version), style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    // Deliberately low-key: a small text link at the very bottom of "About".
+                    TextButton(
+                        onClick = { vm.changeDemoMode(!vm.demoMode) },
+                        enabled = !vm.cutting,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                    ) {
+                        Text(
+                            stringResource(if (vm.demoMode) R.string.ui_demo_mode_off else R.string.ui_demo_mode),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (vm.demoMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.weight(1f))
                     IconButton(onClick = {
                         vm.shutdown()
                         (aboutCtx as? android.app.Activity)?.finishAndRemoveTask()
@@ -1490,6 +1527,9 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                     }) {
                         Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = stringResource(R.string.ui_exit_app))
                     }
+                }
+                if (vm.demoMode) {
+                    Text(stringResource(R.string.ui_demo_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
