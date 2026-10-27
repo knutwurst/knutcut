@@ -129,9 +129,13 @@ internal fun PlotReviewSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
         else -> PlotPhase.REVIEW
     }
     // While a plot runs the sheet refuses to hide, so swipe, back and the scrim can't close it.
+    // The rule must be one remembered instance: Material3 keys the sheet state on it, and a fresh
+    // lambda per recomposition (every progress frame) created a new, hidden sheet each time, so the
+    // sheet kept sliding back in and out during the plot.
+    val refuseHideWhileCutting = remember(vm) { { v: SheetValue -> v != SheetValue.Hidden || !vm.cutting } }
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
-        confirmValueChange = { it != SheetValue.Hidden || !vm.cutting },
+        confirmValueChange = refuseHideWhileCutting,
     )
     // A new or replaced design (e.g. an import resolved while the review is open) would leave the
     // picks pointing at the wrong layers, so start over with all layers when the geometry changes.

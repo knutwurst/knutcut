@@ -3,6 +3,11 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.66.1
+- Fixed the plot sheet sliding out and back in during a plot. While data was being sent it kept
+  restarting its slide-in animation, so it looked closed (with the old small progress bar showing
+  behind it) until 100%. It now stays fully open for the whole plot.
+
 ## 0.66.0
 - The plot sheet now stays open for the whole plot instead of closing on Start. The mat preview
   grows and the cut paths draw themselves live, in the order they go to the machine, with a
