@@ -143,9 +143,13 @@
     <string name="ui_top">Top</string>
     <string name="ui_bottom">Bottom</string>
     <string name="ui_ready_to_plot">Ready to plot</string>
-    <string name="ui_extent">Extent</string>
-    <string name="ui_all_layers">All layers</string>
-    <string name="ui_only_selected">Selected only</string>
+    <string name="ui_plot_review_hint">Tap a shape or a row to plot it or leave it out.</string>
+    <string name="ui_plot_preview_desc">Mat preview</string>
+    <string name="ui_layers_heading">Layers</string>
+    <string name="ui_select_all">All</string>
+    <string name="ui_select_none">None</string>
+    <string name="ui_pick_a_layer">Pick at least one layer to plot.</string>
+    <string name="ui_switch_tool_desc">%1$s, tap to switch between cut and draw</string>
     <string name="ui_tool_knife">Tool: cut (knife)</string>
     <string name="ui_tool_pen">Tool: draw (pen)</string>
     <string name="ui_knife">Knife</string>
@@ -273,6 +277,14 @@
     <plurals name="ui_layers_count">
         <item quantity="one">%1$d layer</item>
         <item quantity="other">%1$d layers</item>
+    </plurals>
+    <plurals name="ui_plot_n_of_m">
+        <item quantity="one">%1$d of %2$d layer</item>
+        <item quantity="other">%1$d of %2$d layers</item>
+    </plurals>
+    <plurals name="ui_hidden_not_plotted">
+        <item quantity="one">%1$d hidden layer is not plotted.</item>
+        <item quantity="other">%1$d hidden layers are not plotted.</item>
     </plurals>
     <plurals name="ui_cut_n">
         <item quantity="one">%1$d layer to cut</item>

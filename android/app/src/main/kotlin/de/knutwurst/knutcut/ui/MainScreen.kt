@@ -287,7 +287,7 @@ fun MainScreen(vm: KnutcutViewModel) {
                         onSize = { showTransform = true },
                         onLayers = { showLayers = true },
                         onMaterial = { showMaterial = true },
-                        onConnectOrCut = { if (vm.connected) showCut = true else openDevices() },
+                        onConnectOrCut = { if (vm.connected) { vm.resetPlotSelection(); showCut = true } else openDevices() },
                         onDelete = { showDeleteConfirm = true },
                         onAlign = { showAlignDialog = true },
                     )
@@ -384,7 +384,8 @@ fun MainScreen(vm: KnutcutViewModel) {
             confirmButton = { TextButton(onClick = { showAlignDialog = false }) { Text(stringResource(R.string.ui_close)) } },
         )
     }
-    if (showCut && vm.hasDesign) CutSheet(vm, onDismiss = { showCut = false })
+    // Leaving the review without plotting drops the picks, so the main button goes back to "all layers".
+    if (showCut && vm.hasDesign) PlotReviewSheet(vm, onDismiss = { showCut = false; vm.resetPlotSelection() })
     if (showText) TextDialog(vm, fontRepo, onDismiss = { showText = false })
     if (showLibrary) LibrarySheet(vm, onDismiss = { showLibrary = false })
     ImageTraceDialog(vm)
@@ -1094,81 +1095,6 @@ private fun AlignmentControls(vm: KnutcutViewModel) {
     }
 }
 
-/** Pre-cut step: confirm what will run (and, with several layers, all vs. only the selected one). */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CutSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
-            Text(stringResource(R.string.ui_ready_to_plot), style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
-            if (vm.layers.size > 1) {
-                Text(stringResource(R.string.ui_extent), style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = !vm.cutSelectedOnly, onClick = { vm.changeCutSelectedOnly(false) }, label = { Text(stringResource(R.string.ui_all_layers)) })
-                    FilterChip(selected = vm.cutSelectedOnly, onClick = { vm.changeCutSelectedOnly(true) }, label = { Text(stringResource(R.string.ui_only_selected)) })
-                }
-                Spacer(Modifier.height(10.dp))
-            }
-            // Compute the cut set once for the whole sheet (avoids re-filtering the layers repeatedly).
-            val ls = vm.cutLayers()
-            val knifeN = ls.count { it.tool == Tool.KNIFE }
-            val penN = ls.size - knifeN
-            val single = if (ls.isEmpty()) null else if (penN == 0) Tool.KNIFE else if (knifeN == 0) Tool.PEN else null
-            val withinMat = vm.designWithinMat()
-            // When every layer uses the same tool, offer a quick draw/cut switch. When the layers mix
-            // tools, show how many will be cut and how many drawn instead.
-            if (single != null) {
-                val knife = single == Tool.KNIFE
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (knife) stringResource(R.string.ui_tool_knife) else stringResource(R.string.ui_tool_pen),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Switch(checked = knife, onCheckedChange = { vm.setCutTool(if (it) Tool.KNIFE else Tool.PEN) })
-                }
-                Spacer(Modifier.height(8.dp))
-            } else {
-                Text(pluralStringResource(R.plurals.ui_cut_n, knifeN, knifeN) + " · " + pluralStringResource(R.plurals.ui_draw_n, penN, penN), style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.height(8.dp))
-            }
-            val ebenen = pluralStringResource(R.plurals.ui_layers_count, ls.size, ls.size)
-            val toolLabel = when (single) { Tool.KNIFE -> stringResource(R.string.ui_knife); Tool.PEN -> stringResource(R.string.ui_pen); else -> if (ls.isEmpty()) "–" else stringResource(R.string.ui_knife_pen) }
-            Text(
-                "$ebenen · $toolLabel",
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (knifeN > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(stringResource(R.string.ui_material_label, vm.material.display()), style = MaterialTheme.typography.bodySmall)
-            vm.extentReadout(ls)?.let { Text(stringResource(R.string.ui_needed_material, it), style = MaterialTheme.typography.bodySmall) }
-            if (!withinMat) {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    stringResource(R.string.ui_design_off_area_warn),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.ui_copies), style = MaterialTheme.typography.bodyMedium)
-                    Text(stringResource(R.string.ui_copies_hint), style = MaterialTheme.typography.bodySmall)
-                }
-                EditableStepper(vm.cutCopies, 1, 10, step = 1) { vm.changeCutCopies(it) }
-            }
-            Spacer(Modifier.height(14.dp))
-            val label = when (single) { Tool.KNIFE -> stringResource(R.string.ui_cut); Tool.PEN -> stringResource(R.string.ui_draw); else -> stringResource(R.string.ui_plot) }
-            Button(
-                onClick = { onDismiss(); vm.cut() },
-                enabled = withinMat && ls.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-            ) { Text(stringResource(R.string.ui_start_label, label)) }
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
@@ -1714,7 +1640,7 @@ private fun MaterialManageDialog(vm: KnutcutViewModel, onDismiss: () -> Unit) {
 
 /** A number control you can type into directly, with − / + buttons for fine steps. */
 @Composable
-private fun EditableStepper(value: Int, min: Int, max: Int, step: Int = 1, onChange: (Int) -> Unit) {
+internal fun EditableStepper(value: Int, min: Int, max: Int, step: Int = 1, onChange: (Int) -> Unit) {
     var text by remember { mutableStateOf(value.toString()) }
     LaunchedEffect(value) { if (text.toIntOrNull() != value) text = value.toString() }
     Row(verticalAlignment = Alignment.CenterVertically) {

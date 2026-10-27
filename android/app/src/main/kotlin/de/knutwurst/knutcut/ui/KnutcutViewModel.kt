@@ -194,7 +194,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     private var link: ManagedLink? = null
 
     // Cut.
-    var cutSelectedOnly by mutableStateOf(false); private set
+    /** Indices of the visible layers picked in the plot review; null = all visible (the default).
+     *  Only meaningful while the review is open: it's reset when the review opens and once a cut starts. */
+    var plotSelection by mutableStateOf<Set<Int>?>(null); private set
     var cutCopies by mutableStateOf(1); private set
     var cutting by mutableStateOf(false); private set
     var progress by mutableStateOf(0f); private set
@@ -1593,7 +1595,24 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun changePenForce(v: Int) { penForce = v; settings.penForce = v }
 
-    fun changeCutSelectedOnly(v: Boolean) { cutSelectedOnly = v }
+    /** Start a plot review with every visible layer included. */
+    fun resetPlotSelection() { plotSelection = null }
+
+    /** Whether layer [i] is part of the next plot (visible and, if a selection exists, picked). */
+    fun isPlotIncluded(i: Int): Boolean {
+        val l = layers.getOrNull(i) ?: return false
+        return l.visible && (plotSelection?.contains(i) ?: true)
+    }
+
+    /** Include or skip layer [i] in the next plot. The first toggle turns "all" into an explicit set. */
+    fun togglePlotLayer(i: Int) {
+        if (layers.getOrNull(i)?.visible != true) return
+        val current = plotSelection ?: layers.indices.filter { layers[it].visible }.toSet()
+        plotSelection = if (i in current) current - i else current + i
+    }
+
+    /** Include every visible layer ([all] = true) or none of them. */
+    fun setPlotAll(all: Boolean) { plotSelection = if (all) null else emptySet() }
 
     fun changeCutCopies(n: Int) { cutCopies = n.coerceIn(1, 10) }
 
@@ -1853,10 +1872,16 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             PlacedLayer(layer.tool, placed, layer.colorList(), fillGroupsFor(layer))
         }
 
-    /** The layers a cut will send: just the selected one when [cutSelectedOnly], else all visible. */
-    fun cutLayers(): List<Layer> =
-        if (cutSelectedOnly) listOfNotNull(layers.getOrNull(selectedLayer)?.takeIf { it.visible })
-        else layers.filter { it.visible }
+    /** One visible layer placed on the mat, for the plot review's preview and thumbnails. */
+    fun placedLayerAt(i: Int): PlacedLayer? {
+        val layer = layers.getOrNull(i)?.takeIf { it.visible } ?: return null
+        val m = layerMatrix(layer)
+        val placed = layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
+        return PlacedLayer(layer.tool, placed, layer.colorList(), fillGroupsFor(layer))
+    }
+
+    /** The layers a cut will send: the visible layers picked in the plot review (all of them by default). */
+    fun cutLayers(): List<Layer> = layers.filterIndexed { i, _ -> isPlotIncluded(i) }
 
     /** The single tool all cut layers share, or null if they mix tools (or there are none). */
     fun cutSingleTool(): Tool? = cutLayers().map { it.tool }.distinct().singleOrNull()
@@ -1866,20 +1891,6 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         Tool.PEN -> s(R.string.ui_draw)
         Tool.KNIFE -> s(R.string.ui_cut)
         else -> s(R.string.ui_plot)
-    }
-
-    /** Switch the tool of the layers that will be cut (the pre-cut draw/cut toggle). */
-    fun setCutTool(t: Tool) {
-        if (tool == t && cutLayers().all { it.tool == t }) return
-        pushHistory()
-        tool = t
-        settings.toolSp = t.sp
-        if (cutSelectedOnly) {
-            val i = selectedLayer
-            if (i in layers.indices) layers = layers.mapIndexed { idx, l -> if (idx == i) l.copy(tool = t) else l }
-        } else {
-            layers = layers.map { it.copy(tool = t) }
-        }
     }
 
     /** Placement matrix for one layer: rotate/scale/mirror about its own pivot, then move to [Layer.centerMm].
@@ -1948,7 +1959,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun plotterPolylinesFor(t: Tool): List<Polyline> {
         val dy = originOffsetMm.toDouble()
-        val polys = cutLayers().filter { it.tool == t }.flatMap { layer ->
+        val polys = cutPlan.filter { it.tool == t }.flatMap { layer ->
             val m = layerMatrix(layer)
             layer.polylines.map { pl -> Polyline(pl.points.map { val p = m.apply(it); Pt(p.xMm, p.yMm + dy) }, pl.closed) }
         }
@@ -1956,6 +1967,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private var cutJob: Job? = null
+
+    /** The layers of the running cut, captured when it starts (see [cut]). */
+    private var cutPlan: List<Layer> = emptyList()
 
     /**
      * Mirrors the stock app's workflow so the plotter never cuts into the air. After the handshake it
@@ -1977,6 +1991,12 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         if (!hasDesign) { status = s(R.string.st_no_design); return }
         if (!designWithinMat()) { status = s(R.string.st_design_off_mat); return }
         if (cutting) return
+        val plan = cutLayers()
+        if (plan.isEmpty()) { status = s(R.string.st_no_visible_layers); return }
+        // Freeze what gets plotted now. The run paths wait for the feed and start keys before they
+        // stream, and the user can keep editing meanwhile — that must not change the running plot.
+        cutPlan = plan
+        plotSelection = null
         cutting = true
         progress = 0f
         cutJob = viewModelScope.launch {
@@ -1992,7 +2012,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         // so existing Silhouette cuts are unchanged; a non-zero value shifts Y down as the UI promises,
         // and the area check below validates the shifted geometry against the device bounds.
         val dy = originOffsetMm.toDouble()
-        val placed = cutLayers().flatMap { layer ->
+        val placed = cutPlan.flatMap { layer ->
             val m = layerMatrix(layer)
             layer.polylines.map { pl -> Polyline(pl.points.map { val p = m.apply(it); Pt(p.xMm, p.yMm + dy) }, pl.closed) }
         }
@@ -2014,7 +2034,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         // User-chosen speed, clamped to what this family allows (GpglProtocol clamps again defensively).
         val speed = silhouetteSpeed.coerceIn(1, silhouetteSpeedMax)
         // Use the predominant tool's force (knife if any knife layer, else pen), not always the knife.
-        val tool = if (cutLayers().any { it.tool == Tool.KNIFE }) Tool.KNIFE else Tool.PEN
+        val tool = if (cutPlan.any { it.tool == Tool.KNIFE }) Tool.KNIFE else Tool.PEN
         val cutSettings = GpglCutSettings(speed = speed, pressure = de.knutwurst.knutcut.data.Pressure.silhouette(forceFor(tool)))
         status = s(R.string.st_cutting_silhouette)
         try {
@@ -2042,7 +2062,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             Log.d(TAG, "handshake -> $hs")
             if (hs == null) { finishCut(s(R.string.st_no_response)); return }
 
-            val toolsUsed = cutLayers().map { it.tool }.distinct()
+            val toolsUsed = cutPlan.map { it.tool }.distinct()
             if (toolsUsed.isEmpty()) { finishCut(s(R.string.st_no_visible_layers)); return }
             val primaryTool = if (Tool.KNIFE in toolsUsed) Tool.KNIFE else toolsUsed.first()
 

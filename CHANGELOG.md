@@ -3,6 +3,16 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.65.0
+- New review step before every plot. It shows the whole mat exactly as it will be plotted: layers
+  that will run are drawn in their tool color, layers you leave out stay as faint dashed outlines, and
+  anything past the mat edge turns red. Pick the layers to plot by tapping a row in the list or the
+  shape itself in the preview, or use All / None. Each row has a thumbnail, the size, and a Cut/Draw
+  chip to switch that layer's tool. Copies and the Start button stay pinned at the bottom.
+- What gets plotted is now fixed the moment you press Start. Before, the layers were read again
+  after the machine's feed and start keys, so editing the design while waiting could change the
+  running plot.
+
 ## 0.64.0
 - Size & angle: a "Lock aspect ratio" option (on by default). With it on, typing a width updates the
   height to match (and the other way round), so a design keeps its proportions when you resize by

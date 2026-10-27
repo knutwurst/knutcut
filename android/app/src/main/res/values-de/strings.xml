@@ -141,9 +141,13 @@
     <string name="ui_top">Oben</string>
     <string name="ui_bottom">Unten</string>
     <string name="ui_ready_to_plot">Bereit zum Plotten</string>
-    <string name="ui_extent">Umfang</string>
-    <string name="ui_all_layers">Alle Ebenen</string>
-    <string name="ui_only_selected">Nur ausgewählte</string>
+    <string name="ui_plot_review_hint">Tippe auf eine Form oder Zeile, um sie mitzuplotten oder wegzulassen.</string>
+    <string name="ui_plot_preview_desc">Vorschau der Matte</string>
+    <string name="ui_layers_heading">Ebenen</string>
+    <string name="ui_select_all">Alle</string>
+    <string name="ui_select_none">Keine</string>
+    <string name="ui_pick_a_layer">Wähle mindestens eine Ebene zum Plotten.</string>
+    <string name="ui_switch_tool_desc">%1$s, tippen wechselt zwischen Schneiden und Zeichnen</string>
     <string name="ui_tool_knife">Werkzeug: Schneiden (Messer)</string>
     <string name="ui_tool_pen">Werkzeug: Zeichnen (Stift)</string>
     <string name="ui_knife">Messer</string>
@@ -271,6 +275,14 @@
     <plurals name="ui_layers_count">
         <item quantity="one">%1$d Ebene</item>
         <item quantity="other">%1$d Ebenen</item>
+    </plurals>
+    <plurals name="ui_plot_n_of_m">
+        <item quantity="one">%1$d von %2$d Ebene</item>
+        <item quantity="other">%1$d von %2$d Ebenen</item>
+    </plurals>
+    <plurals name="ui_hidden_not_plotted">
+        <item quantity="one">%1$d ausgeblendete Ebene wird nicht geplottet.</item>
+        <item quantity="other">%1$d ausgeblendete Ebenen werden nicht geplottet.</item>
     </plurals>
     <plurals name="ui_cut_n">
         <item quantity="one">%1$d Ebene schneiden</item>
