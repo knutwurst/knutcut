@@ -196,7 +196,9 @@ fun MainScreen(vm: KnutcutViewModel) {
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         hasConnectPerm = hasConnectPermission(context)
         hasScanPerm = hasScanPermission(context)
-        if (hasConnectPerm) showDevices = true
+        // Open the device list even when Bluetooth was denied: the demo plotter needs no permission,
+        // and the list asks for it again inline for the real devices.
+        showDevices = true
     }
     val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         vm.importUris(uris)
@@ -355,7 +357,7 @@ fun MainScreen(vm: KnutcutViewModel) {
         )
     }
     if (showDevices) {
-        DeviceDialog(vm, hasScanPerm, onRequestPerm = { permLauncher.launch(bluetoothPermissions()) }, onDismiss = { showDevices = false })
+        DeviceDialog(vm, hasScanPerm, hasConnectPerm, onRequestPerm = { permLauncher.launch(bluetoothPermissions()) }, onDismiss = { showDevices = false })
     }
     LaunchedEffect(Unit) {
         if (vm.consumeReopenSettings()) showSettings = true // came back from a language-change recreate
@@ -1687,7 +1689,7 @@ internal fun EditableStepper(value: Int, min: Int, max: Int, step: Int = 1, onCh
 }
 
 @Composable
-private fun DeviceDialog(vm: KnutcutViewModel, canScan: Boolean, onRequestPerm: () -> Unit, onDismiss: () -> Unit) {
+private fun DeviceDialog(vm: KnutcutViewModel, canScan: Boolean, canConnect: Boolean, onRequestPerm: () -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val scanFailedMsg = stringResource(R.string.st_scan_failed)
     var scanning by remember { mutableStateOf(false) }
@@ -1697,8 +1699,9 @@ private fun DeviceDialog(vm: KnutcutViewModel, canScan: Boolean, onRequestPerm: 
     val foundLe = remember { mutableStateMapOf<String, android.bluetooth.BluetoothDevice>() }
     val foundLeOther = remember { mutableStateMapOf<String, android.bluetooth.BluetoothDevice>() }
     var confirmOtherLe by remember { mutableStateOf<android.bluetooth.BluetoothDevice?>(null) }
-    // CONNECT is granted (the dialog only opens with it), so the paired list is always available.
-    val allBonded = remember {
+    // The dialog also opens without Bluetooth permission (for the demo plotter); the paired list is
+    // then empty and reloads once CONNECT is granted from the inline prompt.
+    val allBonded = remember(canConnect) {
         runCatching { de.knutwurst.knutcut.transport.BluetoothPlotter.bondedDevices(context) }.getOrDefault(emptyList())
     }
     // Compatible plotters (BT name contains "VEVOR"/"Smart"), like the stock app — these are the default.
@@ -1741,9 +1744,9 @@ private fun DeviceDialog(vm: KnutcutViewModel, canScan: Boolean, onRequestPerm: 
         title = { Text(stringResource(R.string.ui_connect_plotter)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                // The dialog opens with CONNECT, so the model list and paired devices always show.
-                // SCAN is only needed to search; prompt for it inline without hiding everything else.
-                if (!canScan) {
+                // Without Bluetooth permission the models and the demo plotter still show; prompt for
+                // it inline (it's needed to list paired devices and to search) without hiding the rest.
+                if (!canScan || !canConnect) {
                     Text(stringResource(R.string.ui_bt_perm_msg), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(8.dp))
                     Button(onClick = onRequestPerm) { Text(stringResource(R.string.ui_grant_perm)) }

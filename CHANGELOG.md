@@ -9,6 +9,8 @@ published `latest.json` in the releases repo.
   last device like a real one. The DEMO badge next to the title shows while it's connected.
 - Picking another plotter while one is connected now switches to it. Before, "Other plotter" did
   nothing until you disconnected first.
+- The plotter list now opens even if Bluetooth permission was denied, so the demo plotter is always
+  reachable. The list asks for the permission inline for real devices.
 
 ## 0.65.1
 - Demo mode, for trying the app without a plotter. Turn it on at the very bottom of Settings → About.
