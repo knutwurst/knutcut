@@ -3,6 +3,13 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.66.2
+- The demo plotter now takes about as long as a real plot. It acknowledges each block of path data
+  only after the time the tool would need to drive it (cutting at an estimated 50 mm/s, travel at
+  120 mm/s), so a large design takes correspondingly long.
+- The live trace in the plot sheet now moves steadily between data blocks instead of jumping ahead
+  and then standing still.
+
 ## 0.66.1
 - Fixed the plot sheet sliding out and back in during a plot. While data was being sent it kept
   restarting its slide-in animation, so it looked closed (with the old small progress bar showing

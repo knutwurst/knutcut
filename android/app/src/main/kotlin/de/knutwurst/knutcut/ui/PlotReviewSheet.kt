@@ -157,11 +157,21 @@ internal fun PlotReviewSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
         if (vm.cutOutcome == KnutcutViewModel.CutOutcome.SUCCESS) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
     }
 
-    // Smooth the chunk-by-chunk progress, but jump straight back to 0 when a new plot starts.
+    // Progress arrives chunk by chunk, seconds apart on a real (or demo) machine. Glide to each new
+    // value over the time the previous chunk took, so the trace moves steadily instead of jumping
+    // and then standing still. Jump straight back to 0 when a new plot starts.
     val progress = remember { Animatable(vm.progress) }
+    val lastUpdateAt = remember { longArrayOf(0L) }
     LaunchedEffect(vm.progress) {
-        if (vm.progress < progress.value) progress.snapTo(vm.progress)
-        else progress.animateTo(vm.progress, tween(350, easing = LinearEasing))
+        val now = android.os.SystemClock.uptimeMillis()
+        if (vm.progress < progress.value) {
+            lastUpdateAt[0] = 0L
+            progress.snapTo(vm.progress)
+        } else {
+            val glideMs = if (lastUpdateAt[0] == 0L) 350L else (now - lastUpdateAt[0]).coerceIn(150L, 8_000L)
+            lastUpdateAt[0] = now
+            progress.animateTo(vm.progress, tween(glideMs.toInt(), easing = LinearEasing))
+        }
     }
     var startFailed by remember { mutableStateOf(false) }
 
