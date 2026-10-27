@@ -70,5 +70,27 @@ class DemoModeViewModelTest {
         assertFalse("the cut finished", vm.cutting)
         val done = setOf(app.getString(R.string.st_plot_done_eject), app.getString(R.string.st_plot_done))
         assertTrue("finished with the done message, got: ${vm.status}", vm.status in done)
+        assertTrue("a demo run doesn't count as material use", vm.recentMaterialIds.isEmpty())
+    }
+
+    @Test
+    fun aManualDisconnectSurvivesTheScreenBeingRecreated() {
+        val vm = vm()
+        vm.autoConnect()                       // nothing remembered yet
+        vm.connectDemo()
+        vm.disconnect()
+        vm.autoConnect()                       // what rotating the phone triggers again
+        assertFalse("the demo stays disconnected", vm.connected)
+    }
+
+    @Test
+    fun launchReconnectsOnlyOnce() {
+        vm().connectDemo()
+        val restarted = vm()
+        restarted.autoConnect()
+        assertTrue(restarted.demoConnected)
+        restarted.disconnect()
+        restarted.autoConnect()
+        assertFalse("a second autoConnect in the same run must not reconnect", restarted.connected)
     }
 }

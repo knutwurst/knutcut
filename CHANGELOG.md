@@ -3,6 +3,15 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.65.3
+- Plot review: if the design is replaced while the review is open (for example by sharing a file into
+  the app), the layer picks start over instead of pointing at the wrong layers, which could leave
+  Start disabled. The review also stays open when you rotate the phone.
+- A plotter you disconnect on purpose stays disconnected when the phone is rotated. Before, the
+  automatic reconnect at launch ran again on every rotation.
+- Tapping the plotter that's already connected keeps the connection instead of reconnecting.
+- Demo plotter runs no longer show up under recently used materials.
+
 ## 0.65.2
 - The demo plotter now sits in the plotter list (Connect plotter → Devices) like any other device,
   instead of a switch under About. Pick it to try the app without a machine; it's remembered as the

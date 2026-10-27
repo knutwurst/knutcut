@@ -152,11 +152,8 @@
     <string name="ui_select_none">Keine</string>
     <string name="ui_pick_a_layer">Wähle mindestens eine Ebene zum Plotten.</string>
     <string name="ui_switch_tool_desc">%1$s, tippen wechselt zwischen Schneiden und Zeichnen</string>
-    <string name="ui_tool_knife">Werkzeug: Schneiden (Messer)</string>
-    <string name="ui_tool_pen">Werkzeug: Zeichnen (Stift)</string>
     <string name="ui_knife">Messer</string>
     <string name="ui_pen">Stift</string>
-    <string name="ui_knife_pen">Messer + Stift</string>
     <string name="ui_design_off_area_warn">Das Design ragt über den nutzbaren Bereich der Matte hinaus – bitte verkleinern oder verschieben.</string>
     <string name="ui_cut">Schneiden</string>
     <string name="ui_draw">Zeichnen</string>
@@ -254,7 +251,6 @@
     <string name="ui_text_colon">"Text: "</string>
     <string name="ui_update_dialog">Installiert: %1$s\nVerfügbar: %2$s\n\nJetzt aktualisieren?</string>
     <string name="ui_material_label">Material: %1$s</string>
-    <string name="ui_needed_material">Größe (benötigtes Material): %1$s</string>
     <string name="ui_start_label">%1$s starten</string>
     <string name="ui_merge_n">%1$d zusammenführen</string>
     <string name="ui_connected">Verbunden: %1$s</string>

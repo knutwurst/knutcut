@@ -1747,6 +1747,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     fun connect(dev: BluetoothDevice, silent: Boolean = false) {
         if (connecting || cutting) return
+        // Re-picking the device that's already connected keeps the link (no needless reconnect).
+        if (connected && device?.address == dev.address) return
         // Picking a device while another one is connected switches to it ("other plotter").
         dropLink()
         connecting = true
@@ -1794,6 +1796,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun connectLe(dev: BluetoothDevice, silent: Boolean = false) {
         if (connecting || cutting) return
+        // Re-picking the device that's already connected keeps the link (no needless reconnect).
+        if (connected && device?.address == dev.address) return
         // Picking a device while another one is connected switches to it ("other plotter").
         dropLink()
         // Tapping a found Silhouette should just connect: if a non-BLE model is selected, auto-pick a
@@ -1846,16 +1850,23 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         if (!silent) status = s(R.string.st_demo_connected)
     }
 
+    /** Set once launch has tried to reconnect the last device (see [autoConnect]). */
+    private var autoConnectTried = false
+
     /** Close the current link (if any) and clear the connection state, e.g. before switching device. */
     private fun dropLink() { link?.close(); link = null; connected = false; device = null }
 
     /** On launch (or when permission arrives): reconnect to the last device if Bluetooth is on. */
     fun autoConnect() {
-        if (connected || connecting) return
+        // Once per app run: the view model outlives rotation, which re-runs this from the screen, and a
+        // device the user disconnected on purpose must stay disconnected.
+        if (autoConnectTried || connected || connecting) return
+        autoConnectTried = true
         if (settings.deviceTransport == DEMO_TRANSPORT) { connectDemo(silent = true); return }
         val addr = settings.deviceAddress ?: return
         val ctx = getApplication<Application>()
-        if (!hasConnectPermission(ctx) || !BluetoothPlotter.isEnabled(ctx)) return
+        // Not possible yet: try again when the permission arrives (the screen calls this again then).
+        if (!hasConnectPermission(ctx) || !BluetoothPlotter.isEnabled(ctx)) { autoConnectTried = false; return }
         val dev = runCatching { BluetoothPlotter.adapter(ctx)?.getRemoteDevice(addr) }.getOrNull() ?: return
         // A Silhouette was last paired over BLE — reconnect on that path, not classic SPP.
         if (settings.deviceTransport == "BLE") { connectLe(dev, silent = true); return }
@@ -2167,7 +2178,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             }
             // Finish: end the file so the machine lifts the tool and returns (stock sends TB66 here).
             withContext(Dispatchers.IO) { Log.d(TAG, "finish TB66 -> ${session.send(PltCommand("TB66;"))}") }
-            recordMaterialUse(material.id)   // remember it under "recently used" now that it actually plotted
+            // Remember it under "recently used" now that it actually plotted (a demo run doesn't count).
+            if (l !is DemoPlotterLink) recordMaterialUse(material.id)
             // The machine keeps cutting from its internal buffer after the last chunk is acknowledged,
             // and the protocol has no "finished" signal (the stock app just shows a finish screen after
             // sending). Let the buffer drain, then report done — and, on machines with the feed key,

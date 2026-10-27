@@ -119,6 +119,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -183,7 +184,8 @@ fun MainScreen(vm: KnutcutViewModel) {
     var showMaterial by remember { mutableStateOf(false) }
     var showTransform by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
-    var showCut by remember { mutableStateOf(false) }
+    // Saveable so the plot review survives rotation; its picks live in the view model.
+    var showCut by rememberSaveable { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showAlignDialog by remember { mutableStateOf(false) }
     var showNewConfirm by remember { mutableStateOf(false) }

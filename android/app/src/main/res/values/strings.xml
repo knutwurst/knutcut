@@ -155,11 +155,8 @@
     <string name="ui_select_none">None</string>
     <string name="ui_pick_a_layer">Pick at least one layer to plot.</string>
     <string name="ui_switch_tool_desc">%1$s, tap to switch between cut and draw</string>
-    <string name="ui_tool_knife">Tool: cut (knife)</string>
-    <string name="ui_tool_pen">Tool: draw (pen)</string>
     <string name="ui_knife">Knife</string>
     <string name="ui_pen">Pen</string>
-    <string name="ui_knife_pen">Knife + pen</string>
     <string name="ui_design_off_area_warn">The design extends past the usable mat area – please shrink or move it.</string>
     <string name="ui_cut">Cut</string>
     <string name="ui_draw">Draw</string>
@@ -257,7 +254,6 @@
     <string name="ui_text_colon">"Text: "</string>
     <string name="ui_update_dialog">Installed: %1$s\nAvailable: %2$s\n\nUpdate now?</string>
     <string name="ui_material_label">Material: %1$s</string>
-    <string name="ui_needed_material">Size (material needed): %1$s</string>
     <string name="ui_start_label">Start %1$s</string>
     <string name="ui_merge_n">Merge %1$d</string>
     <string name="ui_connected">Connected: %1$s</string>

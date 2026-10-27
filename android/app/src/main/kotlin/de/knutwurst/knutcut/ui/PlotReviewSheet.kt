@@ -44,7 +44,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -85,6 +89,14 @@ import kotlin.math.min
 @Composable
 internal fun PlotReviewSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // A new or replaced design (e.g. an import resolved while the review is open) would leave the
+    // picks pointing at the wrong layers, so start over with all layers when the geometry changes.
+    // Tool and visibility edits keep each layer's polylines, so they keep the picks.
+    val designKey = vm.layers.map { System.identityHashCode(it.polylines) }
+    var seenDesign by remember { mutableStateOf(designKey) }
+    LaunchedEffect(designKey) {
+        if (designKey != seenDesign) { seenDesign = designKey; vm.resetPlotSelection() }
+    }
     val visible = vm.layers.indices.filter { vm.layers[it].visible }
     val hiddenCount = vm.layers.size - visible.size
     val ls = vm.cutLayers()
@@ -279,7 +291,7 @@ private fun PlotPreview(vm: KnutcutViewModel, visible: List<Int>, selectable: Bo
 /** One layer in the review list: include toggle (the whole row), thumbnail, name + size, tool switch. */
 @Composable
 private fun PlotLayerRow(vm: KnutcutViewModel, i: Int, selectable: Boolean) {
-    val layer = vm.layers[i]
+    val layer = vm.layers.getOrNull(i) ?: return
     val included = vm.isPlotIncluded(i)
     val contentAlpha by animateFloatAsState(if (included) 1f else 0.45f, tween(200), label = "rowAlpha")
     val toolColor = if (layer.tool == Tool.PEN) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
