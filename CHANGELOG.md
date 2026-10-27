@@ -3,6 +3,13 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.65.2
+- The demo plotter now sits in the plotter list (Connect plotter → Devices) like any other device,
+  instead of a switch under About. Pick it to try the app without a machine; it's remembered as the
+  last device like a real one. The DEMO badge next to the title shows while it's connected.
+- Picking another plotter while one is connected now switches to it. Before, "Other plotter" did
+  nothing until you disconnected first.
+
 ## 0.65.1
 - Demo mode, for trying the app without a plotter. Turn it on at the very bottom of Settings → About.
   A simulated plotter stands in for the machine: it connects instantly, goes through the same

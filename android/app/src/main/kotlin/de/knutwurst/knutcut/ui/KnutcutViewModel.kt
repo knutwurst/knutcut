@@ -194,10 +194,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     var connected by mutableStateOf(false); private set
     private var link: ManagedLink? = null
 
-    /** Demo mode: a [DemoPlotterLink] stands in for the plotter (see [changeDemoMode]). Persisted. */
-    var demoMode by mutableStateOf(settings.demoMode); private set
-
-    /** True while the simulated demo plotter is the connected device. */
+    /** True while the simulated demo plotter (see [connectDemo]) is the connected device. */
     val demoConnected: Boolean get() = connected && link is DemoPlotterLink
 
     // Cut.
@@ -1749,7 +1746,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun connect(dev: BluetoothDevice, silent: Boolean = false) {
-        if (connecting || connected) return
+        if (connecting || cutting) return
+        // Picking a device while another one is connected switches to it ("other plotter").
+        dropLink()
         connecting = true
         if (!silent) status = s(R.string.st_connecting, dev.name)
         viewModelScope.launch {
@@ -1794,7 +1793,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
      * calling this, so the status message and subsequent [cut] dispatch are correct.
      */
     fun connectLe(dev: BluetoothDevice, silent: Boolean = false) {
-        if (connecting || connected) return
+        if (connecting || cutting) return
+        // Picking a device while another one is connected switches to it ("other plotter").
+        dropLink()
         // Tapping a found Silhouette should just connect: if a non-BLE model is selected, auto-pick a
         // Silhouette model from the device name so the status and cut dispatch are correct.
         if (model.family != PlotterFamily.BLE_SILHOUETTE) {
@@ -1830,33 +1831,28 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Turn demo mode on or off. On: drop any real connection and connect the simulated plotter, so
-     * the whole flow (review, feed/start prompts, progress, finish message) runs without a machine.
-     * Off: drop the simulated plotter and try the last real one again. Refused while a cut runs.
+     * Connect the simulated demo plotter: the whole flow (review, feed/start prompts, progress,
+     * finish message) runs without a machine, nothing is cut. It's picked like any other device and
+     * remembered as the last one, so launch reconnects it. It speaks the VEVOR protocol, so a VEVOR
+     * model is selected.
      */
-    fun changeDemoMode(on: Boolean) {
-        if (on == demoMode || cutting) return
-        demoMode = on
-        settings.demoMode = on
-        link?.close(); link = null; connected = false; device = null
-        if (on) connectDemo() else { status = s(R.string.st_demo_off); autoConnect() }
-    }
-
-    /** Attach the simulated plotter. It speaks the VEVOR protocol, so a VEVOR model is selected. */
     fun connectDemo(silent: Boolean = false) {
         if (connecting || cutting) return
         if (model.family != PlotterFamily.SPP_VEVOR) selectModel(Devices.models.first { it.family == PlotterFamily.SPP_VEVOR })
-        link?.close()
+        dropLink()
         link = DemoPlotterLink()
-        device = null
         connected = true
+        settings.deviceTransport = DEMO_TRANSPORT
         if (!silent) status = s(R.string.st_demo_connected)
     }
 
+    /** Close the current link (if any) and clear the connection state, e.g. before switching device. */
+    private fun dropLink() { link?.close(); link = null; connected = false; device = null }
+
     /** On launch (or when permission arrives): reconnect to the last device if Bluetooth is on. */
     fun autoConnect() {
-        if (demoMode) { if (!connected) connectDemo(silent = true); return }
         if (connected || connecting) return
+        if (settings.deviceTransport == DEMO_TRANSPORT) { connectDemo(silent = true); return }
         val addr = settings.deviceAddress ?: return
         val ctx = getApplication<Application>()
         if (!hasConnectPermission(ctx) || !BluetoothPlotter.isEnabled(ctx)) return
@@ -1875,7 +1871,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun disconnect() {
-        link?.close(); link = null; connected = false; device = null; status = s(R.string.st_disconnected)
+        dropLink()
+        status = s(R.string.st_disconnected)
     }
 
     /**
@@ -2249,6 +2246,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         const val PLOT_DRAIN_MS = 8000L     // wait after the last chunk for the machine's buffer to finish cutting
 
         const val MAT_GAP_MM = 5.0          // gap between pieces when appending / auto-arranging
+        const val DEMO_TRANSPORT = "DEMO"   // Settings.deviceTransport value: the last device was the demo plotter
         const val MATERIAL_POLL_ATTEMPTS = 240
         const val MATERIAL_POLL_MS = 700L   // load-gate polling: ~168 s total
         const val START_POLL_ATTEMPTS = 150

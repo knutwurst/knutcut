@@ -74,6 +74,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.FormatAlignCenter
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -205,13 +206,7 @@ fun MainScreen(vm: KnutcutViewModel) {
         uri?.let { vm.beginImageTrace(it) }
     }
     fun pickImage() = imageLauncher.launch(arrayOf("image/*"))
-    fun openDevices() {
-        when {
-            vm.demoMode -> vm.connectDemo()   // no Bluetooth needed: reconnect the simulated plotter
-            hasConnectPerm -> showDevices = true
-            else -> permLauncher.launch(bluetoothPermissions())
-        }
-    }
+    fun openDevices() { if (hasConnectPerm) showDevices = true else permLauncher.launch(bluetoothPermissions()) }
 
     LaunchedEffect(vm.statusSeq) {
         if (!vm.cutting) vm.status?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
@@ -238,8 +233,8 @@ fun MainScreen(vm: KnutcutViewModel) {
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        // Always visible while demo mode is on, so nobody mistakes it for a real machine.
-                        if (vm.demoMode) {
+                        // Always visible while the demo plotter is connected, so nobody mistakes it for a real machine.
+                        if (vm.demoConnected) {
                             Spacer(Modifier.width(8.dp))
                             Surface(
                                 color = MaterialTheme.colorScheme.tertiaryContainer,
@@ -1506,20 +1501,7 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                 }
                 Text(stringResource(R.string.ui_footer_version, version), style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    // Deliberately low-key: a small text link at the very bottom of "About".
-                    TextButton(
-                        onClick = { vm.changeDemoMode(!vm.demoMode) },
-                        enabled = !vm.cutting,
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-                    ) {
-                        Text(
-                            stringResource(if (vm.demoMode) R.string.ui_demo_mode_off else R.string.ui_demo_mode),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (vm.demoMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Spacer(Modifier.weight(1f))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     IconButton(onClick = {
                         vm.shutdown()
                         (aboutCtx as? android.app.Activity)?.finishAndRemoveTask()
@@ -1527,9 +1509,6 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                     }) {
                         Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = stringResource(R.string.ui_exit_app))
                     }
-                }
-                if (vm.demoMode) {
-                    Text(stringResource(R.string.ui_demo_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -1828,6 +1807,22 @@ private fun DeviceDialog(vm: KnutcutViewModel, canScan: Boolean, onRequestPerm: 
                     if (scanning) {
                         Spacer(Modifier.height(6.dp))
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+
+                    // The simulated plotter: always offered, so the app can be tried without a machine.
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                    TextButton(onClick = { scanning = false; vm.connectDemo(); onDismiss() }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Science, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.ui_demo_plotter))
+                            Text(
+                                stringResource(R.string.ui_demo_plotter_sub),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        if (vm.demoConnected) Icon(Icons.Default.Check, contentDescription = stringResource(R.string.ui_chosen), tint = MaterialTheme.colorScheme.primary)
                     }
 
                     // Explicit escape hatch: connect to a non-plotter (e.g. for testing), with a warning.

@@ -39,11 +39,9 @@
     <string name="st_start_not_pressed">Start-Taste nicht gedrückt (Zeitüberschreitung).</string>
     <string name="st_transfer_aborted">Übertragung abgebrochen bei Chunk %1$d.</string>
     <string name="st_sent_to_plotter">Fertig an den Plotter gesendet.</string>
-    <string name="st_demo_connected">Demo-Modus: simulierter Plotter verbunden.</string>
-    <string name="st_demo_off">Demo-Modus beendet.</string>
-    <string name="ui_demo_mode">Demo-Modus</string>
-    <string name="ui_demo_mode_off">Demo-Modus beenden</string>
-    <string name="ui_demo_hint">Ein simulierter Plotter ist verbunden. Alles funktioniert wie gewohnt, es wird nur nichts geschnitten.</string>
+    <string name="st_demo_connected">Mit dem Demo-Plotter verbunden. Es wird nichts geschnitten.</string>
+    <string name="ui_demo_plotter">Demo-Plotter</string>
+    <string name="ui_demo_plotter_sub">Simuliert, zum Ausprobieren ohne Maschine. Es wird nichts geschnitten.</string>
     <string name="ui_connected_demo">Mit dem Demo-Plotter verbunden (simuliert)</string>
     <string name="st_finishing_plot">Plot wird fertiggestellt…</string>
     <string name="st_plot_done">Plot beendet.</string>

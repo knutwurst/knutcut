@@ -2,6 +2,7 @@ package de.knutwurst.knutcut.ui
 
 import android.os.Looper
 import de.knutwurst.knutcut.R
+import de.knutwurst.knutcut.data.Devices
 import de.knutwurst.knutcut.data.PlotterFamily
 import de.knutwurst.knutcut.data.Tool
 import de.knutwurst.knutcut.svgcore.Polyline
@@ -17,7 +18,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.time.Duration
 
-/** Demo mode: a simulated plotter so the whole cut flow can be tried without a machine. */
+/** The demo plotter: a simulated device so the whole cut flow can be tried without a machine. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class DemoModeViewModelTest {
@@ -26,33 +27,33 @@ class DemoModeViewModelTest {
     private fun vm() = KnutcutViewModel(app)
 
     @Test
-    fun turningDemoOnConnectsTheSimulatedPlotterAndOffDropsIt() {
+    fun pickingTheDemoPlotterConnectsItAndDisconnectDropsIt() {
         val vm = vm()
-        vm.changeDemoMode(true)
-        assertTrue(vm.demoMode)
+        vm.selectModel(Devices.models.first { it.family == PlotterFamily.BLE_SILHOUETTE })
+        vm.connectDemo()
         assertTrue(vm.connected)
         assertTrue(vm.demoConnected)
         assertEquals("the demo speaks the VEVOR protocol", PlotterFamily.SPP_VEVOR, vm.model.family)
 
-        vm.changeDemoMode(false)
-        assertFalse(vm.demoMode)
+        vm.disconnect()
         assertFalse(vm.connected)
+        assertFalse(vm.demoConnected)
     }
 
     @Test
-    fun demoModeSurvivesARestart() {
-        vm().changeDemoMode(true)
+    fun theDemoPlotterIsRememberedLikeAnyDevice() {
+        vm().connectDemo()
         val restarted = vm()
-        assertTrue(restarted.demoMode)
+        assertFalse(restarted.connected)
         restarted.autoConnect()
-        assertTrue("launch reconnects the simulated plotter", restarted.demoConnected)
+        assertTrue("launch reconnects the demo plotter", restarted.demoConnected)
     }
 
     @Test
     fun aWholeCutRunsAgainstTheDemoPlotter() {
         val vm = vm()
         vm.addLayer("Square", listOf(Polyline(listOf(Pt(0.0, 0.0), Pt(20.0, 0.0), Pt(20.0, 20.0), Pt(0.0, 20.0)), true)), Tool.KNIFE)
-        vm.changeDemoMode(true)
+        vm.connectDemo()
 
         vm.cut()
         assertTrue(vm.cutting)
