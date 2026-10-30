@@ -1085,8 +1085,8 @@ private fun EditingBar(
 
     Spacer(Modifier.height(8.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        OutlinedButton(onClick = onLayers, modifier = Modifier.weight(1f)) { Text(pluralStringResource(R.plurals.ui_layers_title, vm.layers.size, vm.layers.size), maxLines = 1) }
-        OutlinedButton(onClick = onMaterial, modifier = Modifier.weight(1f)) { Text(vm.material.display(), maxLines = 1) }
+        OutlinedButton(onClick = onLayers, modifier = Modifier.weight(1f)) { Text(pluralStringResource(R.plurals.ui_layers_title, vm.layers.size, vm.layers.size), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) }
+        OutlinedButton(onClick = onMaterial, modifier = Modifier.weight(1f)) { Text(vm.material.display(), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) }
     }
     Spacer(Modifier.height(8.dp))
     Button(onClick = onConnectOrCut, enabled = vm.hasDesign && !vm.cutting, modifier = Modifier.fillMaxWidth().height(52.dp)) {
@@ -1140,12 +1140,20 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
             Text(pluralStringResource(R.plurals.ui_layers_title, vm.layers.size, vm.layers.size), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             val marked = vm.markedLayers.count { it in vm.layers.indices }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { vm.splitLayers() }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.ui_explode), maxLines = 1) }
-                OutlinedButton(
-                    onClick = { if (marked >= 2) vm.mergeMarked() else vm.mergeLayers() },
-                    modifier = Modifier.weight(1f),
-                ) { Text(if (marked >= 2) stringResource(R.string.ui_merge_n, marked) else stringResource(R.string.ui_merge_all), maxLines = 1) }
+            // Full width each: side by side, "16 zusammenführen" didn't fit a narrow phone (S10) and
+            // the single-line text dropped everything after the number.
+            OutlinedButton(onClick = { vm.splitLayers() }, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.ui_explode), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+            }
+            Spacer(Modifier.height(4.dp))
+            OutlinedButton(
+                onClick = { if (marked >= 2) vm.mergeMarked() else vm.mergeLayers() },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    if (marked >= 2) stringResource(R.string.ui_merge_n, marked) else stringResource(R.string.ui_merge_all),
+                    maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
+                )
             }
             Spacer(Modifier.height(4.dp))
             OutlinedButton(onClick = { vm.mergeByColor() }, modifier = Modifier.fillMaxWidth()) {

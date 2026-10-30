@@ -3,6 +3,15 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.66.3
+- Tapping a layer to select it no longer moves it. A move, resize or rotate now only starts once
+  the finger has travelled past the system's touch slop; below that a touch is a tap that just
+  selects. Before, the few pixels a fingertip always wobbles moved the layer, and with grid snap on
+  (5 mm by default) that wobble made it jump to the next grid line.
+- Layers list: "Split" and "Merge" now each take the full width. Side by side, "16 zusammenführen"
+  didn't fit a narrow phone (Galaxy S10) and only the number was left. The layer and material
+  buttons on the main screen now shorten long text with an ellipsis instead of dropping words.
+
 ## 0.66.2
 - The demo plotter now takes about as long as a real plot. It acknowledges each block of path data
   only after the time the tool would need to drive it (cutting at an estimated 50 mm/s, travel at

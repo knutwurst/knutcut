@@ -611,7 +611,10 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                 val startScaleX = vm.scaleX
                 val startScaleY = vm.scaleY
                 var totalDrag = 0f
-                var pushedHistory = false
+                // A move/resize/rotate only starts once the finger has travelled past the system touch
+                // slop. Below it the touch is a tap that just selects: a fingertip always wobbles a few
+                // pixels, and with grid snap on even that wobble used to make the layer jump a grid step.
+                var manipulating = false
                 // Running, un-snapped center for the move (so snapping never swallows small drags).
                 var moveCenter = vm.centerMm
 
@@ -629,8 +632,12 @@ fun MatEditor(vm: KnutcutViewModel, modifier: Modifier = Modifier) {
                         val p = pressed[0]
                         val moved = p.positionChange().getDistance()
                         totalDrag += moved
-                        if (!pushedHistory && moved > 0f && (drag is Drag.Move || drag is Drag.Resize || drag is Drag.Rotate)) {
-                            vm.pushHistory(); pushedHistory = true
+                        if (!manipulating && (drag is Drag.Move || drag is Drag.Resize || drag is Drag.Rotate)) {
+                            // Still within the slop: a tap, not a drag. Once past it, start the edit
+                            // from here (one undo step) without jumping by the slop distance.
+                            if (totalDrag > viewConfiguration.touchSlop) { vm.pushHistory(); manipulating = true }
+                            p.consume()
+                            continue
                         }
                         ppm = ppmFor(sizePx, vm.mat, vm.camScale)
                         origin = originFor(sizePx, vm.mat, vm.camScale, vm.camOffset)
