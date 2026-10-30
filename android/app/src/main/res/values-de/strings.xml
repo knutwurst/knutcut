@@ -153,6 +153,8 @@
     <string name="ui_back_to_review">Zurück</string>
     <string name="ui_pass_n_of_m">Durchgang %1$d von %2$d</string>
     <string name="ui_percent">%1$d %%</string>
+    <string name="ui_plot_model">Plotter: %1$s</string>
+    <string name="ui_plot_unrecognized_device">Verbunden mit „%1$s“, das nicht als Plotter erkannt wurde. Prüfe, ob das wirklich dein %2$s ist.</string>
     <string name="ui_plot_review_hint">Tippe auf eine Form oder Zeile, um sie mitzuplotten oder wegzulassen.</string>
     <string name="ui_plot_preview_desc">Vorschau der Matte</string>
     <string name="ui_layers_heading">Ebenen</string>
@@ -240,6 +242,7 @@
     <string name="ui_bt_perm_msg">Knutcut braucht die Bluetooth-Berechtigung, um den Plotter zu finden.</string>
     <string name="ui_grant_perm">Berechtigung erteilen</string>
     <string name="ui_model">Modell</string>
+    <string name="ui_change_model">Modell ändern</string>
     <string name="ui_chosen">Gewählt</string>
     <string name="ui_devices">Geräte</string>
     <string name="ui_stop">Stopp</string>

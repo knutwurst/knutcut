@@ -3,6 +3,20 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.66.4
+- The plotter model can no longer change by accident. In the Connect plotter dialog the model used to
+  be ten tappable rows above the device list, so scrolling down to reach a device could pick another
+  model on the way. The model is now one row showing the current choice; the list opens only when you
+  tap it. This matters because the model decides whether the app waits for the mat to be fed in: a
+  model without a feed key (Smart 3/4) starts cutting right away, at the mat's leading edge.
+- The plot sheet now shows which plotter model will cut, right under its title, and warns before
+  Start when the connected device isn't recognized as a plotter.
+- The in-app Bluetooth search now finds a plotter that was never paired. It used to drop devices
+  whose name Android hadn't cached yet, so the plotter only showed up after pairing it in Android's
+  settings. It now uses the name from the search itself and picks up names that arrive later.
+- Each cut writes its model, feed/start gates, device, offset and mat to the app log, so a cut in
+  the wrong place can be traced over USB.
+
 ## 0.66.3
 - Tapping a layer to select it no longer moves it. A move, resize or rotate now only starts once
   the finger has travelled past the system's touch slop; below that a touch is a tap that just

@@ -306,6 +306,16 @@ private fun SheetHeader(vm: KnutcutViewModel, phase: PlotPhase, onClose: () -> U
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleLarge)
+            // The model decides whether the app waits for the mat to be fed in; show it right here so
+            // a wrong pick is caught before Start, not after a cut in the wrong place.
+            Text(
+                stringResource(R.string.ui_plot_model, vm.model.displayName),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             Text(
                 stringResource(R.string.ui_material_label, vm.material.display()),
                 style = MaterialTheme.typography.bodyMedium,
@@ -348,6 +358,9 @@ private fun ReviewBody(vm: KnutcutViewModel, visible: List<Int>, multi: Boolean,
         }
     }
     if (!vm.designWithinMat() && ls.isNotEmpty()) WarningBanner(stringResource(R.string.ui_design_off_area_warn))
+    if (vm.connected && !vm.connectedToPlotter && !vm.connectedToSilhouette && !vm.demoConnected) {
+        WarningBanner(stringResource(R.string.ui_plot_unrecognized_device, vm.deviceName ?: "?", vm.model.displayName))
+    }
     if (startFailed) vm.status?.let { WarningBanner(it) }
 
     Spacer(Modifier.height(16.dp))

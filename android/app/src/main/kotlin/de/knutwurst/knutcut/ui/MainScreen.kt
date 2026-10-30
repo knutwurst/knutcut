@@ -1468,7 +1468,7 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
                         vm.demoConnected -> stringResource(R.string.ui_connected_demo)
                         vm.connectedToPlotter -> stringResource(R.string.ui_connected, vm.model.displayName)
                         vm.connectedToSilhouette -> stringResource(R.string.ui_connected_ble2, vm.model.displayName)
-                        vm.connected -> stringResource(R.string.ui_connected_unsupported, vm.device?.name ?: "?")
+                        vm.connected -> stringResource(R.string.ui_connected_unsupported, vm.deviceName ?: "?")
                         else -> stringResource(R.string.ui_not_connected, vm.model.displayName)
                     },
                     style = MaterialTheme.typography.bodyMedium,
@@ -1707,9 +1707,12 @@ private fun DeviceDialog(vm: KnutcutViewModel, canScan: Boolean, canConnect: Boo
     var showOther by remember { mutableStateOf(false) }
     var confirmOther by remember { mutableStateOf<android.bluetooth.BluetoothDevice?>(null) }
     val found = remember { mutableStateMapOf<String, android.bluetooth.BluetoothDevice>() }
+    // Names from the discovery broadcasts: an unpaired device's own .name is often still null.
+    val foundNames = remember { mutableStateMapOf<String, String>() }
     val foundLe = remember { mutableStateMapOf<String, android.bluetooth.BluetoothDevice>() }
     val foundLeOther = remember { mutableStateMapOf<String, android.bluetooth.BluetoothDevice>() }
     var confirmOtherLe by remember { mutableStateOf<android.bluetooth.BluetoothDevice?>(null) }
+    var showModels by remember { mutableStateOf(false) }
     // The dialog also opens without Bluetooth permission (for the demo plotter); the paired list is
     // then empty and reloads once CONNECT is granted from the inline prompt.
     val allBonded = remember(canConnect) {
@@ -1724,8 +1727,8 @@ private fun DeviceDialog(vm: KnutcutViewModel, canScan: Boolean, canConnect: Boo
     DisposableEffect(scanning, canScan) {
         val handle = if (scanning && canScan) {
             runCatching {
-                de.knutwurst.knutcut.transport.BluetoothPlotter.discover(context) { dev ->
-                    if (Devices.isCompatible(dev.name)) found[dev.address] = dev
+                de.knutwurst.knutcut.transport.BluetoothPlotter.discover(context) { dev, name ->
+                    if (Devices.isCompatible(name)) { found[dev.address] = dev; foundNames[dev.address] = name ?: "" }
                 }
             }.getOrNull()
         } else null
@@ -1764,12 +1767,30 @@ private fun DeviceDialog(vm: KnutcutViewModel, canScan: Boolean, canConnect: Boo
                     Spacer(Modifier.height(8.dp))
                 }
                 run {
-                    Text(stringResource(R.string.ui_model), style = MaterialTheme.typography.labelLarge)
-                    Devices.models.forEach { m ->
+                    // The model decides the load/start gates (wait for the mat to be fed in), so it must
+                    // never change by accident. It used to be ten tappable rows above the device list, and
+                    // scrolling past them to reach a device could pick another model on the way. Now it's
+                    // one row showing the current model; the list only opens on purpose.
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clickable { showModels = !showModels }.padding(vertical = 8.dp),
+                    ) {
+                        Icon(painterResource(R.drawable.ic_plotter), contentDescription = null, modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.ui_model), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(vm.model.displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                        }
+                        Icon(
+                            if (showModels) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = stringResource(R.string.ui_change_model),
+                        )
+                    }
+                    if (showModels) Devices.models.forEach { m ->
                         val sel = vm.model.modelId == m.modelId
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().clickable { vm.selectModel(m) }.padding(vertical = 8.dp),
+                            modifier = Modifier.fillMaxWidth().clickable { vm.selectModel(m); showModels = false }.padding(start = 34.dp, top = 8.dp, bottom = 8.dp),
                         ) {
                             Icon(painterResource(R.drawable.ic_plotter), contentDescription = null, modifier = Modifier.size(24.dp))
                             Spacer(Modifier.width(10.dp))
@@ -1787,7 +1808,7 @@ private fun DeviceDialog(vm: KnutcutViewModel, canScan: Boolean, canConnect: Boo
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.ui_devices), style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
                         TextButton(onClick = {
-                            if (canScan) { found.clear(); foundLe.clear(); foundLeOther.clear(); scanning = !scanning } else onRequestPerm()
+                            if (canScan) { found.clear(); foundNames.clear(); foundLe.clear(); foundLeOther.clear(); scanning = !scanning } else onRequestPerm()
                         }) { Text(if (scanning) stringResource(R.string.ui_stop) else stringResource(R.string.ui_search)) }
                     }
                     if (devices.isEmpty()) {
@@ -1798,10 +1819,10 @@ private fun DeviceDialog(vm: KnutcutViewModel, canScan: Boolean, canConnect: Boo
                         )
                     } else {
                         devices.forEach { d ->
-                            TextButton(onClick = { scanning = false; vm.connect(d); onDismiss() }, modifier = Modifier.fillMaxWidth()) {
+                            TextButton(onClick = { scanning = false; vm.connect(d, knownName = foundNames[d.address]); onDismiss() }, modifier = Modifier.fillMaxWidth()) {
                                 Icon(painterResource(R.drawable.ic_plotter), contentDescription = null, modifier = Modifier.size(20.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text(d.name ?: d.address, modifier = Modifier.weight(1f))
+                                Text(d.name ?: foundNames[d.address]?.takeIf { it.isNotEmpty() } ?: d.address, modifier = Modifier.weight(1f))
                             }
                         }
                     }

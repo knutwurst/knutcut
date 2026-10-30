@@ -30,17 +30,24 @@ object BluetoothPlotter {
      * Start classic Bluetooth discovery, reporting each device found via [onFound]. Returns a
      * [Closeable] that cancels discovery and unregisters the receiver — the caller must close it.
      */
-    fun discover(context: Context, onFound: (BluetoothDevice) -> Unit): Closeable {
+    fun discover(context: Context, onFound: (BluetoothDevice, String?) -> Unit): Closeable {
         val adapter = adapter(context)
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context, intent: Intent) {
-                if (intent.action == BluetoothDevice.ACTION_FOUND) {
-                    @Suppress("DEPRECATION")
-                    intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)?.let(onFound)
-                }
+                if (intent.action != BluetoothDevice.ACTION_FOUND && intent.action != BluetoothDevice.ACTION_NAME_CHANGED) return
+                @Suppress("DEPRECATION")
+                val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE) ?: return
+                // A never-paired device often arrives without a cached name (device.name == null); the
+                // name is in the broadcast's EXTRA_NAME, or comes later via ACTION_NAME_CHANGED. Filtering
+                // on device.name alone dropped the plotter until it had been paired in Android settings.
+                val name = intent.getStringExtra(BluetoothDevice.EXTRA_NAME) ?: runCatching { device.name }.getOrNull()
+                onFound(device, name)
             }
         }
-        context.registerReceiver(receiver, IntentFilter(BluetoothDevice.ACTION_FOUND))
+        context.registerReceiver(receiver, IntentFilter().apply {
+            addAction(BluetoothDevice.ACTION_FOUND)
+            addAction(BluetoothDevice.ACTION_NAME_CHANGED)
+        })
         adapter?.cancelDiscovery()
         adapter?.startDiscovery()
         return Closeable {

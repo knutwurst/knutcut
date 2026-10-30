@@ -190,6 +190,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
     // Connection.
     var device by mutableStateOf<BluetoothDevice?>(null); private set
+    /** The connected device's Bluetooth name. A device found by the in-app search may not have a cached
+     *  name in Android yet, so the name seen during discovery is kept here (see [connect]). */
+    var deviceName by mutableStateOf<String?>(null); private set
     var connecting by mutableStateOf(false); private set
     var connected by mutableStateOf(false); private set
     private var link: ManagedLink? = null
@@ -267,7 +270,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     fun selectModel(m: PlotterModel) { model = m; settings.modelId = m.modelId }
 
     /** True when the connected device is a supported VEVOR plotter (classic BT). */
-    val connectedToPlotter: Boolean get() = connected && Devices.isCompatible(device?.name)
+    val connectedToPlotter: Boolean get() = connected && Devices.isCompatible(deviceName)
 
     /** True when the live connection is a BLE link (the transport Silhouette cutters use). Keyed off
      *  the link itself, not the selected model, so it can't disagree with what's actually wired. */
@@ -1763,7 +1766,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         return overallText
     }
 
-    fun connect(dev: BluetoothDevice, silent: Boolean = false) {
+    fun connect(dev: BluetoothDevice, silent: Boolean = false, knownName: String? = null) {
         if (connecting || cutting) return
         // Re-picking the device that's already connected keeps the link (no needless reconnect).
         if (connected && device?.address == dev.address) return
@@ -1777,6 +1780,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 link?.close()
                 link = l
                 device = dev
+                deviceName = runCatching { dev.name }.getOrNull() ?: knownName
                 connected = true
                 // Reflect an unexpected connection drop in the app state instead of staying "connected"
                 // until the next command fails.
@@ -1796,8 +1800,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 // the connected state. Only confirm when the user connected on purpose — and name the
                 // actual device, since it may be an explicitly-chosen non-plotter.
                 if (!silent) status =
-                    if (Devices.isCompatible(dev.name)) s(R.string.st_connected_to, model.displayName)
-                    else s(R.string.st_connected_unsupported, dev.name)
+                    if (Devices.isCompatible(deviceName)) s(R.string.st_connected_to, model.displayName)
+                    else s(R.string.st_connected_unsupported, deviceName)
             } catch (e: Exception) {
                 connected = false
                 if (!silent) status = s(R.string.st_connect_failed, e.message)
@@ -1831,6 +1835,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
                 link?.close()
                 link = l
                 device = dev
+                deviceName = runCatching { dev.name }.getOrNull()
                 connected = true
                 l.onClosed = {
                     viewModelScope.launch {
@@ -1872,7 +1877,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     private var autoConnectTried = false
 
     /** Close the current link (if any) and clear the connection state, e.g. before switching device. */
-    private fun dropLink() { link?.close(); link = null; connected = false; device = null }
+    private fun dropLink() { link?.close(); link = null; connected = false; device = null; deviceName = null }
 
     /** On launch (or when permission arrives): reconnect to the last device if Bluetooth is on. */
     fun autoConnect() {
@@ -2054,6 +2059,9 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         // Freeze what gets plotted now. The run paths wait for the feed and start keys before they
         // stream, and the user can keep editing meanwhile — that must not change the running plot.
         cutPlan = plan
+        // What decides where the cut starts, in one log line (model gates, device, offset, mat).
+        Log.d(TAG, "cut start: model=${model.name} paperKey=${model.hasPaperKey} startKey=${model.hasStartKey} " +
+            "device=$deviceName demo=$demoConnected offsetY=${originOffsetMm}mm mat=${mat.name}")
         cutStrokes = strokesInSendOrder(plan)
         cutOutcome = null
         cutting = true
