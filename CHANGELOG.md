@@ -3,6 +3,16 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.66.5
+- The live trace in the plot sheet now follows the commands the plotter has actually received. It
+  used to spread the progress evenly over the length of all paths, but the progress counts commands,
+  and a small detailed shape takes many commands while a long straight edge takes only a few. So the
+  trace could run far ahead of or behind the knife and show it on the wrong shape. Copies are now
+  traced pass by pass in the order they are sent.
+- The app log now records how long the plotter takes to acknowledge each chunk of the cut (the first
+  40, every one over a second, and a summary), plus every timeout, resend and rejected chunk. This is
+  to find the short pauses during a plot.
+
 ## 0.66.4
 - The plotter model can no longer change by accident. In the Connect plotter dialog the model used to
   be ten tappable rows above the device list, so scrolling down to reach a device could pick another

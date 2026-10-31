@@ -77,6 +77,34 @@ class DemoModeViewModelTest {
     }
 
     @Test
+    fun theLiveTraceKnowsWhichCommandsDrawWhichPath() {
+        val vm = vm()
+        val circle = Polyline((0 until 120).map { k ->
+            val a = 2 * Math.PI * k / 120
+            Pt(30 + 10 * Math.cos(a), 30 + 10 * Math.sin(a))
+        }, true)
+        vm.addLayer("Circle", listOf(circle), Tool.KNIFE)
+        vm.addLayer("Line", listOf(Polyline(listOf(Pt(10.0, 100.0), Pt(70.0, 100.0)), false)), Tool.PEN)
+        vm.changeCutCopies(2)
+        vm.connectDemo()
+        vm.cut()
+        val looper = shadowOf(Looper.getMainLooper())
+        var rounds = 0
+        while (vm.cutting && rounds++ < 1500) { Thread.sleep(20); looper.idleFor(Duration.ofMillis(500)) }
+        assertEquals(KnutcutViewModel.CutOutcome.SUCCESS, vm.cutOutcome)
+
+        val s = vm.cutStrokes
+        assertEquals("two copies of each path, knife block first", listOf(Tool.KNIFE, Tool.KNIFE, Tool.PEN, Tool.PEN), s.map { it.tool })
+        // SP, FS, circle, circle, SP, FS, line, line, final PU — back to back.
+        assertEquals(2, s[0].cmdStart)
+        assertEquals(s[0].cmdStart + s[0].cmdCount, s[1].cmdStart)
+        assertEquals(s[1].cmdStart + s[1].cmdCount + 2, s[2].cmdStart)
+        assertEquals(s[2].cmdStart + s[2].cmdCount, s[3].cmdStart)
+        assertEquals(s[3].cmdStart + s[3].cmdCount + 1, vm.cutStreamSize)
+        assertTrue("the circle takes far more commands than the long line", s[0].cmdCount > 100 && s[2].cmdCount == 2)
+    }
+
+    @Test
     fun cancelingADemoCutEndsAsCanceled() {
         val vm = vm()
         vm.addLayer("Square", listOf(Polyline(listOf(Pt(0.0, 0.0), Pt(20.0, 0.0), Pt(20.0, 20.0), Pt(0.0, 20.0)), true)), Tool.KNIFE)

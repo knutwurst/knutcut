@@ -190,20 +190,14 @@ internal fun PlotReviewSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
                 val passes = vm.cutCopies.coerceAtLeast(1)
                 val trace = when (phase) {
                     PlotPhase.REVIEW -> null
+                    // The strokes hold every copy in send order, so progress maps onto them directly.
                     PlotPhase.RUNNING -> {
                         val p = progress.value
-                        val pp = p * passes
-                        val pass = min(floor(pp).toInt(), passes - 1)
-                        TraceState(
-                            fraction = (pp - pass).coerceIn(0f, 1f),
-                            head = p > 0f && p < 1f,
-                            waiting = p <= 0f,
-                            success = false,
-                        )
+                        TraceState(fraction = p.coerceIn(0f, 1f), head = p > 0f && p < 1f, waiting = p <= 0f, success = false)
                     }
                     PlotPhase.FINISHED -> {
                         val ok = vm.cutOutcome == KnutcutViewModel.CutOutcome.SUCCESS
-                        TraceState(fraction = if (ok) 1f else (vm.progress * passes).let { it - floor(it).coerceAtMost(passes - 1f) }.coerceIn(0f, 1f), head = false, waiting = false, success = ok)
+                        TraceState(fraction = if (ok) 1f else vm.progress.coerceIn(0f, 1f), head = false, waiting = false, success = ok)
                     }
                 }
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -511,19 +505,54 @@ private fun WarningBanner(text: String) {
 /** How far the live trace has got: [fraction] of the current pass, plus what to decorate it with. */
 private class TraceState(val fraction: Float, val head: Boolean, val waiting: Boolean, val success: Boolean)
 
-/** Lengths of the cut paths, to map a 0..1 progress onto a point along the whole cut. */
-private class TraceGeometry(val strokes: List<KnutcutViewModel.CutStroke>) {
+/**
+ * Maps a 0..1 progress onto a point along the cut. Progress is the share of the streamed commands the
+ * machine has acknowledged, so with [streamSize] known the position follows the commands: a detailed
+ * small shape takes many commands and a big rectangle only a few, so path length would put the tool
+ * in the wrong place. Without stream info (Silhouette cuts, or before the stream is built) it falls
+ * back to path length.
+ */
+internal class TraceGeometry(val strokes: List<KnutcutViewModel.CutStroke>, private val streamSize: Int) {
     val pts: List<List<Pt>> = strokes.map { s ->
         val p = s.polyline.points
         if (s.polyline.closed && p.size > 1) p + p.first() else p
     }
-    val lens: DoubleArray = DoubleArray(pts.size) { i ->
+    private val lens: DoubleArray = DoubleArray(pts.size) { i ->
         val p = pts[i]
         var l = 0.0
         for (k in 1 until p.size) l += hypot(p[k].xMm - p[k - 1].xMm, p[k].yMm - p[k - 1].yMm)
         l
     }
-    val total: Double = lens.sum()
+    private val total: Double = lens.sum()
+    private val byCommands = streamSize > 0 && strokes.isNotEmpty() && strokes.all { it.cmdStart >= 0 && it.cmdCount > 0 }
+
+    /** The tool is on [stroke] at fractional vertex index [pointPos] of its [pts]; earlier strokes are done. */
+    class Locus(val stroke: Int, val pointPos: Double)
+
+    fun locate(fraction: Float): Locus {
+        if (pts.isEmpty()) return Locus(0, 0.0)
+        if (byCommands) {
+            val done = fraction.toDouble() * streamSize
+            var i = 0
+            while (i < strokes.size - 1 && done >= strokes[i + 1].cmdStart) i++
+            val s = strokes[i]
+            val local = ((done - s.cmdStart) / s.cmdCount).coerceIn(0.0, 1.0)
+            return Locus(i, local * (pts[i].size - 1).coerceAtLeast(0))
+        }
+        var remaining = total * fraction
+        for (i in pts.indices) {
+            val p = pts[i]
+            if (remaining <= 0.0) return Locus(i, 0.0)
+            if (remaining >= lens[i] && i < pts.lastIndex) { remaining -= lens[i]; continue }
+            for (k in 1 until p.size) {
+                val seg = hypot(p[k].xMm - p[k - 1].xMm, p[k].yMm - p[k - 1].yMm)
+                if (seg >= remaining) return Locus(i, k - 1 + if (seg > 0.0) remaining / seg else 0.0)
+                remaining -= seg
+            }
+            return Locus(i, (p.size - 1).coerceAtLeast(0).toDouble())
+        }
+        return Locus(pts.lastIndex, (pts.last().size - 1).coerceAtLeast(0).toDouble())
+    }
 }
 
 /**
@@ -543,7 +572,7 @@ private fun PlotPreview(vm: KnutcutViewModel, visible: List<Int>, selectable: Bo
     val border = MaterialTheme.colorScheme.outline
     val glow = MaterialTheme.colorScheme.tertiary
     val placed = visible.mapNotNull { i -> vm.placedLayerAt(i)?.let { i to it } }
-    val geometry = remember(vm.cutStrokes) { TraceGeometry(vm.cutStrokes) }
+    val geometry = remember(vm.cutStrokes, vm.cutStreamSize) { TraceGeometry(vm.cutStrokes, vm.cutStreamSize) }
     val desc = stringResource(R.string.ui_plot_preview_desc) + ": " +
         pluralStringResource(R.plurals.ui_plot_n_of_m, visible.size, vm.cutLayers().size, visible.size)
 
@@ -623,8 +652,8 @@ private fun PlotPreview(vm: KnutcutViewModel, visible: List<Int>, selectable: Bo
 }
 
 /**
- * Draw the first [fraction] (by length) of the cut paths in their tool colors. Returns the point
- * where the trace currently ends, i.e. where the tool is.
+ * Draw the cut paths up to [fraction] of the send (see [TraceGeometry.locate]) in their tool colors.
+ * Returns the point where the trace currently ends, i.e. where the tool is.
  */
 private fun DrawScope.drawTrace(
     geo: TraceGeometry,
@@ -633,42 +662,30 @@ private fun DrawScope.drawTrace(
     strokePx: Float,
     map: (Pt) -> Offset,
 ): Offset? {
-    if (geo.total <= 0.0) return null
+    if (geo.pts.isEmpty()) return null
     val style = Stroke(strokePx, cap = StrokeCap.Round, join = StrokeJoin.Round)
-    var remaining = geo.total * fraction
-    var end: Offset? = null
-    for (i in geo.pts.indices) {
+    val at = geo.locate(fraction)
+    for (i in 0 until at.stroke) {
         val p = geo.pts[i]
-        if (p.size < 2) continue
-        val color = colorOf(geo.strokes[i].tool)
-        if (remaining >= geo.lens[i]) {
-            drawPath(pathOfPts(p, map), color, style = style)
-            remaining -= geo.lens[i]
-            end = map(p.last())
-            continue
-        }
-        if (remaining <= 0.0) break
-        // The path the tool is on right now: draw up to the exact point along it.
-        val path = Path()
-        var h = map(p[0])
-        path.moveTo(h.x, h.y)
-        for (k in 1 until p.size) {
-            val a = p[k - 1]; val b = p[k]
-            val seg = hypot(b.xMm - a.xMm, b.yMm - a.yMm)
-            if (seg >= remaining) {
-                val t = if (seg > 0.0) remaining / seg else 0.0
-                h = map(Pt(a.xMm + (b.xMm - a.xMm) * t, a.yMm + (b.yMm - a.yMm) * t))
-                path.lineTo(h.x, h.y)
-                break
-            }
-            h = map(b)
-            path.lineTo(h.x, h.y)
-            remaining -= seg
-        }
-        drawPath(path, color, style = style)
-        return h
+        if (p.size > 1) drawPath(pathOfPts(p, map), colorOf(geo.strokes[i].tool), style = style)
     }
-    return end
+    // The path the tool is on right now: draw up to the exact point along it.
+    val p = geo.pts[at.stroke]
+    if (p.isEmpty()) return null
+    val whole = at.pointPos.toInt().coerceIn(0, p.lastIndex)
+    val t = at.pointPos - whole
+    val head = if (whole < p.lastIndex && t > 0.0) {
+        val a = p[whole]; val b = p[whole + 1]
+        Pt(a.xMm + (b.xMm - a.xMm) * t, a.yMm + (b.yMm - a.yMm) * t)
+    } else p[whole]
+    val path = Path()
+    val start = map(p[0])
+    path.moveTo(start.x, start.y)
+    for (k in 1..whole) map(p[k]).let { path.lineTo(it.x, it.y) }
+    val h = map(head)
+    path.lineTo(h.x, h.y)
+    if (at.pointPos > 0.0) drawPath(path, colorOf(geo.strokes[at.stroke].tool), style = style)
+    return h
 }
 
 /** One layer in the review list: include toggle (the whole row), thumbnail, name + size, tool switch. */

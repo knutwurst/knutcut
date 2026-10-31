@@ -34,11 +34,16 @@ interface ManagedLink : PlotterLink, AutoCloseable {
  * device's response line, and resends on a `crc` rejection, an explicit failure, or a timeout
  * (matching the stock app's send-and-wait loop with up to five attempts).
  */
-class PlotterSession(private val link: PlotterLink, private var cseq: Int = 0) {
+class PlotterSession(
+    private val link: PlotterLink,
+    private var cseq: Int = 0,
+    /** Diagnostics: told about every timeout, rejection and discarded stale ack. */
+    private val log: (String) -> Unit = {},
+) {
 
     /** Frame and send one message, retrying on rejection/timeout. Returns the accepted response, or null. */
     fun send(msg: PlotterMessage, timeoutMs: Long = 5000, maxAttempts: Int = 5): String? {
-        repeat(maxAttempts) {
+        repeat(maxAttempts) { attempt ->
             val sent = cseq
             link.write(Frame.encode(msg, sent))
             cseq++
@@ -47,15 +52,25 @@ class PlotterSession(private val link: PlotterLink, private var cseq: Int = 0) {
             // for the current message — otherwise a stale ack could confirm the next command, pltFile
             // chunks included. Responses without a cseq (devices that omit it) are accepted as before.
             while (true) {
-                val resp = link.readLine(timeoutMs) ?: break   // timeout → resend on the next attempt
+                val resp = link.readLine(timeoutMs)
+                if (resp == null) {                             // timeout → resend on the next attempt
+                    log("no reply to ${msg.describe()} cseq=$sent within $timeoutMs ms (attempt ${attempt + 1}/$maxAttempts)")
+                    break
+                }
                 val cs = PlotterResponse.parse(resp).cseq
-                if (cs != null && cs != sent) continue          // stale / foreign ack → keep waiting
+                if (cs != null && cs != sent) {                 // stale / foreign ack → keep waiting
+                    log("discarded stale ack cseq=$cs while waiting for cseq=$sent")
+                    continue
+                }
                 if (responseOk(resp)) return resp
+                log("rejected ${msg.describe()} cseq=$sent (attempt ${attempt + 1}/$maxAttempts): $resp")
                 break                                           // rejection for our cseq → resend
             }
         }
         return null
     }
+
+    private fun PlotterMessage.describe(): String = if (this is PltFile) "pltFile ${index + 1}/$total" else javaClass.simpleName
 }
 
 /**

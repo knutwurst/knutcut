@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -214,11 +215,18 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
     /** How the last cut ended; null while one runs or since the review was opened. */
     var cutOutcome by mutableStateOf<CutOutcome?>(null); private set
 
-    /** One path of a cut, placed on the mat, with the tool that draws it. */
-    data class CutStroke(val tool: Tool, val polyline: Polyline)
+    /**
+     * One path of a cut, placed on the mat, with the tool that draws it. [cmdStart]/[cmdCount] locate
+     * its commands in the streamed file (-1/0 until the stream is built, and on Silhouette cuts).
+     */
+    data class CutStroke(val tool: Tool, val polyline: Polyline, val cmdStart: Int = -1, val cmdCount: Int = 0)
 
     /** The paths of the running (or last) cut in the order they're sent, for the live trace. */
     var cutStrokes by mutableStateOf<List<CutStroke>>(emptyList()); private set
+
+    /** Commands in the streamed file of the running (or last) cut; 0 while it isn't built yet.
+     *  [progress] is the share of these commands the machine has acknowledged. */
+    var cutStreamSize by mutableStateOf(0); private set
 
     // Status message plus a sequence that bumps on EVERY assignment, so the UI re-toasts even when the
     // same message is set twice in a row (e.g. the identical error reported again).
@@ -2063,6 +2071,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         Log.d(TAG, "cut start: model=${model.name} paperKey=${model.hasPaperKey} startKey=${model.hasStartKey} " +
             "device=$deviceName demo=$demoConnected offsetY=${originOffsetMm}mm mat=${mat.name}")
         cutStrokes = strokesInSendOrder(plan)
+        cutStreamSize = 0
         cutOutcome = null
         cutting = true
         progress = 0f
@@ -2123,7 +2132,7 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
 
 
     private suspend fun runCutVevor(l: ManagedLink) {
-        val session = PlotterSession(l)
+        val session = PlotterSession(l, log = { Log.d(TAG, it) })
         try {
             status = s(R.string.st_connecting_plotter)
             val hs = withContext(Dispatchers.IO) { session.send(Handshake) }
@@ -2173,37 +2182,60 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             // with its own SP/FS *inside* the stream — the machine takes the tool (SP1 = right/knife,
             // SP2 = left/pen) from the path data, not from a standalone setup command.
             val plt = ArrayList<String>()
+            val strokes = ArrayList<CutStroke>()
+            val dy = originOffsetMm.toDouble()
             toolsUsed.forEach { t ->
                 val base = plotterPolylinesFor(t)
                 // Multiple copies = repeat every contour as extra passes (deeper cut / repeat draw).
                 val polys = if (cutCopies > 1) (1..cutCopies).flatMap { base } else base
-                var cmds = HpglEncoder.encode(polys)
-                if (cmds.isEmpty()) return@forEach
-                val raw = cmds.size
-                // Drag-knife compensation is for the blade only — never apply it to the pen.
-                if (dragKnifeComp && t == Tool.KNIFE) cmds = DragKnife.process(cmds, bladeOffset.toDouble())
+                // Encoded contour by contour: the same stream as encoding them all at once (each starts
+                // with its own PU, and the compensation works per PU), but the live trace learns which
+                // commands draw which path. Drag-knife compensation is for the blade only, never the pen.
+                val encoded = polys.map { HpglEncoder.encode(listOf(it)) }
+                val raw = encoded.sumOf { it.size }
+                if (raw == 0) return@forEach
+                val cmds = if (dragKnifeComp && t == Tool.KNIFE) encoded.map { DragKnife.process(it, bladeOffset.toDouble()) } else encoded
                 val xs = polys.flatMap { it.points }.map { mmToUnits(it.xMm) }
                 val ys = polys.flatMap { it.points }.map { mmToUnits(it.yMm) }
-                Log.d(TAG, "tool=${t.sp} force=${forceFor(t)} polylines=${polys.size} cmds=$raw->${cmds.size} (comp=$dragKnifeComp) " +
+                Log.d(TAG, "tool=${t.sp} force=${forceFor(t)} polylines=${polys.size} cmds=$raw->${cmds.sumOf { it.size }} (comp=$dragKnifeComp) " +
                     "x=[${xs.minOrNull()}..${xs.maxOrNull()}] y=[${ys.minOrNull()}..${ys.maxOrNull()}]")
                 plt += "SP${t.sp}"; plt += "FS${forceFor(t)}"
-                plt.addAll(cmds)
+                polys.forEachIndexed { k, pl ->
+                    if (cmds[k].isEmpty()) return@forEachIndexed
+                    // The trace draws on the mat, so undo the origin offset applied for the machine.
+                    strokes += CutStroke(t, Polyline(pl.points.map { Pt(it.xMm, it.yMm - dy) }, pl.closed), plt.size, cmds[k].size)
+                    plt.addAll(cmds[k])
+                }
             }
             if (plt.isEmpty()) { finishCut(s(R.string.st_no_visible_layers)); return }
             plt += "PU"   // lift the tool at the end so the pen/knife isn't left pressed down
+            cutStrokes = strokes
+            cutStreamSize = plt.size
 
             // Stream as one continuous pltFile sequence (index 0..total-1, 30 commands per chunk),
             // exactly like the stock sendFile.
             val fileMsgs = Protocol.pathFile(plt, PLT_CHUNK)
             Log.d(TAG, "sendFile: ${plt.size} cmds in ${fileMsgs.size} chunks")
+            // Ack timing tells whether the machine buffers (fast acks while it fills) and where the
+            // link stalls (slow acks, resends). Log the start, every slow ack, and a summary.
+            val sendStart = SystemClock.elapsedRealtime()
+            var slowest = 0L
+            var slowCount = 0
             fileMsgs.forEachIndexed { i, m ->
+                val t0 = SystemClock.elapsedRealtime()
                 val resp = withContext(Dispatchers.IO) { session.send(m) }
+                val ms = SystemClock.elapsedRealtime() - t0
                 if (resp == null) {
                     Log.d(TAG, "pltFile chunk ${i + 1}/${fileMsgs.size} not acknowledged")
                     finishCut(s(R.string.st_transfer_aborted, i + 1)); return
                 }
-                progress = (i + 1).toFloat() / fileMsgs.size
+                slowest = maxOf(slowest, ms)
+                if (ms >= SLOW_ACK_MS) slowCount++
+                if (i < ACK_LOG_FIRST || ms >= SLOW_ACK_MS) Log.d(TAG, "pltFile ${i + 1}/${fileMsgs.size} acked in $ms ms")
+                progress = minOf((i + 1) * PLT_CHUNK, plt.size).toFloat() / plt.size
             }
+            Log.d(TAG, "sendFile done: ${fileMsgs.size} chunks in ${SystemClock.elapsedRealtime() - sendStart} ms, " +
+                "slowest ack $slowest ms, $slowCount at or over $SLOW_ACK_MS ms")
             // Finish: end the file so the machine lifts the tool and returns (stock sends TB66 here).
             withContext(Dispatchers.IO) { Log.d(TAG, "finish TB66 -> ${session.send(PltCommand("TB66;"))}") }
             // Remember it under "recently used" now that it actually plotted (a demo run doesn't count).
@@ -2248,7 +2280,11 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
             val m = layerMatrix(layer)
             return layer.polylines.map { pl -> Polyline(pl.points.map { m.apply(it) }, pl.closed) }
         }
-        fun ordered(polys: List<Polyline>) = if (optimizeCutOrder) CutOrder.optimize(polys) else polys
+        // Copies repeat the contours as extra passes, exactly as the run paths send them.
+        fun ordered(polys: List<Polyline>): List<Polyline> {
+            val o = if (optimizeCutOrder) CutOrder.optimize(polys) else polys
+            return if (cutCopies > 1) (1..cutCopies).flatMap { o } else o
+        }
         return if (model.family == PlotterFamily.BLE_SILHOUETTE) {
             val tool = if (ls.any { it.tool == Tool.KNIFE }) Tool.KNIFE else Tool.PEN
             ordered(ls.flatMap { placed(it) }).map { CutStroke(tool, it) }
@@ -2305,6 +2341,8 @@ class KnutcutViewModel(app: Application) : AndroidViewModel(app) {
         const val TRACE_DEFAULT_LONG_EDGE_MM = 150.0 // default size of a freshly traced image
         const val PLT_CHUNK = 30            // commands per pltFile chunk (the stock sendFile value)
         const val PLOT_DRAIN_MS = 8000L     // wait after the last chunk for the machine's buffer to finish cutting
+        const val SLOW_ACK_MS = 1000L       // a chunk ack this slow gets its own log line
+        const val ACK_LOG_FIRST = 40        // log every ack of the first chunks (shows the machine's buffer filling)
 
         const val MAT_GAP_MM = 5.0          // gap between pieces when appending / auto-arranging
         const val DEMO_TRANSPORT = "DEMO"   // Settings.deviceTransport value: the last device was the demo plotter
