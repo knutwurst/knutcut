@@ -568,7 +568,7 @@ private fun LibrarySheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
     }
     LaunchedEffect(query, category) { gridState.scrollToItem(0) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.fillMaxHeight(0.96f).padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
+        Column(Modifier.fillMaxHeight(0.96f).padding(horizontal = 16.dp).padding(bottom = 24.dp + sheetNavBarPadding())) {
             Text(stringResource(R.string.ui_library), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
@@ -1136,7 +1136,7 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
         )
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
+        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp + sheetNavBarPadding()).verticalScroll(rememberScrollState())) {
             Text(pluralStringResource(R.plurals.ui_layers_title, vm.layers.size, vm.layers.size), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             val marked = vm.markedLayers.count { it in vm.layers.indices }
@@ -1247,7 +1247,7 @@ private fun LayersSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
 private fun MaterialSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
     var manage by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
+        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp + sheetNavBarPadding()).verticalScroll(rememberScrollState())) {
             Text(stringResource(R.string.ui_material_pressure), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             val recent = vm.recentMaterials()
@@ -1316,7 +1316,7 @@ private fun SettingsSheet(vm: KnutcutViewModel, version: String, onConnect: () -
     }
     // Open fully and stay there: expanding a section must not snap the sheet back to half height.
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
+        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp + sheetNavBarPadding()).verticalScroll(rememberScrollState())) {
             Text(stringResource(R.string.ui_settings), style = MaterialTheme.typography.titleMedium)
 
             SettingsGroup(stringResource(R.string.ui_project), initiallyExpanded = true) {

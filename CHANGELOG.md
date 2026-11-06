@@ -3,6 +3,12 @@
 Notable changes per release, newest first. Versions match `versionName` in the app and the
 published `latest.json` in the releases repo.
 
+## 0.66.6
+- Bottom sheets no longer slide under the navigation bar. On Android 12 with the three-button bar the
+  plot sheet's Cancel button and the bottom of every other sheet sat behind the system buttons,
+  because the navigation bar inset never reached the sheet. The sheets now read the bar height from
+  the window and pad by whatever is missing; where the sheet was already clear nothing changes.
+
 ## 0.66.5
 - The live trace in the plot sheet now follows the commands the plotter has actually received. It
   used to spread the progress evenly over the length of all paths, but the progress counts commands,

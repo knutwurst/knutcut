@@ -102,7 +102,7 @@ fun LayerColorSheet(current: Int?, onPick: (Int?) -> Unit, onDismiss: () -> Unit
                 .verticalScroll(rememberScrollState())
                 .imePadding()
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 24.dp),
+                .padding(bottom = 24.dp + sheetNavBarPadding()),
         ) {
             Text(stringResource(R.string.ui_layer_color), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(12.dp))

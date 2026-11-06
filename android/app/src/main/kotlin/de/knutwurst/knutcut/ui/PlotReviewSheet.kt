@@ -181,7 +181,7 @@ internal fun PlotReviewSheet(vm: KnutcutViewModel, onDismiss: () -> Unit) {
 
     ModalBottomSheet(onDismissRequest = { if (!vm.cutting) onDismiss() }, sheetState = sheetState) {
         // Full height in every phase, so the sheet doesn't jump when the plot starts or ends.
-        Column(Modifier.fillMaxHeight().padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+        Column(Modifier.fillMaxHeight().padding(horizontal = 20.dp).padding(bottom = 24.dp + sheetNavBarPadding())) {
             SheetHeader(vm, phase, onClose = onDismiss)
             Spacer(Modifier.height(12.dp))
 
